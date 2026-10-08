@@ -315,3 +315,20 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
 - **Mission attempts**: the road training mission (176 s) failed twice with simple controllers: a slow U-turn at the
   start and drifting off the road into the power line's pylons at (27, 29). Offers come and go (withdrawn for a while
   after a failure; no vehicle while the city is paused).
+- **Network map** (MCP Village, 2002): occupant manager `[0xB43D0C]` slot **41** GetOccupantsByStandardCityCells
+  (SC4List&, nw*, se*, **type**, -1) filled a list built in the bridge scratch (list = pointer to a root node {next,
+  prev, value}): 107 network pieces (type 0xC772BF98, occupant vtable 0xAA7FF8) on the whole 64x64 map, 1484
+  occupants with type 0. Slot 40 (the filter overload) faulted when given a type (one caught fault). Slot 48
+  ReleaseOccupantList released them and reset the root node to itself (0x413E60 frees only the game's nodes). Slot
+  32 GetFirstOccupantByStandardCityCell(occ&, x, z, type) also works (non-owning, first only - usually a prop).
+  cISC4NetworkOccupant (QI 0xA821EF94) = occupant - 4, vtable 0xAA8080; getters read +0x13C flags (bit i = network
+  type i, e.g. 0x16002001 road), +0xFC piece id (road 0x4B00, street 0x5004B00, road x street 0xAA0800), +0x104
+  rotation / flip, +0x10C primary network type, +0x110 its edges (bytes W, N, E, S: road west-east 0x00020002,
+  street 0x02000200), +0x108 / +0x114 extra {type, edges} records (the street side of a junction), +0x9C / +0xA4
+  position. Memory reads matched slots 12 / 40 / 59 for all 107 pieces. Power lines are other occupants: segments
+  0x0990B2EA (CLSID cSC4PowerLineOccupant, one per cell, 15) and poles 0x2890D4DE (6). The whole map reads in 0.9 s;
+  network_map drew the village (road along z = 30, streets south of it, two power lines) and find_route went from
+  (2, 30) to (4, 35) via the junction at (4, 30). A pipe laid along (26, 33..38) -> (30, 38) (charged 54 + 62) is
+  also type 0xC772BF98 but another class (occupant vtable 0xAA9730, network vtable 0xAA97B8) with the same getters
+  and fields (flags 0x10000010, primary type 4, edges 0x02000200); the reader accepts any class whose slots 12 / 40
+  are those getters, and network_map("pipe") drew it with its corner.

@@ -10,7 +10,7 @@ import os
 from mcp.server.fastmcp import FastMCP, Image
 
 from . import game as gamemod
-from . import build, catalog, cheats, city, content, disasters, economy, history, launch, layers, luaquery, memory, mysim, pointer, regions, terrain, udi, view
+from . import build, catalog, cheats, city, content, disasters, economy, history, launch, layers, luaquery, memory, mysim, networks, pointer, regions, terrain, udi, view
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -387,6 +387,57 @@ def tile_info(x: int, z: int) -> dict:
         out["water_depth"] = max(0.0, max(t["water_depth"][cz][cx] for cx, cz in corners))
     out["lot"] = city.lot_info(g, x, z)
     return out
+
+
+@tool(mcp, "read")
+@guarded
+def network_map(network: str = "", x0: int = 0, z0: int = 0, x1: int = -1, z1: int = -1) -> dict:
+    """Where the roads, rails, highways, streets, power lines, pipes and subways are: a character map of the area
+    (one string per cell row, rows[z - z0][x - x0]) with each cell's connected sides, read from the game's network
+    pieces. Also lists pieces that connect to a neighbour city across the map edge, and - for areas of at most 400
+    cells - every piece with its sides per network.
+
+    Args:
+        network: "" for everything above ground (pipes and subways are underground and share cells with roads), or
+            one network: road, rail, elevated_highway, street, pipe, power_line, avenue, subway, light_rail,
+            monorail, one_way_road, dirt_road, ground_highway.
+        x0: first cell column (0 = west edge).
+        z0: first cell row (0 = north edge).
+        x1: last cell column (inclusive; -1 = the city's edge).
+        z1: last cell row (inclusive; -1 = the city's edge).
+    """
+    g = _city()
+    try:
+        out = networks.network_map(g, network, x0, z0, x1, z1)
+        ax0, az0, ax1, az1 = out["area"]
+        if (ax1 - ax0 + 1) * (az1 - az0 + 1) <= 400:
+            out["pieces"] = networks.pieces(g, ax0, az0, ax1, az1)
+        return out
+    except networks.NetworkError as e:
+        return {"error": str(e), "hint": "network_map() with no arguments maps the whole city"}
+
+
+@tool(mcp, "read")
+@guarded
+def find_route(x0: int, z0: int, x1: int, z1: int, kind: str = "car") -> dict:
+    """The shortest way along connected network pieces from one cell to another (cells in order, plus the corner
+    cells where the way turns) - for planning drives, checking that places are connected, or laying pipes.
+
+    Args:
+        x0: start cell column (must hold a piece of the network).
+        z0: start cell row.
+        x1: goal cell column.
+        z1: goal cell row.
+        kind: "car" (roads, streets, avenues, one-way and dirt roads, highways) or one network name.
+    """
+    g = _city()
+    try:
+        path = networks.route(g, (x0, z0), (x1, z1), kind)
+    except networks.NetworkError as e:
+        return {"error": str(e), "hint": "network_map shows which cells hold which network"}
+    turns = [path[0]] + [b for a, b, c in zip(path, path[1:], path[2:])
+                         if (b[0] - a[0], b[1] - a[1]) != (c[0] - b[0], c[1] - b[1])] + [path[-1]]
+    return {"kind": kind, "cells": len(path), "path": [list(c) for c in path], "turns": [list(c) for c in turns]}
 
 
 @tool(mcp, "read")

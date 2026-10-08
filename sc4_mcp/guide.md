@@ -48,6 +48,10 @@ Everything is read from the game's memory, never from screenshots:
   coverage, pollution, power, water, traffic, mayor rating, population, education, health...). Values are per tract;
   `tract_size` says how many cells one value covers.
 - `tile_info(x, z)` - every layer at one cell, the terrain altitude, water, and the lot and building there.
+- `network_map(network)` - where the roads, streets, avenues, highways, rails, power lines (and, by name, pipes and
+  subways) are, one string per cell row, with each cell's connected sides as a hex digit (1 west, 2 north, 4 east,
+  8 south) and the pieces that reach a neighbour city. `find_route(x0, z0, x1, z1)` gives the cells a car (or one
+  network) follows between two places - an error means they are not connected.
 - `lots(zone, area)` - lots and their buildings (name, zone, wealth, state such as abandoned or under construction).
 - `advisors()` - what each advisor says now, with mood and priority; read it every few months.
 

@@ -10,7 +10,7 @@ import os
 from mcp.server.fastmcp import FastMCP, Image
 
 from . import game as gamemod
-from . import build, catalog, city, disasters, economy, history, launch, layers, memory, pointer, regions, view
+from . import build, catalog, cheats, city, disasters, economy, history, launch, layers, luaquery, memory, pointer, regions, view
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -230,9 +230,12 @@ def advance_time(days: int = 1, max_seconds: float = 60.0) -> dict:
 @tool(mcp, "read")
 @guarded
 def city_status() -> dict:
-    """The open city: name, mayor, founded or not, difficulty, size in cells, the game date, speed and pause state.
-    Read from the game's memory."""
-    return G.city_status()
+    """The open city: name, mayor, founded or not, difficulty, size in cells, the game date, speed and pause state,
+    read from the game's memory; and how many cheats SiMCP has used in it (cheat log)."""
+    out = G.city_status()
+    if isinstance(out, dict) and out.get("name"):
+        out["cheats_used"] = len(cheats.used(out["name"], out.get("region")))
+    return out
 
 
 def _city():
@@ -609,6 +612,18 @@ def set_camera(x: int = -1, z: int = -1, zoom: int = 0, rotation: int = -1) -> d
                  None if rotation < 0 else rotation)
 
 
+@tool(mcp, "set")
+@guarded
+def day_night(mode: str = "") -> dict:
+    """The day/night cycle, as god mode's button sets it: day_and_night (the clock runs), day (always day) or
+    night (always night). With no mode it reads the setting.
+
+    Args:
+        mode: day_and_night, day, night, or "" to read.
+    """
+    return _view(view.day_night, _city(), mode)
+
+
 @tool(mcp, "observe")
 @guarded
 def snapshot(x: int = -1, z: int = -1, zoom: int = 0, rotation: int = -1, width: int = 1024):
@@ -677,6 +692,48 @@ def dispatch(unit: str, x: int, z: int) -> dict:
         z: cell, north-south.
     """
     return _disaster(disasters.dispatch, unit, x, z)
+
+
+@tool(mcp, "act")
+@guarded
+def cheat(name: str, argument: str = "") -> dict:
+    """Run one of the game's player cheats - outside honest play, so every use is logged (SiMCP's cheats.jsonl)
+    and counted in city_status. Only vetted cheats run, with checked arguments: weaknesspays (+1,000), riskymoney
+    (+10,000, may start a riot), howdryiam (all watered), fightthepower (all powered), barstuck, whattimeizit
+    <hour>, stopwatch pause|resume|magnify <n>, showtime, whererufrom <city name>, hellomynameis <mayor name>,
+    dollyllama, casper [off], gp on|off. Developer and crashing cheats are refused.
+
+    Args:
+        name: the cheat (case-insensitive).
+        argument: its argument, if it takes one (a single word for names).
+    """
+    try:
+        return cheats.run(_city(), name, argument)
+    except cheats.CheatError as e:
+        return {"error": str(e), "hint": e.hint}
+
+
+@tool(mcp, "read")
+@guarded
+def city_figures(expression: str = "") -> dict:
+    """The city figures the game computes for its advisors (about 190 game.g_* values: population per zone and
+    wealth, tile and building counts, coverage, congestion, funds, borrowing...), read from the game's own Lua state.
+    With no expression it lists the names; with one it evaluates it, read-only.
+
+    Args:
+        expression: e.g. "game.g_population", "game.g_road_tile_count + game.g_street_tile_count",
+            "game.trend_value(game_trends.G_FUNDS, 12)". Allowed: game.g_* values, read-only game functions
+            (trend_value, trend_slope, trend_count, ordinance_is_on, difficulty_level...), the constant tables
+            (game_trends, tuning_constants...), numbers, strings, arithmetic, comparisons, and/or/not, tostring,
+            tonumber, math.*.
+    """
+    g = _city()
+    try:
+        if not expression.strip():
+            return {"figures": luaquery.variables(g)}
+        return luaquery.evaluate(g, expression)
+    except luaquery.LuaError as e:
+        return {"error": str(e), "hint": e.hint}
 
 
 @tool(mcp, "destructive")

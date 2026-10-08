@@ -80,6 +80,26 @@ game's own cost, charged to the city's funds (nothing is built that the city can
 Growth is the game's: zone land next to roads, give it power and water, and advance time; buildings grow when
 there is demand.
 
+## Looking at the city
+
+- `camera()` / `set_camera(x, z, zoom, rotation)` move the city view with the game's view commands.
+- `snapshot(...)` returns a picture the game draws itself (its own snapshot, UI included) and keeps the PNG; the
+  game window must not be minimised.
+- `day_night(mode)` keeps it day (clearer pictures), night, or lets the clock run.
+- `city_figures(expression)` reads the ~190 figures the advisors use (game.g_*), read-only.
+
+## Disasters and emergencies
+
+- `start_disaster(disaster, x, z)` uses god mode's Disasters menu through the game's disaster tool; disasters
+  unfold while the game runs. `disaster_status()` lists what is going on.
+- `dispatch(unit, x, z)` sends fire or police units, as the dispatch buttons do (a station with a free unit and a
+  road route is needed).
+
+## Cheats
+
+`cheat(name, argument)` runs one of the game's player cheats. Cheats are not honest play: SiMCP runs only vetted
+ones, logs every use, and `city_status()` shows how many were used in the city. Prefer playing without them.
+
 ## Errors
 
 Failures are tool errors with JSON `{"error": ..., "hint": ...}`. The hint says what to do next. Typical ones:

@@ -217,3 +217,13 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
 - **Dispatch**: "DispatchFireTool" arms the tool (vtable 0xA90268, id 0x68E1900A). A small fire station without a
   road: CanDispatch 1 but Dispatch 0. With a road to it, a click on a reachable road cell dispatched (count 1,
   available pylons 1); a second request failed while the one unit was out.
+- **Cheats**: the ExecuteCheat command runs a one-word cheat (weaknesspays: funds +1000, one record in the manager's
+  history vector +0x40 {id 0x4AB87766, time, 0, 0}) but returns status 2 for a cheat with an argument (the command
+  line splits it). SiMCP builds a cRZString (ctor 0x578390, FromChar(text, len) = slot 3) and calls the manager's
+  slot 22 DoDefaultCheatCodeProcessing(&str, &id): "hellomynameis Tester" renamed the mayor (read back), then back to
+  SiMCP; weaknesspays +1000.
+- **Lua**: app slot 47 = `[A+0x658]` (vtable 0xAC4148). DoString (slot 54) returns 0, or 3 on a syntax error;
+  GetTop 6 / ToString(-1) 24 / SetTop 7 read a result: "return tostring(1+2)" -> "3"; game.g_funds 982306 (the
+  advisors' last snapshot); game.trend_value(game_trends.G_FUNDS, 6) -> 999; 189 game.g_* names (pairs over game).
+- **Day / night**: EnableDayOnly / EnableNightOnly / EnableDayAndNight set prefs byte `[[0xB43CD8]]` 1 / 2 / 0 and
+  the clock mode `[[0xB43DBC]+0x74]` 1 / 2 / 0.

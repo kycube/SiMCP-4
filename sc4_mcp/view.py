@@ -102,3 +102,20 @@ def snapshot(g, width: int = 1024, settle_s: float = 0.4) -> tuple[dict, bytes]:
     buf = io.BytesIO()
     im.save(buf, "JPEG", quality=85)
     return dict(cam, file=path, size=list(im.size)), buf.getvalue()
+
+
+G_PREFS, G_CLOCK = 0xB43CD8, 0xB43DBC
+DAY_NIGHT = {"day_and_night": "EnableDayAndNight", "day": "EnableDayOnly", "night": "EnableNightOnly"}
+DAY_NIGHT_BY_BYTE = {0: "day_and_night", 1: "day", 2: "night"}
+
+
+def day_night(g, mode: str = "") -> dict:
+    """The day/night cycle (god mode's button and the game's commands): day_and_night, day (always noon) or night.
+    The setting is the preference byte prefs+0 and the 24-hour clock's mode +0x74."""
+    p = g.proc
+    if mode:
+        if mode not in DAY_NIGHT:
+            raise ViewError("unknown mode %r" % mode, "day_and_night, day or night")
+        g.bridge.command(DAY_NIGHT[mode])
+    prefs = p.u32(G_PREFS)
+    return {"day_night": DAY_NIGHT_BY_BYTE.get(p.u8(prefs), p.u8(prefs)) if prefs else None}

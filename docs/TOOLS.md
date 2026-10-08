@@ -34,7 +34,7 @@ All tools have openWorldHint false (they act on the local game only).
 | [`close_dialog`](#close_dialog) | act | Answer the topmost dialog by pressing one of its buttons, as the player clicks it. |
 | [`set_popups`](#set_popups) | set | Whether the game opens popup windows (advisor messages, message boxes) during play. |
 | [`leave_city`](#leave_city) | destructive | Go back to the region view without saving (unsaved changes to the city are lost). |
-| [`advance_time`](#advance_time) | act | Advance the open city by exactly this many game days, far faster than real time, with the game's own day code: every day runs all of the simulation's daily, weekly, monthly and yearly work. |
+| [`advance_time`](#advance_time) | act | Advance the open city by this many game days and pause exactly on the target day. |
 | [`city_status`](#city_status) | read | The open city: name, mayor, founded or not, difficulty, size in cells, the game date, speed and pause state, read from the game's memory; and how many cheats SiMCP has used in it (cheat log). |
 | [`map_data`](#map_data) | read | One data layer of the open city as a grid, read from the game's memory: the values the game's data views and simulation use. |
 | [`tile_info`](#tile_info) | read | Everything about one cell of the open city: the value of every data layer there, the terrain altitude at its corners, water depth and sea level, and the lot / building standing on it. |
@@ -217,12 +217,15 @@ No parameters.
 
 *act*
 
-Advance the open city by exactly this many game days, far faster than real time, with the game's own day code: every day runs all of the simulation's daily, weekly, monthly and yearly work. The game's own pause and speed settings are left as they were. Returns the new date; if max_seconds runs out first, remaining_days says how many days are left (call again to continue).
+Advance the open city by this many game days and pause exactly on the target day.
+
+mode "natural" (default) lets the game play at its fast speed - everything happens as for a player who presses fast and waits (buildings finish construction, cars drive, idle work runs), about 10-20 days per second. "unthrottled" removes the game's spacing between days (much faster, but buildings finish on wall-clock time in this game, so fewer complete per day). "exact" steps days with the game's day code under a hidden pause (fastest and fully deterministic per day; construction barely progresses - use it for budget / time checks). The player's speed and pause state are restored. If max_seconds runs out first, remaining_days says how many days are left.
 
 | parameter | type | default | description |
 |---|---|---|---|
 | `days` | integer | `1` | game days to advance (1 or more). |
-| `max_seconds` | number | `60.0` | wall-clock limit for this call (keep it under your client's tool timeout). |
+| `mode` | string | `'natural'` | natural, unthrottled or exact. |
+| `max_seconds` | number | `90.0` | wall-clock limit for this call (keep it under your client's tool timeout). |
 
 ## city_status
 

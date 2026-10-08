@@ -228,6 +228,13 @@ class Bridge:
             deadline = (win32.k32.GetTickCount() + ttl_ms) & 0xFFFFFFFF
             self.proc.write(self.block + B_PICK, struct.pack("<I", deadline or 1))
 
+    def faults(self) -> int:
+        """Exceptions the bridge caught inside game code since it loaded: the game may be in an inconsistent state
+        afterwards (a simulator stuck mid-update), so a restart is the safe course."""
+        if not self.block:
+            return 0
+        return self.proc.u32(self.block + B_PICK + 24)
+
     def pick_hits(self) -> int:
         return self.proc.u32(self.block + B_PICK + 16)
 
@@ -290,10 +297,11 @@ class Bridge:
             time.sleep(0.1)
         return {"pending": True}
 
-    def step_days(self, days: int, max_ms: int = 250) -> dict:
+    def step_days(self, days: int, max_ms: int = 250, idle_per_day: int = 1) -> dict:
         """One bounded slice of exact day steps (see bridge/simcp4bridge.cpp StepDays); call again while
-        in_progress or until all days are done, letting the game's loop run in between."""
-        r = self.call(OP_STEP_DAYS, [days, max_ms], timeout_ms=max_ms + 15000)
+        in_progress or until all days are done, letting the game's loop run in between. idle_per_day gives the
+        game's idle agents that many passes after each day, as its own loop does between days."""
+        r = self.call(OP_STEP_DAYS, [days, max_ms, 0, idle_per_day], timeout_ms=max_ms + 15000)
         if not r.ok:
             raise BridgeError("stepping failed (status %d): %s" % (r.status, r.msg))
         return {"days": r.ret[0], "steps": r.ret[1], "day_number": r.ret[2] & 0xFFFFFFFF, "idle_passes": r.ret[3],

@@ -167,3 +167,18 @@ def all_series(p: win32.Process) -> list[dict]:
             d.update(first=_date(s[0][0]), last=_date(s[-1][0]), latest=s[-1][1])
         out.append(d)
     return out
+
+
+WATCHED = {0xAA11F7CE: "power", 0x0A14EBB4: "water"}
+
+
+def stalled(p, today: int, max_gap: int = 70) -> list[str]:
+    """Simulators whose monthly history stopped (a sign the game process is in a bad state: restart it)."""
+    idx = _samples_index(p)
+    out = []
+    for sid, name in WATCHED.items():
+        if sid in idx:
+            s = _samples(p, idx[sid])
+            if s and today - s[-1][0] > max_gap:
+                out.append(name)
+    return out

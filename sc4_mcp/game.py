@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import struct
 import time
 
 from . import bridge, identity, launch, memory, regions, win32
@@ -14,6 +15,7 @@ APP_GET_POPUPS = 23         # Get/SetPopupDialogsEnabled
 APP_SET_POPUPS = 24
 APP_GET_REGION = 35
 APP_GET_CITY = 37
+SIM_MS_PER_DAY = 0x80     # simulator: wall-clock ms per day (the speed's throttle)
 SIM_HIDDEN_PAUSE = 10       # cISC4Simulator::HiddenPause / HiddenResume (counted)
 SIM_HIDDEN_RESUME = 13
 BTN_MAYOR_MODE = 0xC988BC79  # city control panel (layout 0xC973B411): Mayor Mode
@@ -113,6 +115,11 @@ class Game:
         city = memory.city_basics(self.proc)
         if city:
             out["city"] = city
+        faults = self.bridge.faults() if self.bridge and self.bridge.block else 0
+        if faults:
+            out["faults_caught"] = faults
+            out["warning"] = ("the bridge caught %d fault(s) inside the game's code since it loaded; a simulator may "
+                              "be stuck mid-update - save if needed, then quit_game and game_launch" % faults)
         return out
 
     # ---- regions and cities
@@ -227,6 +234,67 @@ class Game:
                 "day_number": end, "elapsed_days": end - start, "seconds": round(dt, 2),
                 "days_per_second": round(done / dt, 1) if dt > 0 else None, "steps": steps, "idle_passes": idles}
 
+    def run_days(self, days: int, max_seconds: float = 120.0, unthrottled: bool = False) -> dict:
+        """Advance the open city `days` game days by letting the game's own loop run at its fast speed, so
+        everything the game does while it plays happens (construction finishing, automata, idle work), then pause
+        on the target day: the last two days run at 400 ms each so the pause lands exactly. unthrottled lifts the
+        game's wall-clock day spacing (ms-per-day S+0x80 = 0): days pass as fast as the machine allows, but
+        buildings finish on wall-clock time in this game, so fewer of them complete per day. The player's speed and
+        pause state are restored afterwards."""
+        b = self.attach(10.0)
+        p = self.proc
+        if memory.app_state(p) != 2:
+            raise GameError("no city is open", "load_city opens one")
+        sim = p.u32(memory.G_SIMULATOR)
+        if not sim:
+            raise GameError("the city has no simulator yet", "wait a moment and retry")
+        c0 = memory.city_basics(p)
+        speed0, paused0 = c0["speed"], c0["paused"]
+        start = p.u32(sim + memory.SIM_DAY)
+        target = start + days
+        t0 = time.time()
+        stalled_since, reason = None, None
+        throttle = sim + SIM_MS_PER_DAY
+        fast_ms = None
+        try:
+            b.command("SimSpeedFast")              # the speed button also un-pauses
+            if memory.city_basics(p)["paused"]:
+                b.command("SimSpeedPause")
+            fast_ms = p.u32(throttle)
+            while time.time() - t0 < max_seconds:
+                day = p.u32(sim + memory.SIM_DAY)
+                if day >= target:
+                    break
+                p.write(throttle, struct.pack("<I", 400 if target - day <= 2 else (0 if unthrottled else fast_ms)))
+                time.sleep(0.005)
+                if p.u32(sim + memory.SIM_DAY) == day:
+                    stalled_since = stalled_since or time.time()
+                    if time.time() - stalled_since > 3.0:
+                        from . import dialogs
+                        if dialogs.is_modal(self):
+                            reason = "a dialog is open and holds the clock (dialog_status, close_dialog)"
+                            break
+                        stalled_since = time.time()
+                else:
+                    stalled_since = None
+        finally:
+            if not memory.city_basics(p)["paused"]:
+                b.command("SimSpeedPause")         # stop on the target day first
+            b.command({"slow": "SimSpeedSlow", "medium": "SimSpeedMedium", "fast": "SimSpeedFast"}.get(speed0,
+                                                                                              "SimSpeedSlow"))
+            if memory.city_basics(p)["paused"] != paused0:
+                b.command("SimSpeedPause")
+        end = p.u32(sim + memory.SIM_DAY)
+        y, m, d = memory.jdn_to_date(end)
+        dt = time.time() - t0
+        out = {"days": end - start, "remaining_days": max(0, target - end), "date": "%04d-%02d-%02d" % (y, m, d),
+               "day_number": end, "seconds": round(dt, 2),
+               "days_per_second": round((end - start) / dt, 1) if dt > 0 else None,
+               "mode": "unthrottled" if unthrottled else "natural"}
+        if reason:
+            out["stopped"] = reason
+        return out
+
     # ---- founding, speed, saving
     def found_city(self, name: str, mayor: str, difficulty: str = "easy", timeout: float = 30.0) -> dict:
         """The player's flow: Mayor Mode button (0xC988BC79, city control panel) -> the Establish City dialog: city and
@@ -310,18 +378,22 @@ class Game:
         if rel and os.path.exists(shipped) and not allow_shipped:
             raise GameError("this city is SiMCP's copy of a city shipped with the game (%s)" % rel,
                             "found a new city (MCP Test region) to save, or pass allow_shipped=true")
-        # The game names the file after the city at save time ("City - <name>.sc4"), so watch the region folder.
+        # The game names the file after the city at save time ("City - <name>.sc4") and also rewrites its
+        # neighbours' files (regional data), so watch for the open city's own file name.
         folder = os.path.dirname(path)
         start = time.time() - 1
+        own = ("city - %s.sc4" % memory.city_basics(self.proc)["name"]).lower()
 
         def newest():
             best = None
             for f in os.listdir(folder):
                 q = os.path.join(folder, f)
                 if f.lower().endswith(".sc4") and os.path.getmtime(q) > start:
+                    if f.lower() == own:
+                        return q
                     if best is None or os.path.getmtime(q) > os.path.getmtime(best):
                         best = q
-            return best
+            return best if best and os.path.basename(best).lower() == own else None
 
         from . import dialogs
         r = b.command("SaveCity", defer=True, timeout_s=3)

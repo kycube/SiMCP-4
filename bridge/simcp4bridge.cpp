@@ -90,6 +90,7 @@ struct BridgeBlock {
 	float pickPos[3];
 	DWORD pickHits;
 	DWORD pickInstalled;
+	DWORD faults;         // exceptions caught inside game code since this bridge loaded (the game may be inconsistent)
 };
 #pragma pack(pop)
 
@@ -164,7 +165,7 @@ static bool ListsFinished(BYTE *S) {
 }
 
 // Advances the simulation by whole days with the game's own day code (re/agents/time REPORT.md section 4).
-static int StepDays(int days, DWORD maxMs, int maxSteps, int *r) {
+static int StepDays(int days, DWORD maxMs, int maxSteps, int idlePerDay, int *r) {
 	BYTE *S = (BYTE *)(UINT_PTR)*(DWORD *)G_SIMULATOR;
 	if (!S) {
 		Msg("no city simulator");
@@ -203,8 +204,18 @@ static int StepDays(int days, DWORD maxMs, int maxSteps, int *r) {
 		bool advanced = *(DWORD *)(S + 0xEC) != d0;
 		if (inProgress || advanced) {
 			blocked = 0;
-			if (ListsFinished(S))
+			if (ListsFinished(S)) {
 				done++;
+				// The game's own loop runs its idle agents between days (construction finishing, power and water
+				// networks, growth bookkeeping); give them the same passes with the hidden pause lifted.
+				for (int i = 0; i < idlePerDay; i++) {
+					int hidden = *(int *)(S + 0x34);
+					*(int *)(S + 0x34) = 0;
+					((SimFn)FN_SIM_RUN_IDLE)(S);
+					*(int *)(S + 0x34) = hidden;
+					idles++;
+				}
+			}
 			continue;
 		}
 		// Nothing moved: one-shot agents (queued right after a city loads) hold the clock - AdvanceTime returns at
@@ -350,7 +361,7 @@ static int Execute(DWORD op) {
 		return 0;
 	}
 	case OP_STEP_DAYS:
-		return StepDays(a[0], a[1] ? (DWORD)a[1] : 250, a[2] ? a[2] : 5000, r);
+		return StepDays(a[0], a[1] ? (DWORD)a[1] : 250, a[2] ? a[2] : 5000, a[3] < 0 ? 0 : a[3], r);
 	}
 	Msg("unknown op %u", op);
 	return -1;
@@ -416,6 +427,7 @@ extern "C" __declspec(dllexport) int __stdcall SimcpBridgeExecute(DWORD op) {
 	}
 	__except (EXCEPTION_EXECUTE_HANDLER) {
 		Msg("exception 0x%08X while executing op %u", GetExceptionCode(), op);
+		g_bridge.faults++;
 		status = -100;
 	}
 	g_bridge.status = status;
@@ -432,6 +444,7 @@ extern "C" __declspec(dllexport) int __stdcall SimcpBridgeRunDeferred(DWORD) {
 			g_bridge.state.deferRet = CallGeneric(g_defer.fn, g_defer.thisPtr, g_defer.nargs, g_defer.args);
 	}
 	__except (EXCEPTION_EXECUTE_HANDLER) {
+		g_bridge.faults++;
 		status = -100;
 	}
 	g_bridge.state.deferStatus = status;

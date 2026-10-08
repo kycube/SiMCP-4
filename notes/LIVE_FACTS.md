@@ -227,3 +227,31 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   advisors' last snapshot); game.trend_value(game_trends.G_FUNDS, 6) -> 999; 189 game.g_* names (pairs over game).
 - **Day / night**: EnableDayOnly / EnableNightOnly / EnableDayAndNight set prefs byte `[[0xB43CD8]]` 1 / 2 / 0 and
   the clock mode `[[0xB43DBC]+0x74]` 1 / 2 / 0.
+
+## Session 2026-10-08 (Phase 3: growth, and what the long-running game process taught)
+
+- **A stuck game process**: after many hours of development in one game process (pid 40776), the power and
+  plumbing simulators did nothing in every city (no power grid at all - even a water tower touching a coal plant
+  stayed unpowered; the power / water history series stopped: MCP Town on 2000-03-01, Konradshohe made no new
+  sample over two game years), while the budget and other simulators kept going. A fresh process (pid 41796)
+  powered the same layout at once. The cause is not known; the prime suspect is an exception caught by the bridge's
+  SEH inside game code during early development (a simulator left mid-update). The bridge now counts caught faults
+  (game_status warns), and city_status warns when the power or water history stops for over 70 days.
+- **Growth in a healthy process** (MCP Village, fresh city on MCP Test tile (6, 1)): road, coal plant facing it,
+  a power line through R-low and I-medium zones: lots go under construction within a month; buildings finish only
+  while the game's own loop runs (wall-clock construction): with the exact day stepper, 24 houses stayed "under
+  construction" for three months, then finished within 3 s of real-time play (population 124). One idle pass per
+  stepped day (now in StepDays) finishes a few; real-time play finishes all.
+- **advance_time modes**: "natural" (default) runs the game at its fast speed (50 ms per day here, about 13 days
+  per second with the slow final approach) and pauses exactly on the target day (three 30-day runs: exact; houses,
+  factories and shops completed, population 202). "unthrottled" (ms-per-day S+0x80 = 0) runs 50-140 days per second
+  but fewer buildings complete per day. "exact" is the hidden-pause stepper.
+- **Zots** (snapshot): crossed car on residential lots = no job access (lot slot 27 HasJobAccess false: no jobs
+  anywhere yet); lightning = no power. Lot slot 28 HasRoadAccess; lot flag 0x10 = powered (empty zoned lots
+  conduct power from neighbours in a healthy process). Power plants need road access (car zot without one).
+- **Saving** rewrites the neighbouring cities' files too (regional data): save_city now reports the open city's own
+  "City - <name>.sc4". A city saved while user-paused loads paused, with the 9 one-shot agents (Demand, Traffic,
+  Budget, Aura, Commercial, Residential, LandValue, LotDeveloper, BuildingDevelopment) waiting until it runs.
+- **Simulator agent lists**: S+0x114+12t = {map header, count}; an STLport map keyed by the agent pointer, node
+  value {+0x14 enabled byte, +0x18 cRZString class name}. Types seen: 0 one-shot, 4 day (34), 5 week (1),
+  6 month (26), 7 year (2), 10 idle (23).

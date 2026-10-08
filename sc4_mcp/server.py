@@ -212,19 +212,31 @@ def leave_city() -> dict:
 
 @tool(mcp, "act")
 @guarded
-def advance_time(days: int = 1, max_seconds: float = 60.0) -> dict:
-    """Advance the open city by exactly this many game days, far faster than real time, with the game's own day
-    code: every day runs all of the simulation's daily, weekly, monthly and yearly work. The game's own pause and
-    speed settings are left as they were. Returns the new date; if max_seconds runs out first, remaining_days says
-    how many days are left (call again to continue).
+def advance_time(days: int = 1, mode: str = "natural", max_seconds: float = 90.0) -> dict:
+    """Advance the open city by this many game days and pause exactly on the target day.
+
+    mode "natural" (default) lets the game play at its fast speed - everything happens as for a player who presses
+    fast and waits (buildings finish construction, cars drive, idle work runs), about 10-20 days per second.
+    "unthrottled" removes the game's spacing between days (much faster, but buildings finish on wall-clock time in
+    this game, so fewer complete per day). "exact" steps days with the game's day code under a hidden pause
+    (fastest and fully deterministic per day; construction barely progresses - use it for budget / time checks).
+    The player's speed and pause state are restored. If max_seconds runs out first, remaining_days says how many
+    days are left.
 
     Args:
         days: game days to advance (1 or more).
+        mode: natural, unthrottled or exact.
         max_seconds: wall-clock limit for this call (keep it under your client's tool timeout).
     """
     if days < 1:
         return {"error": "days must be 1 or more", "hint": "advance_time(days=30) advances a month"}
-    return G.advance_days(days, max_seconds)
+    if mode == "exact":
+        out = G.advance_days(days, max_seconds)
+        out["mode"] = "exact"
+        return out
+    if mode not in ("natural", "unthrottled"):
+        return {"error": "unknown mode %r" % mode, "hint": "natural, unthrottled or exact"}
+    return G.run_days(days, max_seconds, unthrottled=(mode == "unthrottled"))
 
 
 @tool(mcp, "read")
@@ -235,6 +247,10 @@ def city_status() -> dict:
     out = G.city_status()
     if isinstance(out, dict) and out.get("name"):
         out["cheats_used"] = len(cheats.used(out["name"], out.get("region")))
+        bad = history.stalled(G.proc, out.get("day_number") or 0)
+        if bad:
+            out["warning"] = ("the %s simulator has stopped (no history for over two months): the game process is in "
+                              "a bad state - save, then quit_game and game_launch" % " and ".join(bad))
     return out
 
 

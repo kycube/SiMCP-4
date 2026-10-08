@@ -298,3 +298,13 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   and the playground props appeared. A first attempt picked the lot exemplar as the "building" (same instance in
   two groups) - fixed by excluding the lot group; that file sits in `<SiMCP home>\content-disabled`. In this setup a
   plugin replaces the Playground lot's building (the live lot names 0xB47406A3), so designs use the game's own lot.
+- **Content server, stage 2 (own models)**: S3D codec (sc4_mcp/s3d.py) round-trips 398 of 400 sampled game models
+  (130 byte-identical; the rest only had wrong chunk sizes from Maxis); FSH writer (32-bit 0x7D, "G264"/"0000");
+  DXT1/3 decoding checked on a game texture. A generated box (RKT0 = one 3D model for every zoom and rotation,
+  model in 0xBADB57F1, textures in 0x1ABE787D at instances checked free against SimCity_1..5.dat) rendered as a
+  real 3D building with a shadow at every rotation: "MCP Tower" (10x10x40 m, plop 800) and "MCP Office"
+  (14x10x28 m, plop 900) on generated 1x1 lots (one building row centred, the small plaza's paving texture
+  0x258E3000). Texture coordinates beyond 0..1 are clamped (wrap byte 1 does not repeat), so walls are split into
+  4 m quads, each with its own 0..1 window tile; faces are written both ways round. The game keeps plugin files
+  open while it runs: disabling a design needs the game closed (a failed move had left a copy in
+  content-disabled; disable now renames atomically).

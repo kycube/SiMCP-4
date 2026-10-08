@@ -108,6 +108,16 @@ there is demand.
   `stop_driving()` leaves the vehicle.
 - `move_in_sim(x, z)` moves a My Sim into the house on a cell; `my_sims()` follows them (home, job, where they are).
 
+## Making new buildings
+
+- `design_building(name, template, ...)` makes a new menu item from one of the game's own (its models, props and
+  textures) with a new name, description and costs.
+- `design_model_building(name, width_m, depth_m, height_m, wall_rgb, roof_rgb, ...)` makes a building with its own
+  generated 3D model and textures on its own lot.
+- Designs are plugin files in SiMCP's own Plugins folder (`content_designs()`); the game loads them at start-up, so
+  `quit_game()` and `game_launch()` before they appear in `build_menu()`. `disable_design(name)` (with the game
+  closed) moves a design's file aside.
+
 ## Cheats
 
 `cheat(name, argument)` runs one of the game's player cheats. Cheats are not honest play: SiMCP runs only vetted

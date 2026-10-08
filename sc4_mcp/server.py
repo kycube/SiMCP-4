@@ -974,6 +974,34 @@ def design_building(name: str, template: str, description: str = "", plop_cost: 
                     None if bulldoze_cost < 0 else bulldoze_cost)
 
 
+@tool(mcp, "act")
+@guarded
+def design_model_building(name: str, width_m: float, depth_m: float, height_m: float, wall_rgb: list[int],
+                          roof_rgb: list[int], windows: bool = True, lot_cells: int = 1, description: str = "",
+                          plop_cost: int = 500, monthly_cost: int = 20) -> dict:
+    """Design a new building with its own 3D model and textures (a block with a window grid and a flat roof) on
+    its own paved lot, for the Parks menu; written as a plugin into SiMCP's own Plugins folder. The game loads
+    plugins at start-up: quit_game and game_launch, then it is in build_menu like any other.
+
+    Args:
+        name: the new building's name, shown in the menu.
+        width_m: west-east size in metres (a cell is 16 m; it must fit the lot).
+        depth_m: north-south size in metres.
+        height_m: height in metres (2..400).
+        wall_rgb: the wall colour [r, g, b] (0..255).
+        roof_rgb: the roof colour [r, g, b].
+        windows: draw a window on every 4 m x 4 m of wall.
+        lot_cells: the lot's size in cells a side (1..6).
+        description: the menu description.
+        plop_cost: the plop cost.
+        monthly_cost: the monthly cost.
+    """
+    if len(wall_rgb) != 3 or len(roof_rgb) != 3 or not all(0 <= c <= 255 for c in list(wall_rgb) + list(roof_rgb)):
+        return {"error": "colours are [r, g, b] with values 0..255"}
+    return _content(content.model_building, name, width_m, depth_m, height_m, tuple(wall_rgb), tuple(roof_rgb),
+                    windows, lot_cells, description, plop_cost, monthly_cost)
+
+
 @tool(mcp, "destructive")
 @guarded
 def disable_design(name: str) -> dict:

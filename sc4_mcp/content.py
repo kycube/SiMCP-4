@@ -16,7 +16,6 @@ import json
 import os
 import random
 import re
-import shutil
 import time
 
 from . import dbpf, gamedata, launch
@@ -78,6 +77,33 @@ def _set(props: list[dbpf.Property], pid: int, ptype: int, values, multi: bool =
 
 def _drop(props: list[dbpf.Property], *ids: int) -> list[dbpf.Property]:
     return [p for p in props if p.id not in ids]
+
+
+_game_ids: set[tuple[int, int, int]] | None = None
+
+
+def game_ids() -> set[tuple[int, int, int]]:
+    """Every (type, group, instance) in the game's own data files (so new models and textures never replace one)."""
+    global _game_ids
+    if _game_ids is None:
+        from . import identity
+        ids = set()
+        for i in range(1, 6):
+            try:
+                ids.update(e.tgi for e in dbpf.DBPF(os.path.join(identity.game_dir(), "SimCity_%d.dat" % i)))
+            except OSError:
+                pass
+        _game_ids = ids
+    return _game_ids
+
+
+def _free(tgi_type: int, group: int, mask: int, taken: set[int]) -> int:
+    ids = game_ids()
+    while True:
+        v = (random.getrandbits(32) | 0x10000000) & mask
+        if v not in taken and (tgi_type, group, v) not in ids and all(
+                (tgi_type, group, (v + k) & 0xFFFFFFFF) not in ids for k in range(0, 0x500, 0x10)):
+            return v
 
 
 def _new_ids(taken: set[int], n: int) -> list[int]:
@@ -160,8 +186,137 @@ def disable(name: str) -> dict:
     os.makedirs(DISABLED, exist_ok=True)
     if os.path.exists(d["file"]):
         dest = os.path.join(DISABLED, os.path.basename(d["file"]))
-        shutil.move(d["file"], dest)
+        try:
+            os.replace(d["file"], dest)             # a rename: all or nothing
+        except PermissionError:
+            raise ContentError("the game has the design's file open", "quit_game first, then disable_design")
         d["file"] = dest
     d["disabled"] = True
     _save_manifest(items)
     return dict(d, note="restart the game for the change to take effect")
+
+
+# ------------------------------------------------------------------------------------- stage 2: our own models
+G_MODELS, G_TEXTURES, G_LOT_TEXTURES = 0xBADB57F1, 0x1ABE787D, 0x0986135E
+LOT_COHORT = (dbpf.T_COHORT, G_LOTS, 0xAA1B5002)
+PAVING = 0x258E3000            # a game lot texture (the small plaza's paving)
+P_SIZE, P_RKT0, P_RKT1, P_RKT4 = 0x27812810, 0x27812820, 0x27812821, 0x27812824
+
+
+def _fx(metres: float) -> int:
+    """16.16 fixed-point metres, as lot rows store positions."""
+    return int(round(metres * 65536)) & 0xFFFFFFFF
+
+
+def wall_tile(wall: tuple[int, int, int], windows: bool = True, size: int = 32) -> bytes:
+    """RGBA of one repeating wall tile (one window per tile; a tile covers 4 m x 4 m of wall)."""
+    from PIL import Image, ImageDraw
+    im = Image.new("RGBA", (size, size), wall + (255,))
+    if windows:
+        d = ImageDraw.Draw(im)
+        d.rectangle([size // 4, size // 4, size * 3 // 4 - 1, size * 3 // 4 + 1], fill=(60, 80, 110, 255))
+        d.line([size // 4, size * 3 // 4 + 2, size * 3 // 4 - 1, size * 3 // 4 + 2], fill=(235, 235, 230, 255))
+    return im.tobytes()
+
+
+def solid(color: tuple[int, int, int], size: int = 8) -> bytes:
+    return bytes(color + (255,)) * (size * size)
+
+
+def box_mesh(width: float, depth: float, height: float, wall_tex: int, roof_tex: int, tile_m: float = 4.0):
+    """A box building: walls (one window tile per tile_m x tile_m of wall, as separate quads - the game clamps
+    texture coordinates) and a roof (its own texture), centred on the origin, y up; faces drawn from both sides."""
+    import math
+    from . import s3d
+    w, dp, h = width / 2, depth / 2, height
+
+    def quad(verts, tris, pts, uvs):
+        base = len(verts)
+        for p, (u, v) in zip(pts, uvs):
+            verts.append((p[0], p[1], p[2], u, v))
+        for t in ((0, 1, 2), (0, 2, 3)):
+            tris.append(tuple(base + i for i in t))
+            tris.append(tuple(base + i for i in reversed(t)))
+    wv, wt = [], []
+    rows = max(1, math.ceil(h / tile_m - 1e-6))
+    for (ax, az), (bx, bz) in (((-w, -dp), (w, -dp)), ((w, -dp), (w, dp)), ((w, dp), (-w, dp)), ((-w, dp), (-w, -dp))):
+        length = abs(bx - ax) + abs(bz - az)
+        cols = max(1, math.ceil(length / tile_m - 1e-6))
+        for c in range(cols):
+            f0, f1 = c * tile_m / length, min(1.0, (c + 1) * tile_m / length)
+            x0, z0 = ax + (bx - ax) * f0, az + (bz - az) * f0
+            x1, z1 = ax + (bx - ax) * f1, az + (bz - az) * f1
+            u1 = (f1 - f0) * length / tile_m
+            for r in range(rows):
+                y0, y1 = r * tile_m, min(h, (r + 1) * tile_m)
+                v0 = (y1 - y0) / tile_m
+                quad(wv, wt, ((x0, y0, z0), (x1, y0, z1), (x1, y1, z1), (x0, y1, z0)),
+                     ((0, v0), (u1, v0), (u1, 0), (0, 0)))
+    rv, rt = [], []
+    quad(rv, rt, ((-w, h, -dp), (w, h, -dp), (w, h, dp), (-w, h, dp)), ((0, 0), (1, 0), (1, 1), (0, 1)))
+    return s3d.multi_mesh([(wv, wt, wall_tex, False), (rv, rt, roof_tex, False)], name=b"SiMCP_box")
+
+
+def model_building(name: str, width: float, depth: float, height: float, wall=(205, 195, 170), roof=(90, 90, 95),
+                   windows: bool = True, lot_cells: int = 1, description: str = "", plop_cost: int = 500,
+                   monthly_cost: int = 20, template_building: int = 0x4A635AD2, taken: set[int] | None = None) -> dict:
+    """A new building with its own model and texture on its own lot (Parks / landmarks properties of the template
+    building), written as a plugin into SiMCP's Plugins folder."""
+    from . import fsh, s3d
+    if any(d["name"].lower() == name.lower() and not d.get("disabled") for d in _manifest()):
+        raise ContentError("a design named %r exists" % name, "content_designs lists them")
+    if not (2 <= width <= 16 * lot_cells - 1 and 2 <= depth <= 16 * lot_cells - 1 and 2 <= height <= 400):
+        raise ContentError("the building must fit its lot: width and depth 2..%d m, height 2..400 m"
+                           % (16 * lot_cells - 1))
+    if not 1 <= lot_cells <= 6:
+        raise ContentError("lots are 1 to 6 cells a side here")
+    be, bld = _find_exemplar(dbpf.T_EXEMPLAR, template_building, not_group=G_LOTS)
+    if bld is None:
+        raise ContentError("the template building is not in the game's own data")
+    lot_iid, bld_iid = _new_ids(taken or set(), 2)
+    model_iid = _free(dbpf.T_S3D, G_MODELS, 0xFFFF0000, taken or set())
+    tex_iid = _free(dbpf.T_FSH, G_TEXTURES, 0xFFFFFF00, taken or set())
+    wall_fsh = fsh.write_argb(32, 32, wall_tile(tuple(wall), windows))
+    roof_fsh = fsh.write_argb(8, 8, solid(tuple(roof)))
+    model = s3d.write(box_mesh(width, depth, height, tex_iid, tex_iid + 1))
+    side = 16.0 * lot_cells
+    cx = cz = side / 2
+    rows = [
+        [0, 0, 0, _fx(cx), 0, _fx(cz), _fx(cx - width / 2), _fx(cz - depth / 2), _fx(cx + width / 2),
+         _fx(cz + depth / 2), 0, 1, bld_iid],
+        [2, 0, 0, _fx(cx), 0, _fx(cz), _fx(0.04), _fx(0.04), _fx(side + 0.04), _fx(side + 0.04), 0, 2, PAVING],
+    ]
+    lprops = [dbpf.Property(0x10, dbpf.PT_UINT32, [0x10]), dbpf.Property(P_NAME, dbpf.PT_STRING, "SiMCP_" + _slug(name)),
+              dbpf.Property(0x27812837, dbpf.PT_UINT8, [1], True), dbpf.Property(0x4A4A88F0, dbpf.PT_UINT8, [8], True),
+              dbpf.Property(0x88EDC789, dbpf.PT_UINT8, [2], True),
+              dbpf.Property(0x88EDC790, dbpf.PT_UINT8, [lot_cells, lot_cells], True),
+              dbpf.Property(0x88EDC793, dbpf.PT_UINT8, [15], True), dbpf.Property(0x88EDC795, dbpf.PT_UINT8, [0], True),
+              dbpf.Property(0x88EDC796, dbpf.PT_UINT8, [0], True)]
+    for i, r in enumerate(rows):
+        lprops.append(dbpf.Property(LOT_ROW0 + i, dbpf.PT_UINT32, r, True))
+    bprops = _drop([dbpf.Property(p.id, p.ptype, list(p.values) if isinstance(p.values, list) else p.values,
+                                  p.multi) for p in bld.props], P_NAME_KEY, P_DESC_KEY, P_RKT1, P_RKT4)
+    _set(bprops, P_NAME, dbpf.PT_STRING, "SiMCP_" + _slug(name))
+    _set(bprops, P_ITEM_NAME, dbpf.PT_STRING, name)
+    _set(bprops, P_ITEM_DESC, dbpf.PT_STRING, description or name)
+    _set(bprops, P_LOT_KEY, dbpf.PT_UINT32, [lot_iid])
+    _set(bprops, P_SIZE, dbpf.PT_FLOAT32, [float(width), float(height), float(depth)], multi=True)
+    _set(bprops, P_RKT0, dbpf.PT_UINT32, [dbpf.T_S3D, G_MODELS, model_iid], multi=True)
+    _set(bprops, P_PLOP, dbpf.PT_SINT64, [int(plop_cost)])
+    old = [p for p in bprops if p.id == P_MONTHLY]
+    _set(bprops, P_MONTHLY, dbpf.PT_SINT64, [int(monthly_cost)], multi=old[0].multi if old else True)
+    records = [(dbpf.T_EXEMPLAR, G_SIMCP_BUILDINGS, bld_iid, dbpf.build_exemplar(bprops, bld.parent)),
+               (dbpf.T_EXEMPLAR, G_LOTS, lot_iid, dbpf.build_exemplar(lprops, LOT_COHORT)),
+               (dbpf.T_S3D, G_MODELS, model_iid, model),
+               (dbpf.T_FSH, G_TEXTURES, tex_iid, wall_fsh),
+               (dbpf.T_FSH, G_TEXTURES, tex_iid + 1, roof_fsh)]
+    os.makedirs(FOLDER, exist_ok=True)
+    path = os.path.join(FOLDER, "SiMCP_%s.dat" % _slug(name))
+    dbpf.write_dbpf(path, records)
+    entry = {"name": name, "file": path, "lot": "0x%08X" % lot_iid, "building": "0x%08X" % bld_iid,
+             "model": "0x%08X" % model_iid, "texture": "0x%08X" % tex_iid, "size_m": [width, depth, height],
+             "lot_cells": lot_cells, "created": time.strftime("%Y-%m-%d %H:%M:%S")}
+    items = _manifest()
+    items.append(entry)
+    _save_manifest(items)
+    return dict(entry, note="the game loads plugins at start-up: quit_game and game_launch, then build_menu")

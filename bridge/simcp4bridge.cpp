@@ -91,6 +91,7 @@ struct BridgeBlock {
 	DWORD pickHits;
 	DWORD pickInstalled;
 	DWORD faults;         // exceptions caught inside game code since this bridge loaded (the game may be inconsistent)
+	DWORD pickOccupant;   // while the pointer is active: the cISC4Occupant* PickOccupant answers (0 = the real one)
 };
 #pragma pack(pop)
 
@@ -367,13 +368,33 @@ static int Execute(DWORD op) {
 	return -1;
 }
 
-// cISC4View3DWin vtable slot 36 PickTerrain(int screenX, int screenZ, float *worldOut, bool stopAtWater)
+// cISC4View3DWin vtable slot 36 PickTerrain(int screenX, int screenZ, float *worldOut, bool stopAtWater) and
+// slot 37 PickOccupant(int screenX, int screenZ, cISC4Occupant **out) (the occupant comes back AddRef'd)
 #define VIEW_PICK_SLOT_ADDR 0xABCED0
 #define FN_VIEW_PICK        0x7E5840
-static DWORD g_pickOrig;
+#define VIEW_PICKOCC_SLOT_ADDR 0xABCED4
+#define FN_VIEW_PICKOCC     0x7E5890
+static DWORD g_pickOrig, g_pickOccOrig;
+
+static bool PickActive(void) {
+	return g_bridge.pickActive && (int)(g_bridge.pickActive - GetTickCount()) > 0;
+}
+
+static bool __fastcall PickOccHook(void *self, void *edx, int sx, int sz, void **out) {
+	if (PickActive() && g_bridge.pickOccupant && out) {
+		void *occ = (void *)(UINT_PTR)g_bridge.pickOccupant;
+		typedef DWORD (__thiscall *AddRefFn)(void *);
+		((AddRefFn)(*(DWORD **)occ)[1])(occ);
+		*out = occ;
+		g_bridge.pickHits++;
+		return true;
+	}
+	typedef bool (__fastcall *PickOccFn)(void *, void *, int, int, void **);
+	return ((PickOccFn)g_pickOccOrig)(self, edx, sx, sz, out);
+}
 
 static bool __fastcall PickHook(void *self, void *edx, int sx, int sz, float *out, bool stopAtWater) {
-	if (g_bridge.pickActive && (int)(g_bridge.pickActive - GetTickCount()) > 0 && out) {
+	if (PickActive() && out) {
 		out[0] = g_bridge.pickPos[0];
 		out[1] = g_bridge.pickPos[1];
 		out[2] = g_bridge.pickPos[2];
@@ -384,8 +405,8 @@ static bool __fastcall PickHook(void *self, void *edx, int sx, int sz, float *ou
 	return ((PickFn)g_pickOrig)(self, edx, sx, sz, out, stopAtWater);
 }
 
-static void SetPickSlot(DWORD value) {
-	DWORD *slot = (DWORD *)VIEW_PICK_SLOT_ADDR, old;
+static void SetVSlot(DWORD addr, DWORD value) {
+	DWORD *slot = (DWORD *)addr, old;
 	if (VirtualProtect(slot, 4, PAGE_EXECUTE_READWRITE, &old)) {
 		*slot = value;
 		VirtualProtect(slot, 4, old, &old);
@@ -394,18 +415,25 @@ static void SetPickSlot(DWORD value) {
 }
 
 static void InstallPickHook(void) {
-	DWORD cur = *(DWORD *)VIEW_PICK_SLOT_ADDR;
-	if (cur == FN_VIEW_PICK) {           // only over the game's own function (never over another hook)
-		g_pickOrig = cur;
-		SetPickSlot((DWORD)(UINT_PTR)&PickHook);
+	// only over the game's own functions (never over another hook)
+	if (*(DWORD *)VIEW_PICK_SLOT_ADDR == FN_VIEW_PICK && *(DWORD *)VIEW_PICKOCC_SLOT_ADDR == FN_VIEW_PICKOCC) {
+		g_pickOrig = FN_VIEW_PICK;
+		g_pickOccOrig = FN_VIEW_PICKOCC;
+		SetVSlot(VIEW_PICK_SLOT_ADDR, (DWORD)(UINT_PTR)&PickHook);
+		SetVSlot(VIEW_PICKOCC_SLOT_ADDR, (DWORD)(UINT_PTR)&PickOccHook);
 		g_bridge.pickInstalled = 1;
 	}
 }
 
 static void RemovePickHook(void) {
 	g_bridge.pickActive = 0;
-	if (g_bridge.pickInstalled && *(DWORD *)VIEW_PICK_SLOT_ADDR == (DWORD)(UINT_PTR)&PickHook)
-		SetPickSlot(g_pickOrig);
+	g_bridge.pickOccupant = 0;
+	if (g_bridge.pickInstalled) {
+		if (*(DWORD *)VIEW_PICK_SLOT_ADDR == (DWORD)(UINT_PTR)&PickHook)
+			SetVSlot(VIEW_PICK_SLOT_ADDR, g_pickOrig);
+		if (*(DWORD *)VIEW_PICKOCC_SLOT_ADDR == (DWORD)(UINT_PTR)&PickOccHook)
+			SetVSlot(VIEW_PICKOCC_SLOT_ADDR, g_pickOccOrig);
+	}
 	g_bridge.pickInstalled = 0;
 }
 

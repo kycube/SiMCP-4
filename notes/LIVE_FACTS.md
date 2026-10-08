@@ -266,3 +266,10 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   387.7 -> 442.4 in 2 s); up + left turned it from heading (1, 0) to (-0.6, -0.8) (slot 15 heading; left turns
   toward -z when facing east). A naive waypoint controller left the road and ran out of time: status 2 (failure),
   the result dialog; the road mission was then not offered again for at least a month.
+- **My Sims**: the My Sims panel (ToggleMySimPanel; root 0xCA1F1D9C) has five slot buttons 0x8A8F410C/D/E/F and
+  0x8A8F4120; a free slot opens "Select A My Sim" (root 0x6A243D9E: gender, sign and face buttons, "Move In My Sim"
+  0xCA243E0C, Cancel). "Move In My Sim" arms the move-in tool (vtable 0xA85A20), which picks the house with view
+  slot 37 PickOccupant (3 arguments, returns the occupant AddRef'd) in its mouse-move; the bridge now hooks slot 37
+  too (0xABCED4) and answers SiMCP's occupant (cISC4Occupant via QI 0x26BB767E on lot slot 48's building). Two Sims
+  moved in (MySim1 -> White Modular House, MySim2 -> White Cottage; both age 26, low wealth, job Dolan Dye); the
+  game opened an advisor message for the first.

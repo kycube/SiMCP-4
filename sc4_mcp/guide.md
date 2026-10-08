@@ -95,6 +95,15 @@ there is demand.
 - `dispatch(unit, x, z)` sends fire or police units, as the dispatch buttons do (a station with a free unit and a
   road route is needed).
 
+## U-Drive-It and My Sims
+
+- `missions()` lists the missions the City Situations advisor offers and the mission / vehicle state;
+  `start_mission(title)` makes the game offer one (let the city run a few seconds first so vehicles are out) and
+  `close_dialog("Accept")` starts it. `drive(keys, seconds)` holds driving keys (accelerate, brake, left, right...)
+  - the game must be running; `missions()` gives the vehicle's cell and heading and the target's cell.
+  `stop_driving()` leaves the vehicle.
+- `move_in_sim(x, z)` moves a My Sim into the house on a cell; `my_sims()` follows them (home, job, where they are).
+
 ## Cheats
 
 `cheat(name, argument)` runs one of the game's player cheats. Cheats are not honest play: SiMCP runs only vetted

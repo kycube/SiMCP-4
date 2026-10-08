@@ -89,14 +89,40 @@ def drop_tool(g) -> None:
         _v(g, v, V_REMOVE_CONTROL, 0)
 
 
-def click(g, x: float, z: float, mods: int = 0, ctrl: int | None = None) -> int:
-    """Press and release the left button of the current tool on cell (x, z); returns the picks it made."""
+IID_OCCUPANT = 0x26BB767E
+LOT_GET_BUILDING = 48
+
+
+def building_at(g, x: int, z: int) -> int:
+    """The building occupant on cell (x, z) as a cISC4Occupant* (AddRef'd; release it), or 0."""
+    from . import layers
+    p = g.proc
+    lot = layers.lot_at(p, x, z)
+    if not lot:
+        return 0
+    bld = _v(g, lot, LOT_GET_BUILDING)
+    if not bld:
+        return 0
+    out = g.bridge.scratch(0x7F0)
+    p.write(out, bytes(4))
+    _v(g, bld, 0, IID_OCCUPANT, out)
+    return p.u32(out)
+
+
+def release(g, obj: int) -> None:
+    if obj:
+        _v(g, obj, 2)
+
+
+def click(g, x: float, z: float, mods: int = 0, ctrl: int | None = None, occupant: int = 0) -> int:
+    """Press and release the left button of the current tool on cell (x, z) (and, for tools that pick
+    buildings, on `occupant`); returns the picks it made."""
     ctrl = ctrl or current_tool(g)
     if not ctrl:
         raise PointerError("no tool is selected")
     b = g.bridge
     before = b.pick_hits()
-    b.set_pick(world(g.proc, x, z))
+    b.set_pick(world(g.proc, x, z), occupant=occupant)
     try:
         _v(g, ctrl, C_MOUSE_MOVE, SCREEN[0], SCREEN[1], mods)
         _v(g, ctrl, C_MOUSE_DOWN, SCREEN[0], SCREEN[1], mods)

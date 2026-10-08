@@ -10,7 +10,7 @@ import os
 from mcp.server.fastmcp import FastMCP, Image
 
 from . import game as gamemod
-from . import build, catalog, cheats, city, disasters, economy, history, launch, layers, luaquery, memory, pointer, regions, udi, view
+from . import build, catalog, cheats, city, disasters, economy, history, launch, layers, luaquery, memory, mysim, pointer, regions, udi, view
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -804,6 +804,35 @@ def drive(keys: list[str], seconds: float = 1.0) -> dict:
 def stop_driving() -> dict:
     """Leave the vehicle (the Escape key), ending a free drive or giving up a mission."""
     return _udi(udi.stop)
+
+
+def _mysim(fn, *a):
+    try:
+        return fn(_city(), *a)
+    except (mysim.MySimError, pointer.PointerError) as e:
+        return {"error": str(e), "hint": e.hint}
+
+
+@tool(mcp, "read")
+@guarded
+def my_sims() -> dict:
+    """The five My Sim slots: for each Sim living in the city, name, age, sign, wealth, home, job and where it is
+    now (cell)."""
+    out = _mysim(mysim.sims)
+    return out if isinstance(out, dict) else {"sims": out}
+
+
+@tool(mcp, "act")
+@guarded
+def move_in_sim(x: int, z: int) -> dict:
+    """Move a new My Sim into the house on a cell, through the game's My Sims panel, its Select A My Sim dialog
+    (default choices) and the move-in tool. The game then reports through the Sim's own advice balloons.
+
+    Args:
+        x: a cell of the house (west-east).
+        z: a cell of the house (north-south).
+    """
+    return _mysim(mysim.move_in, x, z)
 
 
 @tool(mcp, "destructive")

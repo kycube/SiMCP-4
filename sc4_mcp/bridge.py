@@ -217,10 +217,12 @@ class Bridge:
             self.attach()
         return bool(self.proc.u32(self.block + B_PICK + 20))
 
-    def set_pick(self, pos: tuple[float, float, float] | None, ttl_ms: int = 3000) -> None:
-        """Point the virtual pointer at a world position (metres) for at most ttl_ms, or release it (None)."""
+    def set_pick(self, pos: tuple[float, float, float] | None, ttl_ms: int = 3000, occupant: int = 0) -> None:
+        """Point the virtual pointer at a world position (metres) - and, for tools that pick buildings, at an
+        occupant - for at most ttl_ms, or release it (None)."""
         if not self.block:
             self.attach()
+        self.proc.write(self.block + B_PICK + 28, struct.pack("<I", occupant if pos is not None else 0))
         if pos is None:
             self.proc.write(self.block + B_PICK, struct.pack("<I", 0))
         else:

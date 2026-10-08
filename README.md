@@ -9,25 +9,33 @@ Gemini agents, local models, or your own code. Everything happens in the real ga
 with the game's own rules and prices. It is the sibling of [SiMCP 3000](https://github.com/kycube/SiMCP-3000)
 (SimCity 3000 Unlimited).
 
-> **Status: Phase 1 (the bridge and the first tools).** 10 tools so far, all verified in the running game: start
-> and quit the game, list regions and their cities (from files), load a region, open a founded city or an unfounded
-> tile, leave it, read the city's status from memory, and advance time by exact game days (about 80 days per second
-> in a city of 25,000). Next: observation (every data layer, lots, budgets), building, zoning and the rest of the
-> game - see [notes/STATIC_PLAN.md](notes/STATIC_PLAN.md).
+> **Status: Phases 1-4, 63 tools, tested in the running game.** What each test showed, and the known limits, are in
+> [notes/LIVE_FACTS.md](notes/LIVE_FACTS.md); every tool's parameters are in [docs/TOOLS.md](docs/TOOLS.md). Not yet
+> done or not yet proven: reading the text of HTML dialogs, a U-Drive-It mission driven to success, neighbour
+> deal details, preferences beyond day/night, region import from a height map, the god-mode fire item.
 
 > SiMCP 4 is a fan project, not affiliated with or endorsed by Electronic Arts or Maxis. SimCity is a trademark of
 > Electronic Arts Inc. You need your own copy of SimCity 4 Deluxe; this repository contains no game files.
 
-## What it will cover
+## What it covers
 
-| Area | |
+| Area | Tools |
 |---|---|
-| **Regions and cities** | Regions, city tiles, new cities, load / save, back to the region; neighbour connections and deals |
-| **Play** | Zoning, every network (roads to monorail, NAM's), every ploppable building, rewards and landmarks, budgets, taxes, ordinances, loans, time (exact steps and real time) |
-| **See everything** | Every data layer per cell, every lot and building, demand, budgets, advisors, news, graphs - read from the game's memory, not from screenshots |
-| **The rest of the game** | God mode (terrain, disasters), My Sim, U-Drive-It missions, Lua (advisors, tutorials), cheats as an explicit, tracked tool |
-| **Content** | New buildings, lots, props and textures written as the game's own formats (exemplars, S3D, FSH) into a dedicated Plugins folder |
-| **Experiments** | Reproducible trials and metrics series, with the plugin set pinned |
+| **The game** | `game_launch` (unelevated, its own user folder, beside your own game), `game_status`, `quit_game`, `dialog_status` / `close_dialog` (any modal dialog), `set_popups` |
+| **Regions** | `list_regions`, `load_region`, `open_tile` (any tile, as Play does), `load_city`, `new_region`, `found_city`, `save_city`, `leave_city`, `saved_city` / `city_thumbnail` (saved cities read from their files) |
+| **Time** | `advance_time` (the game plays at its own speed and pauses exactly on the target day; or exact day stepping), `set_speed`, `set_paused`, `day_night` |
+| **Seeing the city** | `city_status`, `map_data` / `tile_info` (34 data layers per cell), `lots`, `demand`, `get_budget`, `advisors`, `graphs` / `graph_data` (the Graphs window's history), `city_figures` (the advisors' ~190 figures, read-only), `camera` / `set_camera` / `snapshot` (the game's own picture) - read from the game's memory |
+| **Building** | `build_network` (roads to monorail, pipes, power lines: the game's path solver and price), `zone`, `build_menu` / `plop` (every menu building with the menus' own availability rules), `bulldoze`, `plant_trees`, `terrain_brushes` / `terraform` |
+| **Running the city** | `set_tax`, `departments` / `set_department_funding`, `ordinances` / `set_ordinance`, `loans` / `take_loan` |
+| **The rest of the game** | `start_disaster` / `disaster_status`, `dispatch` (fire and police), `missions` / `start_mission` / `drive` / `stop_driving` (U-Drive-It), `my_sims` / `move_in_sim`, `cheat` (vetted, logged) |
+| **New content** | `design_building` (a new menu item from a Maxis one), `design_model_building` (its own generated 3D model and textures), `content_designs`, `disable_design` |
+
+**Honest play.** Every action goes through the code the player's own tools use: the network tool's solver and
+price, the zone tool's rules, the plop tool's placement and the build menus' availability (locked rewards stay
+locked), the bulldozer's cost, the game's dialogs and buttons. Tools that need a click on the map (disasters,
+dispatch, terrain brushes, the My Sim move-in) use a *virtual pointer*: the bridge answers the city view's own
+"where is the mouse" question with the chosen cell for a few seconds, so the real mouse never moves. Cheats are a
+separate, explicit tool: only vetted ones, every use logged and counted in `city_status`.
 
 ## Supported build
 
@@ -45,6 +53,10 @@ starts the game through a directory junction instead, unelevated (see PHASE0.md)
 |---|---|
 | `sc4_mcp/server.py` | the MCP server (`python -m sc4_mcp`; `--transport streamable-http` for URL clients) |
 | `sc4_mcp/game.py`, `launch.py`, `bridge.py`, `memory.py`, `regions.py` | the running game; starting it unelevated with SiMCP's own user folder; the bridge client; memory reads; regions and cities from files |
+| `sc4_mcp/build.py`, `catalog.py`, `pointer.py`, `terrain.py` | building like the player; the build menus; the virtual pointer; terrain brushes |
+| `sc4_mcp/city.py`, `layers.py`, `economy.py`, `history.py`, `luaquery.py`, `dialogs.py`, `view.py` | observation and the budget window; graphs; the advisors' figures; dialogs; camera and snapshots |
+| `sc4_mcp/disasters.py`, `udi.py`, `mysim.py`, `cheats.py` | disasters and dispatch; U-Drive-It; My Sims; cheats |
+| `sc4_mcp/content.py`, `s3d.py`, `fsh.py`, `gamedata.py` | new buildings; S3D models and FSH textures; reading the game's own data files |
 | `sc4_mcp/dbpf.py` | DBPF files: read and write, QFS (RefPack) compression, exemplars and cohorts, LTEXT |
 | `sc4_mcp/identity.py` | the supported build and the check that refuses others |
 | `sc4_mcp/registry.py`, `guide.md` | tool registration (docstrings become JSON schemas and annotations); the agent guide (`guide` tool) |

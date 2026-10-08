@@ -200,3 +200,20 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
 - **Trees**: FloraSim slot 7 static data (+0x160 = price, 3 for the menu trees), slot 17 AddNewFloraOccupant(type,
   float pos[3], 0), WithdrawFunds, Aura slot 6 (x, z floats, 1): 9 Noble Fir trees, 27 charged. The tree menu is
   the 5 flora exemplars with an icon (group 0xE83E0437; no plugin adds trees here).
+- **Slopes and road cost** (Konradshohe, dry runs only, not saved): an 11-cell road quotes 110 on flat ground,
+  112-113 with a 5 m rise, 115-117 with a 25-29 m rise: the game's GetCostOfSolution includes the slope.
+- **Camera**: view `[0xB43DC4]` +0xF0 camera control: target metres +0x44/+0x48/+0x4C, zoom +0x108 (0..5), rotation
+  +0x10C. "SetViewTarget cell 30 30" -> target (488, 270, 488) = cell centre; Zoom4 -> 4; RotateCW -> 1; view level
+  +0x324 = 1 (surface). GetViewTarget prints "512 0 512 0".
+- **Snapshot**: `TakeSnapshot "<path>" 0 0 1024 768` writes a 1024x768 RGBA PNG of the last frame (UI included),
+  status 0; also while the simulation is paused.
+- **Virtual pointer**: the bridge hooks view vtable slot 36 (0xABCED0, PickTerrain 0x7E5840) on attach (restored on
+  detach); while the deadline `pickActive` (GetTickCount) is in the future it returns SiMCP's point. The disaster
+  tool (category 0x4A2B2464 via the dispatcher 0x7E9FA0, vtable 0xA9EAA0) picked it 3 times per click.
+  Earthquake (item 2) at (58, 58): manager count 0 -> 1, one disaster location; the parks nearby turned to rubble.
+  The managers get the point in **world metres** (the tool's +0x2C/+0x34 = 328, 360 for cell (20, 22)), not cells.
+  Meteor (item 5, effect path): the effect is created on mouse-up; the red disaster border showed. Fire (item 4)
+  and pipe burst (3) did nothing here (no flammable building under the flame; the pipe carried no water).
+- **Dispatch**: "DispatchFireTool" arms the tool (vtable 0xA90268, id 0x68E1900A). A small fire station without a
+  road: CanDispatch 1 but Dispatch 0. With a road to it, a click on a reachable road cell dispatched (count 1,
+  available pylons 1); a second request failed while the one unit was out.

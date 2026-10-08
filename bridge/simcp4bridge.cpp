@@ -83,6 +83,13 @@ struct BridgeBlock {
 	DWORD outLen;
 	char out[4096];       // text output of the last command (OP_COMMAND, immediate or deferred)
 	char scratch[8192];   // the server's working memory for call arguments (points, vectors, strings, outputs)
+	// the virtual pointer: until the tick count pickActive (GetTickCount; 0 = off), the city view's PickTerrain
+	// answers pickPos (world metres) instead of the real cursor, so the game's own tools act on a cell SiMCP
+	// chooses (the real mouse never moves; the deadline frees the player's mouse even if SiMCP stops mid-action)
+	DWORD pickActive;
+	float pickPos[3];
+	DWORD pickHits;
+	DWORD pickInstalled;
 };
 #pragma pack(pop)
 
@@ -349,8 +356,51 @@ static int Execute(DWORD op) {
 	return -1;
 }
 
+// cISC4View3DWin vtable slot 36 PickTerrain(int screenX, int screenZ, float *worldOut, bool stopAtWater)
+#define VIEW_PICK_SLOT_ADDR 0xABCED0
+#define FN_VIEW_PICK        0x7E5840
+static DWORD g_pickOrig;
+
+static bool __fastcall PickHook(void *self, void *edx, int sx, int sz, float *out, bool stopAtWater) {
+	if (g_bridge.pickActive && (int)(g_bridge.pickActive - GetTickCount()) > 0 && out) {
+		out[0] = g_bridge.pickPos[0];
+		out[1] = g_bridge.pickPos[1];
+		out[2] = g_bridge.pickPos[2];
+		g_bridge.pickHits++;
+		return true;
+	}
+	typedef bool (__fastcall *PickFn)(void *, void *, int, int, float *, bool);
+	return ((PickFn)g_pickOrig)(self, edx, sx, sz, out, stopAtWater);
+}
+
+static void SetPickSlot(DWORD value) {
+	DWORD *slot = (DWORD *)VIEW_PICK_SLOT_ADDR, old;
+	if (VirtualProtect(slot, 4, PAGE_EXECUTE_READWRITE, &old)) {
+		*slot = value;
+		VirtualProtect(slot, 4, old, &old);
+		FlushInstructionCache(GetCurrentProcess(), slot, 4);
+	}
+}
+
+static void InstallPickHook(void) {
+	DWORD cur = *(DWORD *)VIEW_PICK_SLOT_ADDR;
+	if (cur == FN_VIEW_PICK) {           // only over the game's own function (never over another hook)
+		g_pickOrig = cur;
+		SetPickSlot((DWORD)(UINT_PTR)&PickHook);
+		g_bridge.pickInstalled = 1;
+	}
+}
+
+static void RemovePickHook(void) {
+	g_bridge.pickActive = 0;
+	if (g_bridge.pickInstalled && *(DWORD *)VIEW_PICK_SLOT_ADDR == (DWORD)(UINT_PTR)&PickHook)
+		SetPickSlot(g_pickOrig);
+	g_bridge.pickInstalled = 0;
+}
+
 extern "C" __declspec(dllexport) DWORD __stdcall SimcpBridgeAttach(void *plug) {
 	g_plug = (DWORD *)plug;
+	InstallPickHook();
 	g_bridge.plug = (DWORD)(UINT_PTR)plug;
 	g_bridge.module = (DWORD)(UINT_PTR)g_hModule;
 	return (DWORD)(UINT_PTR)&g_bridge;
@@ -390,6 +440,7 @@ extern "C" __declspec(dllexport) int __stdcall SimcpBridgeRunDeferred(DWORD) {
 }
 
 extern "C" __declspec(dllexport) void __stdcall SimcpBridgeDetach(void) {
+	RemovePickHook();
 	g_plug = NULL;
 }
 
@@ -404,6 +455,7 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID) {
 		g_bridge.layout[4] = offsetof(BridgeBlock, state);
 		g_bridge.layout[5] = offsetof(BridgeBlock, out);
 		g_bridge.layout[6] = offsetof(BridgeBlock, scratch);
+		g_bridge.layout[7] = offsetof(BridgeBlock, pickActive);
 	}
 	return TRUE;
 }

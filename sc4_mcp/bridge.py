@@ -40,6 +40,7 @@ B_LAYOUT, B_SEQ, B_OP, B_ARGS, B_STR = 8, 48, 52, 56, 120
 B_DONESEQ, B_STATUS, B_RET, B_MSGLEN, B_MSG, B_STATE = 1144, 1148, 1152, 1216, 1220, 3268
 B_OUTLEN, B_OUT = 3332, 3336
 B_SCRATCH, SCRATCH_SIZE = 7432, 8192
+B_PICK = B_SCRATCH + SCRATCH_SIZE   # pickActive, pickPos[3], pickHits, pickInstalled
 STR_SIZE = 1024
 CALLDESC = struct.Struct("<IIi6i")
 
@@ -177,8 +178,8 @@ class Bridge:
         if not self.block or self.proc.u32(self.block) != BRIDGE_MAGIC:
             raise BridgeError("inner bridge block not found")
         lay = struct.unpack("<8I", self.proc.read(self.block + B_LAYOUT, 32))
-        if (lay[1], lay[2], lay[3], lay[4], lay[5], lay[6]) != (B_SEQ, B_STR, B_DONESEQ, B_STATE, B_OUTLEN + 4,
-                                                             B_SCRATCH):
+        if (lay[1], lay[2], lay[3], lay[4], lay[5], lay[6], lay[7]) != (B_SEQ, B_STR, B_DONESEQ, B_STATE,
+                                                                     B_OUTLEN + 4, B_SCRATCH, B_PICK):
             raise BridgeError("inner bridge layout mismatch %r" % (lay,))
 
     def unload(self) -> int:
@@ -210,6 +211,25 @@ class Bridge:
         if not 0 <= offset < SCRATCH_SIZE:
             raise BridgeError("scratch offset out of range")
         return self.block + B_SCRATCH + offset
+
+    def pick_installed(self) -> bool:
+        if not self.block:
+            self.attach()
+        return bool(self.proc.u32(self.block + B_PICK + 20))
+
+    def set_pick(self, pos: tuple[float, float, float] | None, ttl_ms: int = 3000) -> None:
+        """Point the virtual pointer at a world position (metres) for at most ttl_ms, or release it (None)."""
+        if not self.block:
+            self.attach()
+        if pos is None:
+            self.proc.write(self.block + B_PICK, struct.pack("<I", 0))
+        else:
+            self.proc.write(self.block + B_PICK + 4, struct.pack("<3f", *pos))
+            deadline = (win32.k32.GetTickCount() + ttl_ms) & 0xFFFFFFFF
+            self.proc.write(self.block + B_PICK, struct.pack("<I", deadline or 1))
+
+    def pick_hits(self) -> int:
+        return self.proc.u32(self.block + B_PICK + 16)
 
     def ping(self) -> BridgeResult:
         return self.call(OP_PING)

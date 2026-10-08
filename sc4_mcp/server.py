@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import argparse
 import functools
+import json
 import os
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP, Image
 
 from . import game as gamemod
-from . import build, catalog, city, economy, history, launch, layers, memory, regions
+from . import build, catalog, city, disasters, economy, history, launch, layers, memory, pointer, regions, view
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -575,6 +576,107 @@ def graph_data(series: str = "", last: int = 24) -> dict:
     if not series.strip():
         return {"series": history.all_series(p)}
     return history.series_data(p, series, last)
+
+
+def _view(fn, *a, **kw):
+    try:
+        return fn(*a, **kw)
+    except view.ViewError as e:
+        return {"error": str(e), "hint": e.hint}
+
+
+@tool(mcp, "read")
+@guarded
+def camera() -> dict:
+    """Where the city view looks: the centre cell (x, z), the ground altitude there, zoom (1 far .. 6 close),
+    rotation (0..3) and the viewport size in pixels."""
+    return _view(view.camera, _city().proc)
+
+
+@tool(mcp, "set")
+@guarded
+def set_camera(x: int = -1, z: int = -1, zoom: int = 0, rotation: int = -1) -> dict:
+    """Move the city view as the player does (the game's own view commands); omitted values stay as they are.
+
+    Args:
+        x: centre cell, west-east (-1 = keep).
+        z: centre cell, north-south (-1 = keep).
+        zoom: 1 (far) to 6 (close); 0 = keep.
+        rotation: 0..3 (each step is a quarter turn clockwise); -1 = keep.
+    """
+    g = _city()
+    return _view(view.set_camera, g, None if x < 0 else x, None if z < 0 else z, zoom or None,
+                 None if rotation < 0 else rotation)
+
+
+@tool(mcp, "observe")
+@guarded
+def snapshot(x: int = -1, z: int = -1, zoom: int = 0, rotation: int = -1, width: int = 1024):
+    """A picture of the city as the game draws it (the game's own snapshot of its view, with its UI), after moving
+    the view if asked. Returns the camera and the image; the full-size PNG is kept in SiMCP's snapshots folder.
+
+    Args:
+        x: centre cell, west-east (-1 = keep).
+        z: centre cell, north-south (-1 = keep).
+        zoom: 1 (far) to 6 (close); 0 = keep.
+        rotation: 0..3; -1 = keep.
+        width: scale the image to this many pixels wide (the PNG keeps the full size).
+    """
+    g = _city()
+    try:
+        if x >= 0 or z >= 0 or zoom or rotation >= 0:
+            view.set_camera(g, None if x < 0 else x, None if z < 0 else z, zoom or None,
+                            None if rotation < 0 else rotation)
+        info, jpeg = view.snapshot(g, width)
+    except view.ViewError as e:
+        return {"error": str(e), "hint": e.hint}
+    return [json.dumps(info), Image(data=jpeg, format="jpeg")]
+
+
+def _disaster(fn, *a):
+    try:
+        return fn(_city(), *a)
+    except (disasters.DisasterError, pointer.PointerError) as e:
+        return {"error": str(e), "hint": e.hint}
+
+
+@tool(mcp, "read")
+@guarded
+def disaster_status() -> dict:
+    """Disasters going on in the open city (fires, volcanoes, earthquakes, riots, toxic spills...) with their
+    locations, and the god-mode Disasters menu."""
+    out = _disaster(disasters.status)
+    if "error" not in out:
+        out["menu"] = [d["key"] for d in disasters.menu()]
+    return out
+
+
+@tool(mcp, "act")
+@guarded
+def start_disaster(disaster: str, x: int, z: int) -> dict:
+    """Start a disaster from the god-mode Disasters menu at a cell, with the game's own disaster tool (as the
+    player's click). Disasters unfold while the game runs: set_paused(false) or advance_time afterwards.
+
+    Args:
+        disaster: volcano, earthquake, fire, meteor, tornado, lightning, robot_attack, autosaurus_wrecks or ufo.
+        x: cell, west-east.
+        z: cell, north-south.
+    """
+    return _disaster(disasters.start, disaster, x, z)
+
+
+@tool(mcp, "act")
+@guarded
+def dispatch(unit: str, x: int, z: int) -> dict:
+    """Send emergency units to a cell with the game's dispatch tools (as the player's dispatch buttons): the city
+    needs a station of that kind with a free unit and a road route to the cell.
+
+    Args:
+        unit: fire, police, fire_plane or police_helicopter.
+        x: cell, west-east.
+        z: cell, north-south.
+    """
+    return _disaster(disasters.dispatch, unit, x, z)
 
 
 @tool(mcp, "destructive")

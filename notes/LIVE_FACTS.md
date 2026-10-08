@@ -273,3 +273,10 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   too (0xABCED4) and answers SiMCP's occupant (cISC4Occupant via QI 0x26BB767E on lot slot 48's building). Two Sims
   moved in (MySim1 -> White Modular House, MySim2 -> White Cottage; both age 26, low wealth, job Dolan Dye); the
   game opened an advisor message for the first.
+- **Terraforming**: the city view's button handler 0x7ED720 makes the brush tool through 0x7E5910(brush, god):
+  mayor buttons 0xEA32DDBB raise -> MayorMountainHill 0xEA33E2FD, 0x4A32DDC7 lower -> MayorValleyDefault 0x0A33E37B,
+  0xEA32DDE5 level -> MayorLevelBrush 0x4A524342 (god = 0, charged); god mode uses the brush exemplars in group
+  0x6A01FC2A with a menu order. Held 1 s with the virtual pointer (mouse down, moves every 0.1 s, up): raise at
+  (45, 15) 270 -> 303.2 m, neighbour +1.7, funds -138; lower (also while user-paused) 303.2 -> 286.5, -138; raise
+  along (40..44, 12) +17 / +11 m for 120; level 68. The strength grows with wall-clock time held (timer +0xC0);
+  F1-F10 keys set the strength. Modifier bits 1 / 2 / 4 on the mouse calls do not lower.

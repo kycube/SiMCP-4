@@ -10,7 +10,7 @@ import os
 from mcp.server.fastmcp import FastMCP, Image
 
 from . import game as gamemod
-from . import build, catalog, cheats, city, disasters, economy, history, launch, layers, luaquery, memory, mysim, pointer, regions, udi, view
+from . import build, catalog, cheats, city, disasters, economy, history, launch, layers, luaquery, memory, mysim, pointer, regions, terrain, udi, view
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -833,6 +833,37 @@ def move_in_sim(x: int, z: int) -> dict:
         z: a cell of the house (north-south).
     """
     return _mysim(mysim.move_in, x, z)
+
+
+def _terrain(fn, *a):
+    try:
+        return fn(_city(), *a)
+    except (terrain.TerrainError, pointer.PointerError) as e:
+        return {"error": str(e), "hint": e.hint}
+
+
+@tool(mcp, "read")
+@guarded
+def terrain_brushes() -> dict:
+    """The terrain brushes available now: in a founded city the mayor's raise / lower / level (charged); before
+    founding, god mode's brushes (mountains, valleys, canyons, craters, lakes, levelling, smoothing, erosion,
+    plains... free)."""
+    return _terrain(terrain.brushes)
+
+
+@tool(mcp, "act")
+@guarded
+def terraform(brush: str, cells: list[list[int]], seconds: float = 1.0) -> dict:
+    """Hold a terrain brush on cells, as the player holds the mouse: the effect grows with the time held; with
+    several cells the brush moves along them. In mayor mode each application is charged. Returns the altitudes
+    before and after and the cost.
+
+    Args:
+        brush: a name from terrain_brushes() (mayor mode: raise, lower, level).
+        cells: [[x, z], ...] - one cell, or a path for the brush to move along.
+        seconds: how long to hold (0.1 to 10).
+    """
+    return _terrain(terrain.apply, brush, [tuple(c) for c in cells], seconds)
 
 
 @tool(mcp, "destructive")

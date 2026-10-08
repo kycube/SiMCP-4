@@ -137,7 +137,9 @@ def lot_info(g, x: int, z: int) -> dict | None:
 
 
 def _text(html: str) -> str:
+    import html as htmlmod
     t = re.sub(r"<[^>]+>", " ", html)
+    t = htmlmod.unescape(t).replace("\xa0", " ")
     return re.sub(r"\s+", " ", t).strip()
 
 

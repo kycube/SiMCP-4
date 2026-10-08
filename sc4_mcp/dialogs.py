@@ -68,12 +68,38 @@ def _is_button(g, w: int) -> bool:
     return bool(r.ret[0] & 0xFF) and bool(btn)
 
 
+HTML_IFACE, HTML_IFACE_VTABLE = 0xD8, 0xACD050   # cIGZWinHTML inside the HTML window (34 slots)
+
+
+def html_text(g, w: int) -> str | None:
+    """The document an HTML window shows, as plain text: the interface's document buffer ([iface+0x70] slot 4;
+    buffer slot 6 = data, 7 = length - what GetDocument copies), tags stripped."""
+    p, b = g.proc, g.bridge
+    iface = w + HTML_IFACE
+    if p.u32(iface) != HTML_IFACE_VTABLE:
+        return None
+    src = p.u32(iface + 0x70)
+    if not src:
+        return None
+    buf = b.vcall(src, 4).ret[0] & 0xFFFFFFFF
+    if not buf:
+        return None
+    r = b.call_sequence([(6, buf, [], 1 << 15), (7, buf, [], 1 << 15)])
+    ptr, n = r.ret[0] & 0xFFFFFFFF, r.ret[1] & 0xFFFFFFFF
+    if not ptr or not 0 < n <= 64 * 1024:
+        return None
+    from .city import _text
+    return _text(p.read(ptr, n).decode("latin-1", "replace"))
+
+
 def _describe(g, w: int, depth: int = 0, max_depth: int = 6) -> dict:
     p = g.proc
     flags = p.u32(w + W_FLAGS)
     x0, y0, x1, y1 = struct.unpack("<4i", p.read(w + W_RECT, 16))
     d = {"id": "0x%08X" % p.u32(w + W_ID), "text": memory.rz_string(p, w + W_CAPTION, 2000),
          "rect": [x0, y0, x1, y1], "enabled": bool(flags & F_ENABLED)}
+    if d["text"] == "HTML Window":
+        d["text"] = html_text(g, w) or ""
     if _is_button(g, w):
         d["button"] = True
     kids = [c for c in _children(p, w) if p.u32(c + W_FLAGS) & F_VISIBLE]

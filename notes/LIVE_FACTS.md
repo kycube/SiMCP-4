@@ -308,3 +308,10 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   4 m quads, each with its own 0..1 window tile; faces are written both ways round. The game keeps plugin files
   open while it runs: disabling a design needs the game closed (a failed move had left a copy in
   content-disabled; disable now renames atomically).
+- **HTML dialog text**: an HTML window (caption "HTML Window", vtable 0xACD0D8) holds cIGZWinHTML at +0xD8 (vtable
+  0xACD050, 34 slots; GetDocument slot 21 copies from [iface+0x70] slot 4 -> a buffer whose slot 6 = data, slot 7 =
+  length). Reading those directly gave the mission offer's and the mission result's full text ("You didn't get the
+  car to the blinking bulls-eye target before time ran out..."); dialog_status now returns it (entities decoded).
+- **Mission attempts**: the road training mission (176 s) failed twice with simple controllers: a slow U-turn at the
+  start and drifting off the road into the power line's pylons at (27, 29). Offers come and go (withdrawn for a while
+  after a failure; no vehicle while the city is paused).

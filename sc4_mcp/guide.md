@@ -33,6 +33,23 @@ daily, weekly, monthly and yearly simulation work runs for every day), much fast
 per second in a city of 25,000 people. It leaves the game's own pause and speed as they were. If `max_seconds`
 runs out first, `remaining_days` says how many days are left: call it again.
 
+## Seeing the city
+
+Everything is read from the game's memory, never from screenshots:
+- `city_status()` - name, mayor, date, speed, pause.
+- `get_budget()` - funds, tax rate per zone and wealth group, this month's income and expenses, last month, year to
+  date, the end-of-year estimate, loans. Funds change once a month, when the month is settled.
+- `demand()` - residential / commercial / industrial demand per wealth group (the demand graph) and caps.
+- `map_data(layer)` - a whole data layer as a grid (`map_data()` lists the layers: zones, land value, crime,
+  coverage, pollution, power, water, traffic, mayor rating, population, education, health...). Values are per tract;
+  `tract_size` says how many cells one value covers.
+- `tile_info(x, z)` - every layer at one cell, the terrain altitude, water, and the lot and building there.
+- `lots(zone, area)` - lots and their buildings (name, zone, wealth, state such as abandoned or under construction).
+- `advisors()` - what each advisor says now, with mood and priority; read it every few months.
+
+Coordinates: cells (x, z) from the north-west corner; x grows east, z grows south. A small city is 64x64 cells, a
+medium 128x128, a large 256x256.
+
 ## Errors
 
 Failures are tool errors with JSON `{"error": ..., "hint": ...}`. The hint says what to do next. Typical ones:

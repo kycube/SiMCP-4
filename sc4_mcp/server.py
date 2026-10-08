@@ -9,7 +9,7 @@ import os
 from mcp.server.fastmcp import FastMCP
 
 from . import game as gamemod
-from . import launch, regions
+from . import city, launch, layers, memory, regions
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -147,6 +147,122 @@ def city_status() -> dict:
     """The open city: name, mayor, founded or not, difficulty, size in cells, the game date, speed and pause state.
     Read from the game's memory."""
     return G.city_status()
+
+
+def _city():
+    """The attached game with a city open (raises the usual {error, hint} otherwise)."""
+    G.attach(10.0)
+    if not memory.city_pointer(G.proc):
+        raise gamemod.GameError("no city is open", "load_city opens one from the region view")
+    return G
+
+
+@tool(mcp, "read")
+@guarded
+def map_data(layer: str = "", x0: int = 0, z0: int = 0, x1: int = -1, z1: int = -1) -> dict:
+    """One data layer of the open city as a grid, read from the game's memory: the values the game's data views and
+    simulation use. Call with no layer to list the layers. Values are per tract (tract_size cells square; rows[z][x]
+    in tract units); a cell (x, z) is in tract (x // tract_size, z // tract_size).
+
+    Args:
+        layer: a layer name ("zones", "land_value", "crime", "police_coverage", "fire_coverage", "air_pollution",
+            "water_pollution", "garbage", "power", "water", "traffic_congestion", "mayor_rating", ...); "" lists them.
+        x0: first cell column of the area to return (0 = west edge).
+        z0: first cell row of the area to return.
+        x1: last cell column (inclusive; -1 = the city's edge).
+        z1: last cell row (inclusive; -1 = the city's edge).
+    """
+    if not layer:
+        return {"layers": {k: v[2] for k, v in layers.LAYERS.items()},
+                "also": "tile_info(x, z) gives every layer at one cell, with terrain, water and the lot"}
+    g = _city()
+    d = layers.layer_grid(g.proc, layer)
+    ts = d["tract_size"]
+    tx0, tz0 = max(0, x0 // ts), max(0, z0 // ts)
+    tx1 = d["nx"] - 1 if x1 < 0 else min(d["nx"] - 1, x1 // ts)
+    tz1 = d["nz"] - 1 if z1 < 0 else min(d["nz"] - 1, z1 // ts)
+    rows = [r[tx0:tx1 + 1] for r in d["rows"][tz0:tz1 + 1]]
+    flat = [v for r in rows for v in r]
+    return {"layer": layer, "meaning": d["meaning"], "tract_size": ts, "tracts": [d["nx"], d["nz"]],
+            "area_tracts": [tx0, tz0, tx1, tz1], "min": min(flat), "max": max(flat),
+            "mean": round(sum(flat) / len(flat), 2), "rows": rows}
+
+
+@tool(mcp, "read")
+@guarded
+def tile_info(x: int, z: int) -> dict:
+    """Everything about one cell of the open city: the value of every data layer there, the terrain altitude at its
+    corners, water depth and sea level, and the lot / building standing on it. Read from memory.
+
+    Args:
+        x: cell column (0 = west edge).
+        z: cell row (0 = north edge).
+    """
+    g = _city()
+    p = g.proc
+    out = {"x": x, "z": z, "layers": {}}
+    for name in layers.LAYERS:
+        try:
+            d = layers.layer_grid(p, name)
+            ts = d["tract_size"]
+            out["layers"][name] = d["rows"][z // ts][x // ts]
+        except (layers.LayerError, IndexError):
+            pass
+    t = layers.terrain(p)
+    corners = [(x, z), (x + 1, z), (x, z + 1), (x + 1, z + 1)]
+    out["altitude"] = [t["altitude"][cz][cx] for cx, cz in corners]
+    out["sea_level"] = t["sea_level"]
+    if "water_depth" in t:
+        out["water_depth"] = max(0.0, max(t["water_depth"][cz][cx] for cx, cz in corners))
+    out["lot"] = city.lot_info(g, x, z)
+    return out
+
+
+@tool(mcp, "read")
+@guarded
+def get_budget() -> dict:
+    """The city's money: funds, the tax rate of every zone and wealth group, this month's income and expenses, last
+    month's, year to date, the game's end-of-year estimate, and loans. Read from the game."""
+    return city.budget(_city())
+
+
+@tool(mcp, "read")
+@guarded
+def demand() -> dict:
+    """Residential, commercial and industrial demand per wealth group, as the game's demand graph shows it, with
+    the share blocked by caps, plus the number of residents."""
+    return city.demand(_city())
+
+
+@tool(mcp, "read")
+@guarded
+def lots(zone: str = "", x0: int = 0, z0: int = 0, x1: int = -1, z1: int = -1, limit: int = 500) -> dict:
+    """The lots of the open city with their building: position, size, facing, zone, wealth, state (occupied,
+    abandoned, under construction...), historical, power, and the building's name and exemplar id.
+
+    Args:
+        zone: only lots of this zone (e.g. "residential_low", "industrial_high", "plopped"); "" = all.
+        x0: west edge of the area (cells).
+        z0: north edge of the area (cells).
+        x1: east edge (inclusive; -1 = the city's edge).
+        z1: south edge (inclusive; -1 = the city's edge).
+        limit: at most this many lots in the answer (count always gives the total).
+    """
+    g = _city()
+    return city.lots(g, zone or None, x0, z0, x1 if x1 >= 0 else 1 << 30, z1 if z1 >= 0 else 1 << 30,
+                     limit=limit)
+
+
+@tool(mcp, "read")
+@guarded
+def advisors(include_fluff: bool = False) -> dict:
+    """What the city's advisors say now: each advisor's mood and current messages (title, mood, priority, text) - the
+    same advice the game shows in its advisor panel, popups and news ticker.
+
+    Args:
+        include_fluff: also list the fluffy news (jokes without game meaning).
+    """
+    return city.advisors(_city(), include_fluff)
 
 
 @tool(mcp, "destructive")

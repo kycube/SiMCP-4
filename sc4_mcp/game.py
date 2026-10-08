@@ -88,6 +88,8 @@ class Game:
             raise GameError("the game exited right after starting (exit code %s)" % self.popen.returncode,
                             "another instance may be running, or the install is damaged")
         self.attach(timeout)
+        # The region view registers its commands (LoadRegion, LoadCity...) when it is up: wait for it.
+        self._wait_state(1, max(5.0, timeout - (time.time() - t0)))
         return {"launched": True, "seconds": round(time.time() - t0, 1), **self.status()}
 
     def status(self) -> dict:

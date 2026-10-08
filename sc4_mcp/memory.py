@@ -10,6 +10,9 @@ from . import win32
 
 G_APP = 0xB43C94          # cISC4App* (= cSC4App + 0xC)
 G_SIMULATOR = 0xB43D5C    # cSC4Simulator* of the open city (cached by the game)
+G_TERRAIN = 0xB43CF4      # cISTETerrain*
+G_SURFACE_WATER = 0xB43CF0
+G_LOT_MANAGER = 0xB43D08  # cISC4LotManager* (= the zone developer + 4)
 G_CITY = 0xB43CEC         # cSC4City* of the current city (valid only while app state == 2)
 APP_VTABLE = 0xA86AF0     # vtable of the cISC4App interface
 CITY_VTABLE = 0xA87620    # vtable of cSC4City (cISC4City at +0)

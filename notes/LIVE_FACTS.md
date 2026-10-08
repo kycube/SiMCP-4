@@ -128,3 +128,38 @@ Scripts: `live/t1_bridge.py`, `live/t2_stdio.py`.
 - **The "no admin" shortcuts work** after the move: Explorer -> `cmd.exe /c ""%USERPROFILE%\SiMCP-4\game\Apps\
   SimCity 4.exe" -CPUCount:1 -w"` started the game unelevated (opened read/write by a normal-user process), with the
   player's own Plugins (NAM.log in Documents updated, title "SC4Fix r7") and without the SiMCP plugin.
+
+## Session 2026-10-08 (Phase 2: economy actions, dialogs, founding, saving)
+
+- **Regions**: when SiMCP's user folder already has a region before the game's first start there, the game copies
+  only some shipped regions (it made `timbuktu` lowercase and `Downloads`); `game_launch` now copies missing shipped
+  regions itself (never overwriting). The game reads the region list at start-up: regions added while it runs need
+  a restart (LoadRegion returns status 2). **LoadRegion takes the display name** from region.ini ("Timbuktu"), not
+  the folder name ("timbuktu" -> status 2).
+- **Taxes** (budget slot 37 SetTaxRate(g, float)): R$ 8.9 -> 9.5 read back at `[B+0x70]`; 23 % for I-D clamped by
+  the tool to 20.0 (the Budget window's limit); monthly income responded (3327 -> 4801).
+- **Departments**: the map at `[B+0x54]` holds 18 departments (Health 120 %, Education 96 %, Police, Fire, Water,
+  Power, Sanitation, Mass Transit, Road Services, Airports, Seaports, School Buses, Ambulances, Dept. of Corrections,
+  Parks and Recreation, Landmarks, Building Maintenance, Business Deals), max 120 % (100 % for parks, landmarks,
+  building maintenance, business deals); slot 15 = monthly expense. SetFundingPercentage (slot 11) with a pointer to
+  a float in the bridge's request area: Education 96 -> 110 %, its expense 287 -> 330; Parks 150 -> clamped 100.
+- **Ordinances**: 21 (Maxis + CAM, one with a vtable inside SC4CustomOrdinanceHost.dll - so the tool reads them
+  through cISC4Ordinance slots, not fields); IsOrdinanceAvailable (slot 7) + SetOrdinanceOn (slot 13): Smoke
+  Detector Program enacted.
+- **Loans**: IssueBond(25000) (slot 40): funds 206 -> 25,206; loan record (list at `[B+0x780]`): payment 309 / month,
+  total 37,080, ends 2036-02 (120 months at 8.5 %). After the month: funds +451 = last month's income 4790 - expense
+  4339 exactly; the loan's paid 309.
+- **Dialogs** (window manager service 0xA417445E, vtable 0xAE46E8): IsModal (slot 42); topmost modal window
+  `[wm+0x38]`; nest count `[wm+0x17C]`. "QuitCity 0" opened the save-or-quit dialog (buttons Cancel, Exit Without
+  Saving, "Option Disabled" - the save-warning plugin's change); an advisor popup (root 0x4A9DB60C, button Close id 1,
+  text in an HTML control) was open behind it. GZWinClickButton <id> <root> closed each one.
+- **Founding a city**: Mayor Mode = button 0xC988BC79 (city control panel, layout 0xC973B411) opens Establish City
+  (root 0x6A414973); GZWinSetWindowText on the edit fields 0xAA4149BF (city) / 0xAA4149D2 (mayor), "Easy", then
+  "Establish City": MCP Town (mayor SiMCP, easy) founded on MCP Test tile (6, 0), fireworks; funds 1,000,000 (CAM's
+  easy start), all taxes 9 %.
+- **Speed / pause**: SimSpeedFast / Slow set S+0x3C; SimSpeedPause toggles the user pause count S+0x30.
+- **Saving**: the SaveCity command saves to "City - <city name>.sc4" in the region folder (the city's path field
+  +0x4C still names the tile's old file until saved) and then shows a "City Saved. (City - MCP Town.sc4)" notice
+  (root 0xAA8DEF97, OK id 0) that holds the deferred call until answered; "SaveCity 0" shows it too. save_city answers
+  it. Saving SiMCP's copy of a shipped city (Making Money Tutorial) is refused unless allow_shipped.
+- **Popups**: app slots 23 / 24 Get/SetPopupDialogsEnabled toggle (read back).

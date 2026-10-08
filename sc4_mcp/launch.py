@@ -124,6 +124,22 @@ def mirror_plugins(user_dir: str = USER_DIR, source: str | None = None) -> dict:
     return done
 
 
+def ensure_regions(user_dir: str = USER_DIR) -> list[str]:
+    """Copy the game's shipped regions into <user_dir>\\Regions where missing (the game itself does this only when
+    the folder is empty on its first start). Never overwrites anything. Returns the regions copied."""
+    src = os.path.join(identity.game_dir(), "Regions")
+    dst = os.path.join(user_dir, "Regions")
+    os.makedirs(dst, exist_ok=True)
+    copied = []
+    if os.path.isdir(src):
+        for name in sorted(os.listdir(src)):
+            s, d = os.path.join(src, name), os.path.join(dst, name)
+            if os.path.isdir(s) and not os.path.exists(d):
+                shutil.copytree(s, d)
+                copied.append(name)
+    return copied
+
+
 def command_line(user_dir: str | None = USER_DIR, windowed: bool = True,
                  resolution: tuple[int, int] | None = DEFAULT_RESOLUTION, intro: bool = False,
                  extra: list[str] | None = None) -> list[str]:
@@ -151,6 +167,7 @@ def launch(user_dir: str | None = USER_DIR, mirror: bool = True, beside_other: b
     root = ensure_game_junction()
     if user_dir and mirror:
         mirror_plugins(user_dir)
+        ensure_regions(user_dir)
     exe = os.path.join(root, "Apps", identity.EXE_NAME)
     env = dict(os.environ)
     # Our own environment may carry __COMPAT_LAYER (e.g. DetectorsAppHealth); give the game GOG's DPI flag only.

@@ -24,6 +24,7 @@ APP_STATES = {0: "none", 1: "region", 2: "city"}
 
 C_ESTABLISHED = 0x25
 C_DIFFICULTY = 0x28
+C_SAVE_PATH = 0x4C        # cRZString: the city's .sc4 file
 C_NAME = 0x74             # cRZString {vtable, begin, end, capacity end, refs}
 C_MAYOR = 0x9C
 C_DESCRIPTION = 0xC4

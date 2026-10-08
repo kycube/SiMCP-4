@@ -10,10 +10,16 @@ from . import bridge, identity, launch, memory, regions, win32
 # cISC4App vtable slots (gzcom-dll numbering, cIGZUnknown = 0..2; verified live where LIVE_FACTS says so)
 APP_REQUEST_QUIT = 10        # RequestQuit(bool showDialog, bool saveFirst)
 APP_GET_APP_STATE = 25
+APP_GET_POPUPS = 23         # Get/SetPopupDialogsEnabled
+APP_SET_POPUPS = 24
 APP_GET_REGION = 35
 APP_GET_CITY = 37
 SIM_HIDDEN_PAUSE = 10       # cISC4Simulator::HiddenPause / HiddenResume (counted)
 SIM_HIDDEN_RESUME = 13
+BTN_MAYOR_MODE = 0xC988BC79  # city control panel (layout 0xC973B411): Mayor Mode
+DLG_ESTABLISH = 0x6A414973   # Establish City dialog (layout 0x2A41436B)
+FLD_CITY_NAME, FLD_MAYOR_NAME = 0xAA4149BF, 0xAA4149D2
+DLG_CITY_SAVED = 0xAA8DEF97  # the "City Saved. (file)" notice, button OK (id 0)
 REGION_GET_NAME = 3          # cISC4Region::GetName -> SC4String* (a cRZString)
 
 
@@ -132,18 +138,23 @@ class Game:
         if memory.app_state(self.proc) == 2:
             raise GameError("a city is open", "leave it first with leave_city (the game loads regions only from "
                                               "the region view)")
-        names = {r["folder"].lower(): r["folder"] for r in regions.list_regions(launch.USER_DIR)}
-        folder = names.get(name.lower())
-        if not folder:
+        # LoadRegion takes the region's display name (region.ini Name, e.g. "Timbuktu"), not its folder name
+        # ("timbuktu" when the game made the folder itself) - verified live.
+        rs = regions.list_regions(launch.USER_DIR)
+        hit = next((r for r in rs if name.lower() in (r["folder"].lower(), (r.get("name") or "").lower())), None)
+        if not hit:
             raise GameError("no region %r in SiMCP's user folder" % name,
-                            "list_regions shows the regions: %s" % ", ".join(sorted(names.values())))
+                            "list_regions shows the regions: %s" % ", ".join(sorted(r["folder"] for r in rs)))
+        display = hit.get("name") or hit["folder"]
         t0 = time.time()
-        r = b.command('LoadRegion "%s"' % folder, defer=True, timeout_s=timeout)
+        r = b.command('LoadRegion "%s"' % display, defer=True, timeout_s=timeout)
         if r.get("pending") or r.get("status") != 0:
-            raise GameError("the game did not load the region (%r)" % r, "see game_status")
+            raise GameError("the game did not load the region (%r)" % r,
+                            "regions copied in while the game runs are known only after a restart (quit_game, "
+                            "game_launch)")
         state = self._wait_state(1, timeout)
         got = self.region_name()
-        if state != 1 or (got or "").lower() != folder.lower():
+        if state != 1 or (got or "").lower() != display.lower():
             raise GameError("region still loading or not loaded (view %s, region %r)" % (state, got),
                             "call game_status")
         return {"region": got, "seconds": round(time.time() - t0, 1)}
@@ -215,6 +226,118 @@ class Game:
         return {"days": done, "remaining_days": days - done, "date": "%04d-%02d-%02d" % (y, m, d),
                 "day_number": end, "elapsed_days": end - start, "seconds": round(dt, 2),
                 "days_per_second": round(done / dt, 1) if dt > 0 else None, "steps": steps, "idle_passes": idles}
+
+    # ---- founding, speed, saving
+    def found_city(self, name: str, mayor: str, difficulty: str = "easy", timeout: float = 30.0) -> dict:
+        """The player's flow: Mayor Mode button (0xC988BC79, city control panel) -> the Establish City dialog: city and
+        mayor name fields, difficulty, Establish City (re/agents/advisors-ui; verified in LIVE_FACTS)."""
+        from . import dialogs
+        b = self.attach(10.0)
+        c = memory.city_basics(self.proc)
+        if not c:
+            raise GameError("no city is open", "load_city(size=...) opens an unfounded tile")
+        if c["established"]:
+            raise GameError("%s is already founded" % c["name"])
+        if difficulty not in ("easy", "medium", "hard"):
+            raise GameError("difficulty must be easy, medium or hard")
+        for s in (name, mayor):
+            if not s or '"' in s or len(s) > 31:
+                raise GameError("names must be 1-31 characters without double quotes")
+        b.command("GZWinClickButton %d 0" % BTN_MAYOR_MODE)
+        end = time.time() + timeout
+        while time.time() < end:
+            st = dialogs.status(self)
+            if st["open"] and any(d["id"] == "0x%08X" % DLG_ESTABLISH for d in st["dialogs"]):
+                break
+            time.sleep(0.2)
+        else:
+            raise GameError("the Establish City dialog did not open", "see dialog_status")
+        b.command('GZWinSetWindowText %d %d "%s"' % (FLD_CITY_NAME, DLG_ESTABLISH, name))
+        b.command('GZWinSetWindowText %d %d "%s"' % (FLD_MAYOR_NAME, DLG_ESTABLISH, mayor))
+        dialogs.click(self, difficulty)
+        time.sleep(0.3)
+        dialogs.click(self, "Establish City")
+        while time.time() < end:
+            c = memory.city_basics(self.proc)
+            if c and c["established"]:
+                return {"city": c}
+            time.sleep(0.25)
+        raise GameError("the city was not founded", "see dialog_status")
+
+    def set_speed(self, speed: str) -> dict:
+        """The speed buttons (commands SimSpeedSlow / Medium / Fast); they also un-pause, as the buttons do."""
+        b = self.attach(10.0)
+        cmd = {"slow": "SimSpeedSlow", "medium": "SimSpeedMedium", "fast": "SimSpeedFast"}.get(speed)
+        if not cmd:
+            raise GameError("speed must be slow, medium or fast")
+        if memory.app_state(self.proc) != 2:
+            raise GameError("no city is open")
+        b.command(cmd)
+        return {"speed": memory.city_basics(self.proc)["speed"], "paused": memory.city_basics(self.proc)["paused"]}
+
+    def set_paused(self, paused: bool) -> dict:
+        """The pause button (command SimSpeedPause toggles the player's pause)."""
+        b = self.attach(10.0)
+        if memory.app_state(self.proc) != 2:
+            raise GameError("no city is open")
+        for _ in range(4):
+            if memory.city_basics(self.proc)["paused"] == bool(paused):
+                break
+            b.command("SimSpeedPause")
+        c = memory.city_basics(self.proc)
+        return {"paused": c["paused"], "speed": c["speed"]}
+
+    def set_popups(self, enabled: bool) -> dict:
+        """cISC4App slot 24 SetPopupDialogsEnabled (the switch behind the SetPopupModalDialogsEnabled command)."""
+        b = self.attach(10.0)
+        app = b.plugin_state()["app"]
+        b.call_sequence([(APP_SET_POPUPS, app, [1 if enabled else 0], 1 << 15)])
+        return {"popups": bool(b.vcall(app, APP_GET_POPUPS).ret[0] & 0xFF)}
+
+    def city_file(self) -> str:
+        c = memory.city_pointer(self.proc)
+        return memory.rz_string(self.proc, c + memory.C_SAVE_PATH, 1024) if c else ""
+
+    def save_city(self, allow_shipped: bool = False, timeout: float = 120.0) -> dict:
+        """The game's own save (command SaveCity) into the city's file in SiMCP's user folder. Copies of the game's
+        shipped cities are kept as shipped unless allow_shipped."""
+        b = self.attach(10.0)
+        if memory.app_state(self.proc) != 2:
+            raise GameError("no city is open")
+        path = self.city_file()
+        rel = os.path.relpath(path, os.path.join(launch.USER_DIR, "Regions")) if path else ""
+        shipped = os.path.join(identity.game_dir(), "Regions", rel)
+        if rel and os.path.exists(shipped) and not allow_shipped:
+            raise GameError("this city is SiMCP's copy of a city shipped with the game (%s)" % rel,
+                            "found a new city (MCP Test region) to save, or pass allow_shipped=true")
+        # The game names the file after the city at save time ("City - <name>.sc4"), so watch the region folder.
+        folder = os.path.dirname(path)
+        start = time.time() - 1
+
+        def newest():
+            best = None
+            for f in os.listdir(folder):
+                q = os.path.join(folder, f)
+                if f.lower().endswith(".sc4") and os.path.getmtime(q) > start:
+                    if best is None or os.path.getmtime(q) > os.path.getmtime(best):
+                        best = q
+            return best
+
+        from . import dialogs
+        r = b.command("SaveCity", defer=True, timeout_s=3)
+        end = time.time() + timeout
+        while time.time() < end:
+            q = newest()
+            if q:
+                # the game confirms with a "City Saved" notice (root 0xAA8DEF97): press its OK as the player would
+                st = dialogs.status(self)
+                if st["open"] and st["dialogs"][0]["id"] == "0x%08X" % DLG_CITY_SAVED:
+                    dialogs.click(self, "OK")
+                if not b.deferred_state()["busy"]:
+                    time.sleep(0.3)
+                    return {"saved": q, "bytes": os.path.getsize(q)}
+            time.sleep(0.25)
+        raise GameError("the save did not complete", "a dialog may be waiting: see dialog_status")
 
     def city_status(self) -> dict:
         self.attach(5.0)

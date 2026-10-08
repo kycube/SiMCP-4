@@ -9,7 +9,7 @@ import os
 from mcp.server.fastmcp import FastMCP
 
 from . import game as gamemod
-from . import city, launch, layers, memory, regions
+from . import city, economy, launch, layers, memory, regions
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -115,6 +115,91 @@ def load_city(name: str = "", size: str = "any") -> dict:
         size: for an unfounded tile: "small" (64x64 cells), "medium" (128x128), "large" (256x256) or "any".
     """
     return G.load_city(name=name, size=size)
+
+
+@tool(mcp, "act")
+@guarded
+def found_city(name: str, mayor: str, difficulty: str = "easy") -> dict:
+    """Found (establish) the unfounded tile that is open, as the player does: the Mayor Mode button, then the
+    Establish City dialog with the city's and the mayor's names and the difficulty. After this the god-mode terrain
+    tools are no longer available and the difficulty cannot change (the game's own rule).
+
+    Args:
+        name: the city's name (1-31 characters).
+        mayor: the mayor's name (1-31 characters).
+        difficulty: "easy", "medium" or "hard" (sets the starting funds and the economy's difficulty).
+    """
+    return G.found_city(name, mayor, difficulty)
+
+
+@tool(mcp, "set")
+@guarded
+def set_speed(speed: str) -> dict:
+    """The game's speed buttons: "slow", "medium" or "fast" (like the buttons, this also un-pauses).
+
+    Args:
+        speed: "slow", "medium" or "fast".
+    """
+    return G.set_speed(speed)
+
+
+@tool(mcp, "set")
+@guarded
+def set_paused(paused: bool) -> dict:
+    """Pause or resume the simulation with the game's pause button.
+
+    Args:
+        paused: true to pause, false to run.
+    """
+    return G.set_paused(paused)
+
+
+@tool(mcp, "destructive")
+@guarded
+def save_city(allow_shipped: bool = False) -> dict:
+    """Save the open city with the game's own save, into its file in SiMCP's user folder (replacing the previous
+    save). SiMCP's copies of the cities shipped with the game are kept as shipped unless allow_shipped.
+
+    Args:
+        allow_shipped: also save over SiMCP's copy of a city that came with the game.
+    """
+    return G.save_city(allow_shipped)
+
+
+@tool(mcp, "read")
+@guarded
+def dialog_status() -> dict:
+    """The game's open dialog windows, topmost first: title, texts and buttons (labels and ids). When a dialog is
+    open the game waits for an answer; close_dialog answers it."""
+    from . import dialogs
+    G.attach(10.0)
+    return dialogs.status(G)
+
+
+@tool(mcp, "act")
+@guarded
+def close_dialog(button: str) -> dict:
+    """Answer the topmost dialog by pressing one of its buttons, as the player clicks it.
+
+    Args:
+        button: the button's label as dialog_status shows it (case-insensitive; a unique part is enough) or its id.
+    """
+    from . import dialogs
+    G.attach(10.0)
+    return dialogs.click(G, button)
+
+
+@tool(mcp, "set")
+@guarded
+def set_popups(enabled: bool) -> dict:
+    """Whether the game opens popup windows (advisor messages, message boxes) during play. With popups off the game
+    keeps running unattended; advice still reaches the advisors panel and news (read them with advisors()).
+
+    Args:
+        enabled: true = the game's normal popups, false = none.
+    """
+    G.attach(10.0)
+    return G.set_popups(enabled)
 
 
 @tool(mcp, "destructive")
@@ -224,6 +309,92 @@ def get_budget() -> dict:
     """The city's money: funds, the tax rate of every zone and wealth group, this month's income and expenses, last
     month's, year to date, the game's end-of-year estimate, and loans. Read from the game."""
     return city.budget(_city())
+
+
+def _econ(fn, *a):
+    try:
+        return fn(_city(), *a)
+    except economy.EconomyError as e:
+        return {"error": str(e), "hint": e.hint}
+
+
+@tool(mcp, "set")
+@guarded
+def set_tax(group: str, rate: float) -> dict:
+    """Set the tax rate of one zone and wealth group, as the Budget window's spinners do (0.0 to 20.0 percent in
+    steps of 0.1; outside values are clamped). Returns the rate the game now uses.
+
+    Args:
+        group: one of residential_low, residential_medium, residential_high, commercial_services_low,
+            commercial_services_medium, commercial_services_high, commercial_office_medium, commercial_office_high,
+            industrial_agriculture, industrial_dirty, industrial_manufacturing, industrial_high_tech.
+        rate: the tax rate in percent.
+    """
+    return _econ(economy.set_tax, group, rate)
+
+
+@tool(mcp, "read")
+@guarded
+def departments() -> dict:
+    """The city's budget departments (police, fire, health, education, transit, utilities...): funding percentage,
+    the most the player may set, and this month's expense and income for each."""
+    g = _city()
+    return {"departments": [{k: v for k, v in d.items() if not k.startswith("_")} for d in economy.departments(g)]}
+
+
+@tool(mcp, "set")
+@guarded
+def set_department_funding(department: str, percent: float) -> dict:
+    """Set a department's funding, as the Budget window's slider does (0 up to the department's maximum, usually
+    120 percent; clamped). Lower funding saves money but weakens the service. Returns the new monthly expense.
+
+    Args:
+        department: the department's name as departments() lists it (e.g. "Police Dept.", "Education"; a unique
+            part of the name is enough) or its id.
+        percent: the funding in percent of the full cost.
+    """
+    return _econ(economy.set_department_funding, department, percent)
+
+
+@tool(mcp, "read")
+@guarded
+def ordinances() -> dict:
+    """Every ordinance the game knows (including those added by plugins): whether it is available to this city,
+    enacted, its enactment and repeal fees, its current monthly income or cost, and its description."""
+    return {"ordinances": economy.ordinances(_city())}
+
+
+@tool(mcp, "set")
+@guarded
+def set_ordinance(name: str, enacted: bool) -> dict:
+    """Enact or repeal an ordinance, as the Ordinances panel does (only ordinances available to the city). Fees and
+    monthly effects are settled with the month's budget.
+
+    Args:
+        name: the ordinance's name as ordinances() lists it (a unique part of the name is enough) or its id.
+        enacted: true to enact, false to repeal.
+    """
+    return _econ(economy.set_ordinance, name, enacted)
+
+
+@tool(mcp, "read")
+@guarded
+def loans() -> dict:
+    """The city's loans (principal, monthly payment, what is left to pay, when they end) and the bank's limits."""
+    return economy.loans(_city())
+
+
+@tool(mcp, "act")
+@guarded
+def take_loan(amount: int) -> dict:
+    """Take a loan from the bank, as the Loans window does: 5,000 to 100,000 in steps of 5,000, within the game's
+    limits (number of loans and total borrowing). The money is added to the funds at once; it is repaid monthly with
+    interest (SimCity 4 has no early repayment).
+
+    Args:
+        amount: the loan amount.
+    """
+    return _econ(economy.take_loan, amount)
 
 
 @tool(mcp, "read")

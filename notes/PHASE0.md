@@ -35,7 +35,8 @@ Tested with suspended processes (killed before running any game code):
   for the path is always merged in.
 
 **Recipe (no change to the game folder or the registry):** a directory junction outside OneDrive,
-`%LOCALAPPDATA%\SiMCP-4\game` -> the GOG game folder, and the game started through it:
+`%USERPROFILE%\SiMCP-4\game` -> the GOG game folder (first made under `%LOCALAPPDATA%`; moved because a packaged
+client sees AppData through a private virtualized copy - see LIVE_FACTS), and the game started through it:
 `<junction>\Apps\SimCity 4.exe -CPUCount:1 -w -intro:off -CustomResolution:enabled -r1024x768x32` with working
 directory `<junction>\Apps` and `__COMPAT_LAYER=HIGHDPIAWARE` (our shell's own `DetectorsAppHealth` would otherwise
 be inherited). The path no longer matches GOG's entry, so the game runs unelevated without the XP layer. The
@@ -172,7 +173,7 @@ extracted from the Mac PowerPC port, i.e. Maxis' own function and class names.
 ## Decisions taken before Phase 1 (with the user, 2026-10-08)
 
 1. **Bridge location: SiMCP's own user folder** (the user left it to us). The game is started with
-   `-UserDir:%LOCALAPPDATA%\SiMCP-4\UserDir\`; its `Plugins` mirrors the player's Plugins root (a junction per
+   `-UserDir:%USERPROFILE%\SiMCP-4\UserDir\`; its `Plugins` mirrors the player's Plugins root (a junction per
    category folder, a symbolic link per DLL, a copy per INI - rebuilt at each launch by `sc4_mcp/launch.py`) plus
    `simcp4.dll`; it has its own `Regions`, `SimCity 4.cfg` and DLL logs. The player's Documents\SimCity 4 is never
    written. (sc4pac's handling of unknown files in Plugins therefore does not matter.)

@@ -5,7 +5,8 @@ verified. Where a static report disagrees with this file, this file wins.
 
 ## Session 2026-10-08 (Phase 0: one windowed run, no bridge)
 
-- **Unelevated launch through a junction** works: `%LOCALAPPDATA%\SiMCP-4\game` -> the GOG folder, game started
+- **Unelevated launch through a junction** works: `%LOCALAPPDATA%\SiMCP-4\game` (later moved to
+  `%USERPROFILE%\SiMCP-4`, see "AppData is virtualized" below) -> the GOG folder, game started
   as `<junction>\Apps\SimCity 4.exe -CPUCount:1 -w -intro:off -CustomResolution:enabled -r1024x768x32`, cwd
   `<junction>\Apps`, `__COMPAT_LAYER=HIGHDPIAWARE`. Verified: no error 740, the process opened for reading by a
   normal-user process, region view shown. (Through the real path every launch fails with error 740 because of
@@ -117,3 +118,13 @@ Scripts: `live/t1_bridge.py`, `live/t2_stdio.py`.
   record vector I+0x7C..+0x80 lists all its advices (Utilities 116, Fluffy News 266...); active ones have flag 2.
   Titles and messages come out detokenized ("Good gravy Mayor Knut ... in Konradshohe"); moods 0 / 1 / 3 / 5 / 7.
   The current-advice list node layout guessed by the report (advice at node+0xC) is wrong - the record vector is used.
+- **AppData is virtualized for this development session**: everything the session's processes wrote under
+  `%LOCALAPPDATA%\SiMCP-4` (the junction, SiMCP's user folder) physically lives in
+  `AppData\Local\Packages\Claude_<id>\LocalCache\Local\SiMCP-4` (MSIX file-system virtualization of the client app's
+  process tree), so Explorer, the player's shortcuts and any MCP client started outside that app did not see it (a
+  diagnostic .cmd started from Explorer: `cd` to the junction failed, errorlevel 3). SiMCP's home moved to the profile
+  root `%USERPROFILE%\SiMCP-4` (not virtualized, not in OneDrive; `SIMCP4_HOME` overrides). The old copy was left
+  in place.
+- **The "no admin" shortcuts work** after the move: Explorer -> `cmd.exe /c ""%USERPROFILE%\SiMCP-4\game\Apps\
+  SimCity 4.exe" -CPUCount:1 -w"` started the game unelevated (opened read/write by a normal-user process), with the
+  player's own Plugins (NAM.log in Documents updated, title "SC4Fix r7") and without the SiMCP plugin.

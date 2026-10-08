@@ -62,7 +62,7 @@ starts the game through a directory junction instead, unelevated (see PHASE0.md)
 3. Register `python -m sc4_mcp` as a stdio MCP server with your client; give it a tool timeout of a few minutes.
 4. Ask the agent to call `guide`, then `game_launch`.
 
-`game_launch` starts the game through a junction in `%LOCALAPPDATA%\SiMCP-4` with its own user folder there
+`game_launch` starts the game through a junction in `%USERPROFILE%\SiMCP-4` (or `SIMCP4_HOME`) with its own user folder there
 (`UserDir`: Regions, settings and a Plugins folder that mirrors yours plus the SiMCP plugin); your own
 `Documents\SimCity 4` is never written. If your own game is open, SiMCP's runs beside it.
 

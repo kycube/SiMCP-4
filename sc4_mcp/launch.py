@@ -3,10 +3,10 @@
 Why a junction: GOG registers the WINXPSP3 compatibility layer for `...\\Apps\\SimCity 4.exe`, and on current
 Windows that layer makes CreateProcess fail with ERROR_ELEVATION_REQUIRED (740). An elevated game cannot be read or
 messaged by a normal-user server. The layer is keyed by the exe's path, so the game is started through a directory
-junction (`%LOCALAPPDATA%\\SiMCP-4\\game` -> the game folder): same files, no registry or game-folder change, no
+junction (`%USERPROFILE%\\SiMCP-4\\game` -> the game folder): same files, no registry or game-folder change, no
 elevation. The junction lives outside OneDrive on purpose (a sync client would follow it into the game folder).
 
-Why a separate user folder: the game is started with `-UserDir:` pointing at `%LOCALAPPDATA%\\SiMCP-4\\UserDir\\`.
+Why a separate user folder: the game is started with `-UserDir:` pointing at `%USERPROFILE%\\SiMCP-4\\UserDir\\`.
 Its Plugins folder mirrors the player's own Plugins root (junctions to the category folders, the same DLL links,
 copies of the DLLs' INI files) plus the SiMCP bridge plugin, and it has its own Regions and SimCity 4.cfg. Nothing
 in the player's Documents\\SimCity 4 is written by SiMCP.
@@ -20,7 +20,9 @@ import subprocess
 
 from . import identity
 
-ROOT = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "SiMCP-4")
+# SiMCP's home: the profile root, not AppData - a packaged client (e.g. a desktop app) sees AppData through its own
+# private, virtualized copy, which the player's shortcuts and other clients cannot see (verified 2026-10-08).
+ROOT = os.environ.get("SIMCP4_HOME") or os.path.join(os.path.expanduser("~"), "SiMCP-4")
 JUNCTION = os.path.join(ROOT, "game")
 USER_DIR = os.environ.get("SC4_USER_DIR") or os.path.join(ROOT, "UserDir")
 DEFAULT_RESOLUTION = (1024, 768)

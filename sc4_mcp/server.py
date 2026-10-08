@@ -10,7 +10,7 @@ import os
 from mcp.server.fastmcp import FastMCP, Image
 
 from . import game as gamemod
-from . import build, catalog, cheats, city, disasters, economy, history, launch, layers, luaquery, memory, mysim, pointer, regions, terrain, udi, view
+from . import build, catalog, cheats, city, content, disasters, economy, history, launch, layers, luaquery, memory, mysim, pointer, regions, terrain, udi, view
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -930,6 +930,60 @@ def terraform(brush: str, cells: list[list[int]], seconds: float = 1.0) -> dict:
         seconds: how long to hold (0.1 to 10).
     """
     return _terrain(terrain.apply, brush, [tuple(c) for c in cells], seconds)
+
+
+def _content(fn, *a, **kw):
+    try:
+        return fn(*a, **kw)
+    except content.ContentError as e:
+        return {"error": str(e), "hint": e.hint}
+
+
+@tool(mcp, "read")
+@guarded
+def content_designs() -> dict:
+    """The buildings SiMCP designed (its plugin files in SiMCP's own Plugins folder): name, ids, file, state."""
+    return {"designs": content.designs()}
+
+
+@tool(mcp, "act")
+@guarded
+def design_building(name: str, template: str, description: str = "", plop_cost: int = -1,
+                    monthly_cost: int = -1, bulldoze_cost: int = -1) -> dict:
+    """Design a new building for the build menus from one of the game's own menu items (its models, props and
+    textures) under a new name, description and costs; it is written as a plugin file into SiMCP's own Plugins
+    folder. The game loads plugins at start-up: quit_game and game_launch, then it is in build_menu like any other.
+
+    Args:
+        name: the new building's name, shown in the menu.
+        template: a Maxis item from build_menu: its name ("Playground") or lot id.
+        description: the menu description.
+        plop_cost: the plop cost (-1 = the template's).
+        monthly_cost: the monthly cost (-1 = the template's).
+        bulldoze_cost: the bulldoze cost (-1 = the template's).
+    """
+    g = _city()
+    hits = catalog.find(build._Caller(g), template)
+    if not hits:
+        return {"error": "no build menu item matches %r" % template, "hint": "build_menu lists the items"}
+    if len({h["lot"] for h in hits}) > 1:
+        return {"error": "%r matches several items" % template, "hint": "use the lot id from build_menu"}
+    it = hits[0]
+    return _content(content.clone_lot, it["lot"], None, name, description,
+                    None if plop_cost < 0 else plop_cost, None if monthly_cost < 0 else monthly_cost,
+                    None if bulldoze_cost < 0 else bulldoze_cost)
+
+
+@tool(mcp, "destructive")
+@guarded
+def disable_design(name: str) -> dict:
+    """Take a SiMCP design out of the game: its file moves to SiMCP's content-disabled folder (nothing is
+    deleted); restart the game for it to leave the menus. Buildings of it already in cities stay as they are.
+
+    Args:
+        name: the design's name.
+    """
+    return _content(content.disable, name)
 
 
 @tool(mcp, "destructive")

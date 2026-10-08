@@ -290,3 +290,11 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   and small tiles). Saved city files: region-view record v1.13 = mayor rating s8 0x24, difficulty 0x25, serial
   0x27, founded 0x3F, strings name / - / mayor / - / utility advisor / description; terrain record
   0xA9DD6FF4/0xE98F9525/1 (65x65 f32 for a small city); thumbnails PNG 0x8A2482B9/0x4A2482BB/0 (satellite) and /4.
+- **Content server, stage 1**: a design = one DBPF in `<UserDir>\Plugins\zzz_SiMCP` with a building exemplar (group
+  0x5C4D0F00, the template's parent cohort and properties, LTEXT keys dropped, 0x899AFBAD name, 0x8A2602A9
+  description, 0xEA260589 -> the new lot, costs) and a lot exemplar (group 0xA8FBD372, the template's rows, the
+  building row's IID -> the new building). "MCP Garden" (from the Playground lot 0x6A636333, plop 55, monthly 7):
+  after a game restart build_menu listed it under parks (lot 0xDAE61741, available); plop in MCP Village charged 55
+  and the playground props appeared. A first attempt picked the lot exemplar as the "building" (same instance in
+  two groups) - fixed by excluding the lot group; that file sits in `<SiMCP home>\content-disabled`. In this setup a
+  plugin replaces the Playground lot's building (the live lot names 0xB47406A3), so designs use the game's own lot.

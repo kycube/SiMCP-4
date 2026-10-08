@@ -9,7 +9,7 @@ import os
 from mcp.server.fastmcp import FastMCP
 
 from . import game as gamemod
-from . import city, economy, launch, layers, memory, regions
+from . import build, catalog, city, economy, history, launch, layers, memory, regions
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -434,6 +434,147 @@ def advisors(include_fluff: bool = False) -> dict:
         include_fluff: also list the fluffy news (jokes without game meaning).
     """
     return city.advisors(_city(), include_fluff)
+
+
+def _build(fn, *a, **kw):
+    try:
+        return fn(_city(), *a, **kw)
+    except build.BuildError as e:
+        return {"error": str(e), "hint": e.hint}
+
+
+@tool(mcp, "read")
+@guarded
+def build_menu(menu: str = "") -> dict:
+    """What the player can plop now, from the game's build menus (with plugins): each item's name, lot and
+    building ids, menus, size in cells, plop cost, monthly cost, and whether the menu offers it (available=false:
+    greyed - a locked reward, a population or era requirement, an exclusion). menu="trees" lists the trees.
+
+    Args:
+        menu: one menu only: parks, transport, ferry, power, water, garbage, police, jail, fire, education, health,
+            airports, landmarks, rewards, other, or trees. "" = all.
+    """
+    if menu == "trees":
+        return {"trees": build.tree_types()}
+    g = _city()
+    return {"items": catalog.ploppables(build._Caller(g), menu)}
+
+
+@tool(mcp, "act")
+@guarded
+def plop(building: str, x: int, z: int, facing: str = "north") -> dict:
+    """Plop a building from the build menus, as the player's plop tool does: the game's placement rules apply and
+    its plop cost is charged. Refused when the menu greys it out (locked reward, requirement not met) or the spot
+    is taken, too steep or under water (nothing is charged then).
+
+    Args:
+        building: a name from build_menu ("Coal Power Plant") or its lot or building id ("0x02000002").
+        x: west edge of the lot (cell).
+        z: north edge of the lot (cell).
+        facing: the side the lot's front faces: north (toward smaller z), east, south or west.
+    """
+    return _build(build.plop, building, x, z, facing)
+
+
+@tool(mcp, "act")
+@guarded
+def build_network(network: str, points: list[list[int]], build_it: bool = True, connect_neighbor: bool = False,
+                  bridge: int = -1) -> dict:
+    """Build a road, rail, pipe, power line or other network through cells, as the player drags it: one drag per
+    leg between consecutive points, laid by the game's own path solver (diagonals and curves as the game makes
+    them), each leg's cost charged to the funds (a leg the city cannot pay is not built).
+
+    Args:
+        network: road, street, avenue, one_way_road, rail, light_rail, monorail, subway, elevated_highway,
+            ground_highway, dirt_road, pipe or power_line.
+        points: cells [[x, z], ...]: where the drag starts and each point where it bends or ends (2 to 64).
+        build_it: false = only report each leg's cost and whether the game allows it.
+        connect_neighbor: at the city edge, accept the game's offer to connect to the neighbour city.
+        bridge: over water, which of the game's bridge choices to build (index; -1 = the game's default).
+    """
+    return _build(build.network, network, [tuple(q) for q in points], build_it, connect_neighbor, bridge)
+
+
+@tool(mcp, "act")
+@guarded
+def zone(zone_type: str, x0: int, z0: int, x1: int, z1: int, build_it: bool = True, streets: bool = True,
+         alternate: bool = False) -> dict:
+    """Zone (or de-zone) a rectangle of cells, as the player's zone tool does: the game's zoning rules (slope,
+    size) and its cost per cell, charged to the funds. Areas larger than one drag (32 x 32, 48 x 48 for
+    agriculture) are zoned in several drags.
+
+    Args:
+        zone_type: residential_low, residential_medium, residential_high, commercial_low, commercial_medium,
+            commercial_high, agriculture, industrial_medium, industrial_high, military, airport, seaport,
+            spaceport, landfill, or dezone.
+        x0: west edge (cell).
+        z0: north edge (cell).
+        x1: east edge (cell, inclusive).
+        z1: south edge (cell, inclusive).
+        build_it: false = only report the cost.
+        streets: lay the automatic streets inside large zones (false = the Ctrl-drag).
+        alternate: the Alt-drag variant of the zone tool.
+    """
+    return _build(build.zone, zone_type, x0, z0, x1, z1, build_it, streets, alternate)
+
+
+@tool(mcp, "destructive")
+@guarded
+def bulldoze(x0: int, z0: int, x1: int, z1: int, build_it: bool = True) -> dict:
+    """Bulldoze everything on a rectangle of cells (buildings, lots, networks, trees), as the player's bulldozer
+    does: the game's demolition cost is taken from the funds (as in the game, this can go below zero).
+
+    Args:
+        x0: west edge (cell).
+        z0: north edge (cell).
+        x1: east edge (cell, inclusive).
+        z1: south edge (cell, inclusive).
+        build_it: false = only report the cost.
+    """
+    return _build(build.bulldoze, x0, z0, x1, z1, build_it)
+
+
+@tool(mcp, "act")
+@guarded
+def plant_trees(tree: str, x0: int, z0: int, x1: int, z1: int, build_it: bool = True) -> dict:
+    """Plant one tree in each cell of a rectangle, as the player's flora tool does: each tree's price is charged,
+    and planting stops when the city cannot pay.
+
+    Args:
+        tree: a tree from build_menu(menu="trees"): its name ("Oak Tree") or id.
+        x0: west edge (cell).
+        z0: north edge (cell).
+        x1: east edge (cell, inclusive).
+        z1: south edge (cell, inclusive).
+        build_it: false = only report the cost.
+    """
+    return _build(build.trees, tree, x0, z0, x1, z1, build_it)
+
+
+@tool(mcp, "read")
+@guarded
+def graphs() -> dict:
+    """The game's Graphs window: every graph (mayor rating, funds, income and expenses, population by type and age,
+    demand, power, water, pollution, garbage, commute time, traffic volume, crime, education, life expectancy...) with
+    each line's latest value in the units the window shows. graph_data gives the history of a line."""
+    return {"graphs": history.graphs(_city().proc)}
+
+
+@tool(mcp, "read")
+@guarded
+def graph_data(series: str = "", last: int = 24) -> dict:
+    """The history of one or more series the city keeps (the data behind the Graphs window and the advisors'
+    trends): dated samples, oldest first. Most series get one sample a month; tax rates one a day.
+
+    Args:
+        series: a graph title ("Funds (000s)", "Crime"), a line ("Power: Capacity"), a series name ("funds",
+            "air_pollution", "tax_rate_residential_low") or an id ("0x4A5BA3D0"). "" lists every series kept.
+        last: the newest this many samples per series (0 = all kept).
+    """
+    p = _city().proc
+    if not series.strip():
+        return {"series": history.all_series(p)}
+    return history.series_data(p, series, last)
 
 
 @tool(mcp, "destructive")

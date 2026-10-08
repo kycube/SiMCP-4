@@ -20,7 +20,7 @@
 
 enum {
 	OP_PING = 16,
-	OP_CALL = 17,      // args: fn, conv (unused), nargs (0..8), this (0 = cdecl/stdcall), a0..a7 -> ret[0]=eax ret[1]=edx
+	OP_CALL = 17,      // args: fn, conv (unused), nargs (0..12), this (0 = cdecl/stdcall), a0..a11 -> ret[0]=eax ret[1]=edx
 	OP_CALL_SEQ = 18,  // args: count; str: CallDesc[count] run back-to-back in one main-thread turn -> ret[i] = eax
 	OP_DEFER = 19,     // args as OP_CALL: run later from the message loop; state.defer* report the outcome
 	OP_COMMAND = 20,   // args: defer (0/1); str: a game command line ("LoadRegion Timbuktu") -> ret[0] = the command's
@@ -82,6 +82,7 @@ struct BridgeBlock {
 	} state;
 	DWORD outLen;
 	char out[4096];       // text output of the last command (OP_COMMAND, immediate or deferred)
+	char scratch[8192];   // the server's working memory for call arguments (points, vectors, strings, outputs)
 };
 #pragma pack(pop)
 
@@ -303,7 +304,7 @@ static int Execute(DWORD op) {
 		r[2] = (int)(UINT_PTR)g_hModule;
 		return 0;
 	case OP_CALL:
-		r[0] = CallGeneric((DWORD)a[0], (DWORD)a[3], a[2] < 0 ? 0 : (a[2] > 8 ? 8 : a[2]), &a[4]);
+		r[0] = CallGeneric((DWORD)a[0], (DWORD)a[3], a[2] < 0 ? 0 : (a[2] > 12 ? 12 : a[2]), &a[4]);
 		r[1] = g_lastEdx;
 		return 0;
 	case OP_CALL_SEQ:
@@ -402,6 +403,7 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID) {
 		g_bridge.layout[3] = offsetof(BridgeBlock, doneSeq);
 		g_bridge.layout[4] = offsetof(BridgeBlock, state);
 		g_bridge.layout[5] = offsetof(BridgeBlock, out);
+		g_bridge.layout[6] = offsetof(BridgeBlock, scratch);
 	}
 	return TRUE;
 }

@@ -39,6 +39,7 @@ P_BMODULE, P_BBLOCK, P_BLOADS, P_BSTATUS, P_BERROR, P_BPATH = 108, 112, 116, 120
 B_LAYOUT, B_SEQ, B_OP, B_ARGS, B_STR = 8, 48, 52, 56, 120
 B_DONESEQ, B_STATUS, B_RET, B_MSGLEN, B_MSG, B_STATE = 1144, 1148, 1152, 1216, 1220, 3268
 B_OUTLEN, B_OUT = 3332, 3336
+B_SCRATCH, SCRATCH_SIZE = 7432, 8192
 STR_SIZE = 1024
 CALLDESC = struct.Struct("<IIi6i")
 
@@ -176,7 +177,8 @@ class Bridge:
         if not self.block or self.proc.u32(self.block) != BRIDGE_MAGIC:
             raise BridgeError("inner bridge block not found")
         lay = struct.unpack("<8I", self.proc.read(self.block + B_LAYOUT, 32))
-        if (lay[1], lay[2], lay[3], lay[4], lay[5]) != (B_SEQ, B_STR, B_DONESEQ, B_STATE, B_OUTLEN + 4):
+        if (lay[1], lay[2], lay[3], lay[4], lay[5], lay[6]) != (B_SEQ, B_STR, B_DONESEQ, B_STATE, B_OUTLEN + 4,
+                                                             B_SCRATCH):
             raise BridgeError("inner bridge layout mismatch %r" % (lay,))
 
     def unload(self) -> int:
@@ -201,11 +203,22 @@ class Bridge:
         msg = p.read(b + B_MSG, min(n, 2047)).decode("latin-1") if n else ""
         return BridgeResult(status, ret, msg)
 
+    def scratch(self, offset: int = 0) -> int:
+        """An address in the bridge's scratch area (8 KB the game never uses) for call arguments and outputs."""
+        if not self.block:
+            self.attach()
+        if not 0 <= offset < SCRATCH_SIZE:
+            raise BridgeError("scratch offset out of range")
+        return self.block + B_SCRATCH + offset
+
     def ping(self) -> BridgeResult:
         return self.call(OP_PING)
 
     def call_function(self, addr: int, args=(), this: int = 0) -> BridgeResult:
-        args = list(args)[:8]
+        """Call addr (thiscall when `this`, else cdecl/stdcall) with up to 12 dword arguments."""
+        if len(args) > 12:
+            raise BridgeError("at most 12 arguments")
+        args = list(args)
         return self.call(OP_CALL, [addr, 1 if this else 0, len(args), this] + args)
 
     def defer_call(self, addr: int, args=(), this: int = 0) -> BridgeResult:

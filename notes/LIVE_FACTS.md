@@ -163,3 +163,40 @@ Scripts: `live/t1_bridge.py`, `live/t2_stdio.py`.
   (root 0xAA8DEF97, OK id 0) that holds the deferred call until answered; "SaveCity 0" shows it too. save_city answers
   it. Saving SiMCP's copy of a shipped city (Making Money Tutorial) is refused unless allow_shipped.
 - **Popups**: app slots 23 / 24 Get/SetPopupDialogsEnabled toggle (read back).
+
+## Session 2026-10-08 (Phase 3: building, graphs, the build catalogue, in MCP Town)
+
+All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game paused between actions.
+- **Bridge**: an 8 KB scratch area at the end of the bridge block (layout[6] = its offset 7432) holds call
+  arguments (points, vectors, cell regions, cRZStrings, outputs); OP_CALL takes up to 12 arguments. A call into
+  the game waits for its next frame (~20 ms): the catalogue batches calls with OP_CALL_SEQ (28 per round trip).
+- **History** (`[0xB43DC0]`, vtable 0xA8CCB4): map at +0xC (header, count +0x10 = 140 series in MCP Town), node key
+  +0x10, list sentinel +0x14; samples {next, prev, int32 value +8, cRZDate +0xC (Julian day +0x10)}, oldest first,
+  monthly (tax rates daily, 100+ kept). The Graphs window's 18 graphs are exemplars in group 0xCA4AD545 (0x6A4AEE40
+  series, 0x6A4AEEDC line labels in LTEXT group 0x6A231EAA, 0x6A4AEEE2 scale, 0x8A416A99 title); the advisor Lua
+  `game_trends` names 84 more series. Funds series = funds / 1000 (1000 for 1,000,000).
+- **Networks** (city +0x200 network manager slot 5 GetNetworkTool(type, 1); the UI's preview + commit calls):
+  road (10,20)-(20,20) cost 110 = 11 cells x 10, WithdrawFunds charged 110, road built (screenshot); power line 21
+  cells 81; avenue 22 cells 1320 (start moved one cell west by the pen-width rule); pipe 17 cells 154; diagonal road
+  (10,30)-(26,45) 320. GetCostOfSolution over a 3-point anchor list is not the sum of the legs (150 vs 210 for one
+  straight line), so build_network makes one drag per leg (L road 210 + 160 = 370 charged). Dragging over an
+  existing road costs the full length again (the game's own preview says so too).
+- **Zoning** (ZM slot 11 PlaceZone with the tool's arguments; 10 arguments): R low 10 x 6 cells cost 600 (10 / cell),
+  charged by PlaceZone itself; automatic streets appeared between two blocks; I medium 20 / cell.
+- **Lots**: the lot configuration manager's hash table (`[0xB216CC]`..`[0xB216D0]`, 3079 buckets, 1955 lots;
+  node {next, IID, config}); zone types are an STLport bit vector at +0x44 (bit 15 = plopped). A loaded exemplar
+  (resource manager `[0xB43CA8]` slot 3, iid 0xA52160F5) has its property holder at +0x1C (vtable 0xAAF038):
+  sorted {id, cSCProperty*} at +0x8 (own) and +0x18 (merged with cohorts); cSCProperty: variant value / array
+  pointer +0x8, type u16 +0x12 (0x8000 array; 6 uint32, 9 sint64, 0xA float, 0xE string), count +0x14.
+- **Build menus**: 154 items (parks 25, landmarks 30, rewards 27, power 10, ferry 19, education 11, water 6...);
+  greyed as in the game: nuclear, fusion and solar plants, the casino and most rewards (CivicBuildingSim slot 6
+  status without bit 2). First listing 2.0 s, then 0.3 s.
+- **Plop** (PlaceLot <lot> x z facing 1 0): Playground 90 and Medium Playground 210 charged (= 0x49CAC341); coal
+  plant 13,000; a taken spot returns status 2 and charges nothing. The lot is centred on the corner of cell (x, z)
+  with its rotated size: start = x - size // 2 (2x2 at 40 -> 39..40, 3x3 at 30 -> 29..31, 1x1 at 30 -> 30).
+  Facing 0..3 = north, east, south, west (read back from the lot).
+- **Bulldoze** (Demolition slot 6, 11 arguments, dry run then SetTotalFunds(funds - cost) then the real run):
+  a skateboard park 40; an 11-cell road would cost 22; trees cost nothing to clear.
+- **Trees**: FloraSim slot 7 static data (+0x160 = price, 3 for the menu trees), slot 17 AddNewFloraOccupant(type,
+  float pos[3], 0), WithdrawFunds, Aura slot 6 (x, z floats, 1): 9 Noble Fir trees, 27 charged. The tree menu is
+  the 5 flora exemplars with an icon (group 0xE83E0437; no plugin adds trees here).

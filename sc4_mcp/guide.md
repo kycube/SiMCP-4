@@ -47,8 +47,38 @@ Everything is read from the game's memory, never from screenshots:
 - `lots(zone, area)` - lots and their buildings (name, zone, wealth, state such as abandoned or under construction).
 - `advisors()` - what each advisor says now, with mood and priority; read it every few months.
 
+- `graphs()` - the game's Graphs window: every graph's lines with their latest value; `graph_data(series)` - the
+  history behind a graph or an advisor trend (monthly samples; tax rates daily).
+
 Coordinates: cells (x, z) from the north-west corner; x grows east, z grows south. A small city is 64x64 cells, a
 medium 128x128, a large 256x256.
+
+## Founding and running a city
+
+- `found_city(name, mayor, difficulty)` founds the open unfounded tile (mayor mode starts).
+- `set_speed(slow|medium|fast)`, `set_paused(true|false)`: the game's own clock while you watch it run.
+- `set_tax(group, rate)`, `departments()` / `set_department_funding(...)`, `ordinances()` / `set_ordinance(...)`,
+  `loans()` / `take_loan(amount)`: the budget window's controls, with the game's limits.
+- `save_city()` saves as the game's Save does (shipped cities are protected unless you say otherwise).
+- `dialog_status()` / `close_dialog(button)`: a dialog the game opened (advisor popups, notices, offers) and its
+  buttons; `set_popups(false)` keeps advisor popups from interrupting.
+
+## Building
+
+Every building tool does what the player's tool does after the mouse picks the cells: the game's own rules, the
+game's own cost, charged to the city's funds (nothing is built that the city cannot pay for). Each takes
+`build_it=false` to report the cost first. Building needs a founded city (mayor mode).
+- `build_network(network, points)` - roads, streets, avenues, rail, pipes, power lines...: one drag per leg
+  between consecutive points; the game's solver lays diagonals and curves. Building over an existing network of
+  the same kind is charged again, as in the game.
+- `zone(zone_type, x0, z0, x1, z1)` - zoning (with automatic streets in large zones) and de-zoning.
+- `build_menu(menu)` - what can be plopped now, per build menu, with cost and monthly cost; greyed items are
+  locked rewards or need more population, a later era, or are excluded. `build_menu(menu="trees")` lists trees.
+- `plop(building, x, z, facing)` - a building from the menus with its north-west corner at (x, z).
+- `bulldoze(x0, z0, x1, z1)` and `plant_trees(tree, x0, z0, x1, z1)`.
+
+Growth is the game's: zone land next to roads, give it power and water, and advance time; buildings grow when
+there is demand.
 
 ## Errors
 

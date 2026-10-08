@@ -1,0 +1,33 @@
+[project]
+name = "simcp-4"
+version = "0.0.1"
+description = "SiMCP 4: a fully featured MCP server for SimCity 4 Deluxe - play the entire game and develop new buildings, lots and tiles for it"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+dependencies = ["mcp>=1.29", "pillow", "numpy"]
+keywords = ["mcp", "model-context-protocol", "simcity", "simcity-4", "agents", "game-automation"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Topic :: Games/Entertainment :: Simulation",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+re = ["pefile", "capstone"]
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["sc4_mcp"]
+
+[tool.setuptools.package-data]
+sc4_mcp = ["data/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

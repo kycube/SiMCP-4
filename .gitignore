@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Bridge / plugin build output
+bridge/build/
+bridge/out/
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.lib
+
+# Output of the live tools and the static-analysis helpers (they read or dump the local game install).
+# Dumps, scans and screenshots belong in the workbench outside this repository.
+live/scans/
+live/shots/
+re/out/
+
+# Game data must never be committed
+*.sc4
+*.SC4
+*.dat
+*.DAT
+*.SC4Lot
+*.SC4Desc
+*.SC4Model
+*.cfg
+*-config-log.txt
+*_stkdmp.txt
+
+# Local files
+*.bak
+*.lnk
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

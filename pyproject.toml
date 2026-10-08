@@ -27,7 +27,7 @@ build-backend = "setuptools.build_meta"
 packages = ["sc4_mcp"]
 
 [tool.setuptools.package-data]
-sc4_mcp = ["data/*.json"]
+sc4_mcp = ["data/*.json", "guide.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

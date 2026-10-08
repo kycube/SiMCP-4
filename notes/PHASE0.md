@@ -169,15 +169,22 @@ extracted from the Mac PowerPC port, i.e. Maxis' own function and class names.
   `notes/STATIC_PLAN.md` (the static-analysis plan), `re/pe.py` + `re/dbpf_inventory.py`.
 - Offline tests (`python -m pytest`) and CI on windows-latest.
 
-## Open questions for the user (before Phase 1)
+## Decisions taken before Phase 1 (with the user, 2026-10-08)
 
-1. Where the bridge plugin DLL may live: `Plugins\` root (where sc4pac puts DLL links; check that sc4pac leaves
-   unknown files alone) or a separate user directory via `-UserDir:` (test runs then never touch the real Plugins)?
-2. Downloading `sc4-ghidra-symbols` (187 MB) - Maxis' symbol names from the Mac port.
-3. The live-test fixture: which region / city (a new test region `MCP Test` is the suggestion) and confirmation
-   that experiments pin the plugin set above.
-4. Whether the WINXPSP3-free, unelevated launch should also become how the user plays (GOG's own launcher keeps
-   the elevated XP-layer behaviour; the two are independent).
+1. **Bridge location: SiMCP's own user folder** (the user left it to us). The game is started with
+   `-UserDir:%LOCALAPPDATA%\SiMCP-4\UserDir\`; its `Plugins` mirrors the player's Plugins root (a junction per
+   category folder, a symbolic link per DLL, a copy per INI - rebuilt at each launch by `sc4_mcp/launch.py`) plus
+   `simcp4.dll`; it has its own `Regions`, `SimCity 4.cfg` and DLL logs. The player's Documents\SimCity 4 is never
+   written. (sc4pac's handling of unknown files in Plugins therefore does not matter.)
+2. **sc4-ghidra-symbols: approved** and fetched (shallow, 12 MB). Its `SimCity4.gdt` was decoded offline into
+   the workbench (`ghidra\vftables.txt`, `classes.txt`, `types.json`): 357 vtables named slot by slot, 449 class
+   layouts from the Mac build. See RE_BRIEF.md for the ABI caveats.
+3. **Fixture: a new region "MCP Test"** in SiMCP's user folder (recommended by the user because of CAM/NAM):
+   `region.ini` + an 8x4 `config.bmp` (one large, two medium, eight small tiles; flat new land). Experiments
+   record the plugin pin.
+4. **The user also plays unelevated**: desktop shortcuts "SimCity 4 (no admin)" (full screen) and "(no admin,
+   windowed)" start the game through the junction with the player's normal user folder. sc4pac does not need the
+   game elevated (it only writes the Documents Plugins folder).
 
 The C++ toolchain is already there: Visual Studio Community 2022 (17.13) with the x86 toolset that built
 SiMCP 3000's bridge, plus Build Tools 2019.

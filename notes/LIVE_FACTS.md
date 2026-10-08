@@ -15,3 +15,77 @@ verified. Where a static report disagrees with this file, this file wins.
 - Start-up to the region view (Timbuktu, from the .cfg) in under 20 s with `-intro:off`.
 - Plugin DLLs are loaded from the user Plugins root (all 12 seen as modules); `NAM.log` reports the 4GB patch.
 - Quitting from the game's own menu leaves no stack dump.
+- Without GOG's XP layer the game's config log reports `osVersion = Windows NT 6.2` and `memory = 4096` (with the
+  layer: NT 5.1 and 1024), so its graphics rules pick "high memory" (texture quality / building variety high).
+
+## Session 2026-10-08 (Phase 1 start)
+
+- **`-UserDir:<path>\` works** (`-UserDir:C:\Users\<u>\AppData\Local\SiMCP-4\UserDir\`, no quotes, trailing
+  backslash): on first start the game created `HTTPCache` and copied the seven shipped regions from the install's
+  `Regions` folder into `<path>\Regions`, and it loads plugin DLLs from `<path>\Plugins` only - nothing in
+  Documents\SimCity 4 was touched (checked with file times).
+- **A relative symbolic link whose target crosses a junction does not resolve**: the mirror first copied sc4pac's
+  relative DLL links (`150-mods\...\X.dll`) next to a junction `150-mods` -> the real folder; every link was
+  dangling, no DLL loaded (window title "SimCity 4" instead of "SC4Fix r7", no DLL logs). Links to the absolute
+  file path work: all 12 DLLs loaded from the mirror and logged into it.
+- **Only one instance**: a second `SimCity 4.exe` started while one runs exits within seconds, before loading
+  plugins. Cause (re/agents/framework): the named mutex "SimCity 4 Mutex"; Maxis' own `-AllowMultipleInstances`
+  switch skips the check - verified: SiMCP's instance ran beside the player's elevated one for an hour.
+- **Explorer applies GOG's compatibility layer through the junction**: a desktop shortcut whose target is
+  `<junction>\Apps\SimCity 4.exe` started the game elevated (a normal-user `taskkill` got "Access is denied"),
+  while `CreateProcess` on the same path from our launcher does not elevate. The shortcuts were changed to run
+  `cmd.exe /c ""<junction>\Apps\SimCity 4.exe" -CPUCount:1 -f"` (minimised console) - NOT YET TESTED.
+- **Region files** (`sc4_mcp/regions.py`): every one of the 416 city files in the seven shipped regions parses.
+  Region-view record (type 0xCA027EDB, group 0xCA027EE1) versions: 1.13 (cities saved by the game: name at 0x40,
+  mode byte 0x3F, mayor rating / stars / tutorial at 0x24..0x26, GUID 0x27), 1.10 (name at 0x3F) and 1.9 (name
+  at 0x3B) for the unfounded "New City" tiles; tile x/y at 0x04/0x08, size at 0x0C/0x10, R/C/I populations at
+  0x14..0x1C. Shipped region names are LTEXT tokens (`Name = #0x8c3a9773`) resolved from English\SimCityLocale.DAT.
+  Matches the game: Timbuktu's founded cities are the four tutorials, Berlin's Konradshohe / Spandau / Tegel.
+
+## Session 2026-10-08 (Phase 1: the bridge and the first tools)
+
+All in SiMCP's own instance (`-UserDir`, beside the player's open elevated instance via `-AllowMultipleInstances`).
+Scripts: `live/t1_bridge.py`, `live/t2_stdio.py`.
+
+- **Plugin lifecycle** (simcp4.log): InitializeCOM, OnStart, AddHook, then the hooks PreFrameWorkInit / PreAppInit /
+  PostAppInit, all on the main thread (one thread id). In PostAppInit: framework->Application() + QI 0x26CE01C0
+  gave cISC4App 0x02CE0020 = cSC4App+0xC (cIGZApp 0x02CE0040 = +0x2C), equal to the global `[0xB43C94]`, vtable
+  0xA86AF0 (re/agents/app-city confirmed); message server 2 and command server from GetSystemService.
+- **Inner bridge**: loaded by the plugin with LoadLibraryW on the main thread. x86 `__stdcall` exports are
+  decorated (`_SimcpBridgeAttach@4`): GetProcAddress needs `/EXPORT:` aliases. Ping answers on the main thread;
+  calling address 0x10 returns status -100 (0xC0000005 caught) and the game keeps running; unload + load (hot
+  reload, new content-addressed copy) works.
+- **cISC4App::GetAppState** (slot 25) = `[[0xB43C94]+0x38]`: 1 in the region view, 2 in a city.
+- **The game's command server** (slot 19 ExecuteCommand(string, len, out), slot 24 output -> text through a
+  cRZString made with the game's ctor 0x578390 and destroyed with its slot 28): output is "<values> <status>",
+  e.g. `GetAppState` -> "1 0", `GetDateAndTime` -> "\"10/8/2026 15:18:09\" 0", `GetFrameRate` -> "1451.4 0" (region
+  view, busy loop), `GetCitySize` -> "64 64 0"; an unknown command returns status 2. `ListCommands` prints nothing
+  into the output (status 0, text "0").
+- **LoadRegion "<folder>"** (run deferred) switches regions in 0.2-1.9 s; the region object (cISC4App slot 35)
+  slots 3 / 5 (GetName / GetDirectoryName) return cRZStrings: "MCP Test" - the game accepted SiMCP's region files.
+- **LoadCity** (region handler 0x7AF4B0, verified in code and live): an empty name loads the first *unfounded*
+  tile of the size (founded cities are skipped); a name loads the *founded* city of that name. `LoadCity "" small
+  empty` opened a 64x64 "New City" in MCP Test (15 s the first time, 1.7 s after); `LoadCity "Making Money
+  Tutorial" any full` the founded tutorial (128x128, mayor Defacto, 2008-11-03) in 1.9 s; Konradshohe (Berlin,
+  mayor Knut, hard, 2026-01-27) in 1.9 s.
+- **QuitCity 1** goes back to the region view without the dialog (0.2-2.3 s).
+- **City fields from memory** match the game's own commands: name `[city+0x74]` cRZString = GetCityName, cell
+  count +0x118/+0x11C = GetCitySize (64 64), established byte +0x25 = GetCityEstablished (0 for a "New City").
+- **Simulator** `[0xB43D5C]`, vtable 0xAB2FB8; ms per day [2000, 1000, 50] (the "Main Simulator" exemplar); the
+  date is a Julian Day Number at +0xEC (a new tile starts at 2451545 = 2000-01-01); in Konradshohe right after
+  loading the agent lists hold 9 one-shot, 34 day, 1 week, 26 month, 2 year and 23 idle agents. Time also runs in
+  god mode (an unfounded tile's date moved on).
+- **Exact day stepping** (bridge OP_STEP_DAYS, `advance_time`): HiddenPause (sim slot 10) for the duration; each
+  step = AdvanceTime 0x702A80, restart the agent budget timer S+0x198 (cRZTimer::Restart 0x89058F) with S+0x78 = 50,
+  RunAgents 0x7038B0; ms-per-day S+0x80 = 0 while stepping (restored). One step per day. Konradshohe: 30 days right
+  after loading in 0.45 s, 365 days in 4.5 s (80 days/s), date exactly +365 (2026-01-27 -> 2027-02-26).
+  Learned on the way: writing the granularity S+0x7C = 0 does not lift the day throttle; without restarting the
+  budget timer RunAgents handles one agent per call (~2000 steps per day); right after a load some day agent stays
+  unfinished for a few seconds whatever the number of steps (it waits for work outside the simulator), so stepping
+  must yield to the game's loop instead of spinning.
+- **quit_game** (cISC4App slot 10 RequestQuit(0, 0)): the game exits in 2.0 s with no dialog, writes its .cfg into
+  SiMCP's user folder, no stack dump.
+- **Open: SiMCP's window shows black** while the player's (minimised, elevated) instance runs: the game renders
+  (GetFrameRate 26 in a city, frame count rising) and its window is on top, but the screen shows black with a white
+  box top-left; the pause-on-focus-loss flag (cSC4App+0x5D1) was 0. To retest with a single instance; screenshots
+  will use the game's own snapshot path anyway.

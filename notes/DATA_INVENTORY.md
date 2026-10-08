@@ -85,8 +85,15 @@ The most frequent property ids are 0x20 (exemplar name, 9,240), 0x10 (8,019), 0x
 
 ## User Plugins (pinned set, see PHASE0.md)
 
-786 files, 945 MB: 755 `.dat`, 6 `.SC4Model`, 12 DLLs (+ their logs and 2 INIs). Not inventoried record by record
-yet (Phase 0 kept to the game's own data); `re/dbpf_inventory.py OUT --plugins <Plugins>` does it.
+786 files, 945 MB: 755 `.dat`, 6 `.SC4Model`, 12 DLLs (+ their logs and 2 INIs). `re/dbpf_inventory.py OUT
+--plugins <Plugins>` (2026-10-08): 761 DBPF files, all readable; 67,803 exemplars (1,124 of them text `EQZT`) +
+632 cohorts, 13,598 LTEXT, 41 Lua scripts, 34 RUL files (NAM's network rules, 62 MB), 236,764 FSH textures,
+99,730 S3D models, 73,588 SC4Path, 2,927 effect directories, plus types the game's own data does not use: XML
+(0x88777601/2, 328), JPEG (0x74807101/2, 302) and BMP (0x66778001/2, 284) - VERIFY their purpose (probably
+NAM / CAM documentation and previews). Exemplar types: 48,546 network pieces (0x0B), 13,059 type 0x21, 2,050 rail
+(0x0A), 1,781 props, 1,013 bridge pieces (0x06), 747 lot configurations, 271 buildings (0x02), 139 zone catalogue
+entries (0x28). As in `Sound.dat`, 0x2026960B also carries WAV audio (`RIFF`) - 108 such records in CAM - besides
+LTEXT; a reader must check the 0x1000 marker.
 
 ## What this gives the project
 

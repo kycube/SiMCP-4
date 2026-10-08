@@ -37,6 +37,14 @@ a short report.
     `sc4-custom-ordinance-host`, `sc4-advanced-water-management`, `sc4-legalize-gambling-ordinance-upgrade`,
     `transparent-texture-fix-dll`, `sc4-lua-sandbox-dll`, `sc4-dll-utilities`, `sc4-gzcom-dll-template`. Grep them
     for `0x00` addresses: each one is a 1.1.641 function or patch site somebody verified.
+- `<workbench>\ghidra\` - Maxis' own names, decoded from the Mac build's Ghidra archive (`sc4-ghidra-symbols`,
+  Apache-2.0): `vftables.txt` (357 vtables, one line per slot with the method name and, where known, its
+  signature; mangled names demangled), `classes.txt` (449 class/struct layouts), `types.json` (everything),
+  `validation.txt` (comparison with gzcom-dll: 84 interfaces identical, 62 cosmetic differences, 35 structural).
+  Caveats: GCC puts two destructor slots where MSVC has one; MSVC groups overloaded virtuals in **reverse**
+  declaration order (GCC keeps declaration order), so overloads (`X1`/`X2` in the archive) may be swapped on
+  Windows; Mac struct offsets differ (PowerPC Darwin `bool` is 4 bytes, other alignment) - use them for names
+  and field order, then find the Windows offsets in the code.
 - `<workbench>\inventory\game\`: `exemplars.jsonl` (every exemplar: TGI, parent, type 0x10, name 0x20, all
   properties), `ltext.jsonl` (every game string with its TGI), `lua\` (every Lua script), `type0\` (UI layouts with
   window/button ids - group 0x96A006B0 - and the INI files - group 0x8A5971C5), `types.json`, `summary.txt`.

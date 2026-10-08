@@ -120,6 +120,8 @@ def main():
                         continue
                     ex_count += 1
                     et = x.get(0x10)
+                    if isinstance(et, list):    # some plugins store the type as a 1-element list
+                        et = et[0] if len(et) == 1 else tuple(et)
                     ex_types[(e.type, et)] += 1
                     ex_type_by_src[src][et] += 1
                     for p in x.props:

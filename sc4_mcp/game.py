@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import struct
 import time
 
@@ -15,6 +16,15 @@ APP_GET_POPUPS = 23         # Get/SetPopupDialogsEnabled
 APP_SET_POPUPS = 24
 APP_GET_REGION = 35
 APP_GET_CITY = 37
+APP_GO_TO_REGION_VIEW = 12   # RequestGoToRegionView(bool askFirst)
+A_NATION = 0x48
+NATION_SET_ACTIVE, NATION_GET_REGION, NATION_ADD_REGION = 9, 11, 13
+REGION_INIT, REGION_SHUTDOWN, REGION_SET_TERRAIN = 8, 9, 19
+REGION_VIEW_VTABLE = 0xAB9260
+RV_TILES, RV_TILE_SIZE = 0x118, 0x80
+FN_RV_TILE_CITY = 0x7AEA00      # region view: (tile record, create) -> cISC4RegionalCity*
+FN_RV_PLAY = 0x7ADC20           # region view: Play (LoadCity from the file, or a new city)
+FN_RZSTRING_CTOR = 0x578390
 SIM_MS_PER_DAY = 0x80     # simulator: wall-clock ms per day (the speed's throttle)
 SIM_HIDDEN_PAUSE = 10       # cISC4Simulator::HiddenPause / HiddenResume (counted)
 SIM_HIDDEN_RESUME = 13
@@ -165,6 +175,98 @@ class Game:
             raise GameError("region still loading or not loaded (view %s, region %r)" % (state, got),
                             "call game_status")
         return {"region": got, "seconds": round(time.time() - t0, 1)}
+
+    def _region_view(self) -> int:
+        """The region view window (cSC4WinRegionView, vtable 0xAB9260) in the window tree."""
+        from . import dialogs
+        p = self.proc
+        wm = dialogs.win_mgr(self)
+        main = self.bridge.call_function(p.u32(p.u32(wm) + 4 * dialogs.WM_GET_MAIN), [], this=wm).ret[0] & 0xFFFFFFFF
+        stack = [main]
+        while stack:
+            w = stack.pop()
+            for c in dialogs._children(p, w):
+                if p.u32(c) == REGION_VIEW_VTABLE:
+                    return c
+                stack.append(c)
+        return 0
+
+    def tiles(self) -> list[dict]:
+        """The region view's city tiles: grid position, size (from the view's own tile records)."""
+        self.attach(10.0)
+        if memory.app_state(self.proc) != 1:
+            raise GameError("the region view is not open", "leave_city goes back to it")
+        p, v = self.proc, self._region_view()
+        if not v:
+            raise GameError("the region view window was not found", "game_status")
+        b0, b1 = p.u32(v + RV_TILES), p.u32(v + RV_TILES + 4)
+        out = []
+        for i in range(min((b1 - b0) // RV_TILE_SIZE, 1024)):
+            t = b0 + RV_TILE_SIZE * i
+            out.append({"x": p.i32(t + 8), "z": p.i32(t + 0xC), "size": {0: "small", 1: "medium", 2: "large"}.get(
+                p.u32(t + 0x18) & 0xFF, p.u32(t + 0x18) & 0xFF), "_rec": t})
+        return out
+
+    def open_tile(self, x: int, z: int, timeout: float = 180.0) -> dict:
+        """Open the city tile whose grid square (x, z) is its north-west corner, as the region view's Play button
+        does (0x7AEA00 makes the tile's regional city; 0x7ADC20 loads its file, or starts a new city in god mode)."""
+        b = self.attach(10.0)
+        hit = [t for t in self.tiles() if (t["x"], t["z"]) == (x, z)]
+        if not hit:
+            raise GameError("no city tile starts at grid square (%d, %d)" % (x, z), "list_regions shows the tiles")
+        v = self._region_view()
+        r = b.call_function(FN_RV_TILE_CITY, [hit[0]["_rec"], 1], this=v)
+        ref = r.ret[0] & 0xFFFFFFFF
+        if not r.ok or not ref:
+            raise GameError("the region view could not prepare that tile")
+        t0 = time.time()
+        b.defer_call(FN_RV_PLAY, [ref], this=v)
+        self._wait_deferred(timeout)
+        if self._wait_state(2, max(1.0, timeout - (time.time() - t0))) != 2:
+            raise GameError("the tile did not open", "a dialog may be waiting: dialog_status")
+        return {"city": memory.city_basics(self.proc), "seconds": round(time.time() - t0, 1)}
+
+    def _wait_deferred(self, timeout: float) -> None:
+        end = time.time() + timeout
+        while time.time() < end and self.bridge.deferred_state()["busy"]:
+            time.sleep(0.2)
+
+    def new_region(self, name: str, water: bool = False) -> dict:
+        """Create a region as the Create New Region dialog does (nation AddNewRegion, Init, base terrain, Shutdown
+        writes region.ini) and open it. The game picks a random layout of city tiles."""
+        if not re.fullmatch(r"[A-Za-z0-9 _'-]{1,32}", name):
+            raise GameError("region names: letters, digits, spaces, - ' _ (up to 32)")
+        b = self.attach(10.0)
+        if memory.app_state(self.proc) != 1:
+            raise GameError("the region view is not open", "leave_city goes back to it")
+        from . import regions as regionsmod
+        if any(r.get("name", "").lower() == name.lower() for r in regionsmod.list_regions(launch.USER_DIR)):
+            raise GameError("a region named %r exists" % name)
+        p = self.proc
+        app = p.u32(memory.G_APP)
+        nation = p.u32(app + A_NATION)
+        s = b.scratch(0x780)
+        p.write(s, name.encode("latin-1") + bytes(1))
+        p.write(s + 0x40, bytes(0x20))
+        if not b.call_function(FN_RZSTRING_CTOR, [], this=s + 0x40).ok:
+            raise GameError("could not make the region name")
+        try:
+            b.vcall(s + 0x40, 3, s, len(name))                       # FromChar(text, length)
+            idx = b.vcall(nation, NATION_ADD_REGION, s + 0x40).ret[0]
+        finally:
+            b.vcall(s + 0x40, 28, 0)
+        if idx < 0:
+            raise GameError("the game refused the region name")
+        reg = b.vcall(nation, NATION_GET_REGION, idx).ret[0] & 0xFFFFFFFF
+        b.vcall(reg, REGION_INIT)
+        b.vcall(reg, REGION_SET_TERRAIN, 1 if water else 0)
+        b.vcall(reg, REGION_SHUTDOWN)
+        b.vcall(nation, NATION_SET_ACTIVE, idx)
+        b.defer_call(p.u32(p.u32(app) + 4 * APP_GO_TO_REGION_VIEW), [0], this=app)
+        self._wait_deferred(120)
+        time.sleep(1)
+        self._wait_state(1, 120)
+        return {"region": self.region_name(), "index": idx}
 
     def load_city(self, name: str = "", size: str = "any", timeout: float = 180.0) -> dict:
         """The region view's own LoadCity command (handler 0x7AF4B0): with a name, the founded city of that name;

@@ -13,8 +13,12 @@ def _city_record(minor: int, name: str, mayor: str, tile=(3, 1), span=2, mode=1,
         b += bytes([40, 2, 0]) + struct.pack("<I", 0x12345678) + bytes(20) + bytes([mode])
     else:
         b += bytes(0x3B - len(b) - 1 if minor == 9 else 0x3F - len(b) - 1) + bytes([mode])
-    b += struct.pack("<I", len(name)) + name.encode() + bytes(8)
-    b += struct.pack("<I", len(mayor)) + mayor.encode() + bytes(16)
+    def lstr(t: str) -> bytes:
+        return struct.pack("<I", len(t)) + t.encode()
+    if minor == 13:     # name, -, mayor, -, utility advisor, description, - (as the game writes them)
+        b += lstr(name) + lstr("") + lstr(mayor) + lstr("") + lstr("Jonas Sparks") + lstr("") + lstr("") + bytes(16)
+    else:
+        b += lstr(name) + bytes(8) + lstr(mayor) + bytes(16)
     return b
 
 

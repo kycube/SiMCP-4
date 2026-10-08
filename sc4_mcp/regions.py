@@ -106,45 +106,89 @@ def _lstr(b: bytes, o: int) -> tuple[str, int]:
     return b[o + 4:o + 4 + n].decode("latin-1"), o + 4 + n
 
 
+DIFFICULTY = {0: "easy", 1: "medium", 2: "hard"}
+
+
 def read_city(path: str) -> dict:
-    """The region-view record of a saved city (.sc4)."""
+    """The region-view record of a saved city (.sc4): cSC4RegionalCity's own serialisation (re/agents/regions Q4).
+    v1.13 (cities saved by the game): tile, size, populations, mayor rating (s8 0x24), difficulty (0x25), city
+    serial (0x27), founded (0x3F), then length-prefixed strings name, -, mayor, -, utility advisor, description.
+    v1.9 / 1.10: the unfounded "New City" tiles shipped with the regions."""
     d = dbpf.DBPF(path)
     e = d.get(T_REGION_VIEW, G_REGION_VIEW, 0)
     if e is None:
         raise ValueError("no region view record")
     b = d.read(e)
     major, minor, tx, ty, sx, sy, res, com, ind = struct.unpack_from("<HH7I", b, 0)
-    # Layouts seen (2026-10-08, the shipped regions): 1.13 = cities saved by the game (mayor rating, stars and
-    # tutorial bytes, GUID, 20 unknown bytes, mode, name); 1.9 and 1.10 = the unfounded "New City" tiles shipped with
-    # the regions (unknown bytes, mode, name).
-    guid = None
+    out = {"file": os.path.basename(path), "version": "%d.%d" % (major, minor), "tile_x": tx, "tile_y": ty,
+           "size": SIZE_NAMES.get(sx, sx), "span": sx,
+           "population": {"residential": res, "commercial": com, "industrial": ind}}
     if (major, minor) == (1, 13):
-        rating, stars, tutorial = b[0x24], b[0x25], b[0x26]
-        guid, = struct.unpack_from("<I", b, 0x27)
-        mode, name_at = b[0x3F], 0x40
+        rating, = struct.unpack_from("<b", b, 0x24)
+        serial, = struct.unpack_from("<I", b, 0x27)
+        founded = bool(b[0x3F])
+        strings, o = [], 0x40
+        for _ in range(7):
+            try:
+                t, o = _lstr(b, o)
+            except ValueError:
+                break
+            strings.append(t)
+        strings += [""] * (7 - len(strings))
+        out.update(name=strings[0], mayor=strings[2] or None, mode="mayor" if founded else "god",
+                   established=founded, mayor_rating=rating, difficulty=DIFFICULTY.get(b[0x25], b[0x25]),
+                   serial="%08X" % serial, utility_advisor=strings[4] or None, description=strings[5] or None)
     elif (major, minor) in ((1, 9), (1, 10)):
-        rating, stars, tutorial = None, None, 0
         name_at = 0x3B if minor == 9 else 0x3F
         mode = b[name_at - 1]
+        name, _ = _lstr(b, name_at)
+        out.update(name=name, mayor=None, mode={0: "god", 1: "mayor"}.get(mode, mode), established=mode == 1)
     else:
         raise ValueError("region view record version %d.%d not known" % (major, minor))
-    name, o = _lstr(b, name_at)
-    mayor = None
-    # the mayor's name is the next non-empty length-prefixed string (v1.13 has empty strings / fields between)
-    for k in range(o, min(o + 64, len(b) - 4)):
-        try:
-            s, _ = _lstr(b, k)
-        except ValueError:
-            continue
-        if s and all(32 <= ord(c) < 127 for c in s) and len(s) >= 2:
-            mayor = s
-            break
-    return {"file": os.path.basename(path), "version": "%d.%d" % (major, minor), "tile_x": tx, "tile_y": ty,
-            "size": SIZE_NAMES.get(sx, sx), "span": sx, "name": name, "mayor": mayor,
-            "mode": {0: "god", 1: "mayor"}.get(mode, mode), "established": mode == 1,
-            "population": {"residential": res, "commercial": com, "industrial": ind},
-            "mayor_rating_raw": rating, "stars": stars, "tutorial": bool(tutorial),
-            "guid": "%08X" % guid if guid is not None else None}
+    return out
+
+
+T_TERRAIN, G_TERRAIN = 0xA9DD6FF4, 0xE98F9525
+T_PNG, G_THUMBS = 0x8A2482B9, 0x4A2482BB
+THUMBS = {"satellite": 0, "transport": 4}
+
+
+def read_terrain(path: str) -> dict:
+    """The saved altitudes at the cell corners (rows of (cells+1) values) - the city's terrain without the game."""
+    d = dbpf.DBPF(path)
+    e = d.get(T_TERRAIN, G_TERRAIN, 1)
+    if e is None:
+        raise ValueError("no terrain record")
+    b = d.read(e)
+    n = (len(b) - 2) // 4
+    side = int(round(n ** 0.5))
+    if side * side != n:
+        raise ValueError("terrain record is not square")
+    vals = struct.unpack_from("<%df" % n, b, 2)
+    rows = [[round(v, 2) for v in vals[r * side:(r + 1) * side]] for r in range(side)]
+    flat = [v for r in rows for v in r]
+    return {"vertices": side, "min": min(flat), "max": max(flat), "altitude": rows}
+
+
+def read_thumbnail(path: str, view: str = "satellite") -> bytes:
+    """The PNG the region view shows for the city (the game renders it when the city is saved)."""
+    if view not in THUMBS:
+        raise ValueError("view is satellite or transport")
+    d = dbpf.DBPF(path)
+    e = d.get(T_PNG, G_THUMBS, THUMBS[view])
+    if e is None:
+        raise ValueError("no %s thumbnail in this file" % view)
+    return d.read(e)
+
+
+def find_city_file(user_dir: str, region: str, city: str) -> str:
+    for r in list_regions(user_dir):
+        if region.lower() in (r["name"].lower(), r.get("folder", "").lower()):
+            for c in r["cities"]:
+                if c.get("name", "").lower() == city.lower():
+                    return os.path.join(user_dir, "Regions", r["folder"], c["file"])
+            raise ValueError("no city %r in region %r" % (city, r["name"]))
+    raise ValueError("no region %r" % region)
 
 
 def list_regions(user_dir: str) -> list[dict]:

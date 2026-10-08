@@ -280,3 +280,13 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   (45, 15) 270 -> 303.2 m, neighbour +1.7, funds -138; lower (also while user-paused) 303.2 -> 286.5, -138; raise
   along (40..44, 12) +17 / +11 m for 120; level 68. The strength grows with wall-clock time held (timer +0xC0);
   F1-F10 keys set the strength. Modifier bits 1 / 2 / 4 on the mouse calls do not lower.
+- **Regions**: the region view window has vtable 0xAB9260 (151 slots); tile records at +0x118 (stride 0x80: +8 x,
+  +0xC z, +0x18 size, low byte 0 small / 1 medium / 2 large). 0x7AEA00(tile, 1) (thiscall on the view) returns the
+  tile's regional city; 0x7ADC20(ref) deferred = Play: tile (7, 0) and (6, 2) of MCP Test opened as new cities in
+  god mode (1.6 s). A god-mode brush (GodMountainDefault) raised (32, 32) from 270 to 889.8 m in 1.5 s, free.
+  New region: nation `[A+0x48]` slot 13 AddNewRegion(cRZString "MCP Fresh") -> index 7, slot 11 GetRegion, region
+  slots 8 Init / 19 SetBaseTerrainType(0) / 9 Shutdown (region.ini), nation slot 9 SetActiveRegion(7), app slot 12
+  RequestGoToRegionView(0) deferred: the region opened without a restart, with a random template layout (medium
+  and small tiles). Saved city files: region-view record v1.13 = mayor rating s8 0x24, difficulty 0x25, serial
+  0x27, founded 0x3F, strings name / - / mayor / - / utility advisor / description; terrain record
+  0xA9DD6FF4/0xE98F9525/1 (65x65 f32 for a small city); thumbnails PNG 0x8A2482B9/0x4A2482BB/0 (satellite) and /4.

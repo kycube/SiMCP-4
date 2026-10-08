@@ -93,6 +93,72 @@ def list_regions() -> dict:
     return {"user_dir": launch.USER_DIR, "regions": rs}
 
 
+@tool(mcp, "read")
+@guarded
+def saved_city(region: str, city: str, terrain: bool = False) -> dict:
+    """A saved city read from its file, without the game: tile, size, populations, mayor rating, difficulty,
+    names; with terrain=true also the saved altitudes at every cell corner.
+
+    Args:
+        region: the region's name.
+        city: the city's name.
+        terrain: include the altitude grid (rows of cells+1 values, metres).
+    """
+    try:
+        path = regions.find_city_file(launch.USER_DIR, region, city)
+        out = regions.read_city(path)
+        if terrain:
+            out["terrain"] = regions.read_terrain(path)
+        return out
+    except (OSError, ValueError) as e:
+        return {"error": str(e), "hint": "list_regions shows the regions and their cities"}
+
+
+@tool(mcp, "observe")
+@guarded
+def city_thumbnail(region: str, city: str, view: str = "satellite"):
+    """The picture the region view shows for a saved city (the game renders it on every save), read from the file.
+
+    Args:
+        region: the region's name.
+        city: the city's name.
+        view: satellite or transport.
+    """
+    try:
+        path = regions.find_city_file(launch.USER_DIR, region, city)
+        png = regions.read_thumbnail(path, view)
+    except (OSError, ValueError) as e:
+        return {"error": str(e), "hint": "list_regions shows the regions and their cities"}
+    return [json.dumps({"region": region, "city": city, "view": view}), Image(data=png, format="png")]
+
+
+@tool(mcp, "act")
+@guarded
+def open_tile(x: int, z: int) -> dict:
+    """Open a city tile of the loaded region by its grid square (the tile's north-west corner, as list_regions
+    gives it), as the region view's Play button does: a saved city loads; an empty tile opens as a new city in god
+    mode (shape the land, then found_city).
+
+    Args:
+        x: the tile's grid column.
+        z: the tile's grid row.
+    """
+    return G.open_tile(x, z)
+
+
+@tool(mcp, "act")
+@guarded
+def new_region(name: str, water: bool = False) -> dict:
+    """Create a new region in SiMCP's user folder, as the region view's Create New Region does (the game picks a
+    random layout of city tiles; new tiles start flat), and open it.
+
+    Args:
+        name: the region's name (letters, digits, spaces, - ' _).
+        water: start the tiles low (the "Water" terrain choice) instead of plains.
+    """
+    return G.new_region(name, water)
+
+
 @tool(mcp, "act")
 @guarded
 def load_region(name: str) -> dict:

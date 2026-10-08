@@ -23,6 +23,10 @@ the test region "MCP Test" has one large, two medium and eight small tiles on fl
 - `load_region(name)` opens a region (from the region view).
 - `load_city(name)` opens the founded city of that name; `load_city(size="small")` (no name) opens the first
   unfounded tile of that size. Both work from the region view.
+- `open_tile(x, z)` opens any tile by its grid square (a saved city, or a new one in god mode, where
+  `terrain_brushes()` / `terraform(...)` shape the land for free before `found_city`).
+- `new_region(name)` creates a region (random tile layout) and opens it.
+- `saved_city(region, city)` and `city_thumbnail(region, city)` read a saved city from its file.
 - `leave_city()` goes back to the region view without saving.
 - `city_status()` reads the open city: name, mayor, founded or not, difficulty, size in cells, date, speed, pause.
 

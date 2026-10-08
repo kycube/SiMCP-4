@@ -255,3 +255,14 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
 - **Simulator agent lists**: S+0x114+12t = {map header, count}; an STLport map keyed by the agent pointer, node
   value {+0x14 enabled byte, +0x18 cRZString class name}. Types seen: 0 one-shot, 4 day (34), 5 week (1),
   6 month (26), 7 year (2), 10 idle (23).
+- **U-Drive-It** (MCP Village, 202 residents): advisor 29 offered "Road Vehicle Training Mission" (guid
+  0x8C151EFD at advice +0x8C) and "Aircraft Training Mission" (0xAC1726C8). Situation manager `[city+0x1EC]` slot 21
+  InitiateSituationByGuid(guid, 0, 0): with the city paused since load it returned 0 and showed the "mission result"
+  dialog (root 0xEBBC081E); after 10 s of real-time play (cars out) it returned 1, chose an automaton (S+0xA4C) and
+  opened the offer (root 0xEBB16D71: Cancel 1, Free Drive 7, Accept 6). Accept: drive control `[0xB21D74]` set, its
+  +0x30 = the same automaton; status S+0xA48 = 3, time limit S+0xA94 = 164.7 s, target occupant S+0xA50 (slot 8
+  position, slot 11 cells: a White Modular House at (2..3, 35)). Keys through the control's slots 14 / 15
+  (OnKeyDown / OnKeyUp(vk, 0)): up arrow drove the car east along the road ~25 m/s (automaton slot 7 position
+  387.7 -> 442.4 in 2 s); up + left turned it from heading (1, 0) to (-0.6, -0.8) (slot 15 heading; left turns
+  toward -z when facing east). A naive waypoint controller left the road and ran out of time: status 2 (failure),
+  the result dialog; the road mission was then not offered again for at least a month.

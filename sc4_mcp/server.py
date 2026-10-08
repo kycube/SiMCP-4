@@ -10,7 +10,7 @@ import os
 from mcp.server.fastmcp import FastMCP, Image
 
 from . import game as gamemod
-from . import build, catalog, cheats, city, disasters, economy, history, launch, layers, luaquery, memory, pointer, regions, view
+from . import build, catalog, cheats, city, disasters, economy, history, launch, layers, luaquery, memory, pointer, regions, udi, view
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -750,6 +750,60 @@ def city_figures(expression: str = "") -> dict:
         return luaquery.evaluate(g, expression)
     except luaquery.LuaError as e:
         return {"error": str(e), "hint": e.hint}
+
+
+def _udi(fn, *a):
+    try:
+        return fn(_city(), *a)
+    except udi.DriveError as e:
+        return {"error": str(e), "hint": e.hint}
+
+
+@tool(mcp, "read")
+@guarded
+def missions() -> dict:
+    """U-Drive-It: the missions the City Situations advisor offers now, and the current mission and vehicle
+    (status, time used and limit, target cell and distance, vehicle cell and heading)."""
+    out = _udi(udi.status)
+    if "error" not in out:
+        out["offers"] = _udi(udi.offers)
+    return out
+
+
+@tool(mcp, "act")
+@guarded
+def start_mission(mission: str) -> dict:
+    """Ask the game to offer a U-Drive-It mission (by its title or guid from missions()). The game picks a vehicle
+    of that kind out in the city and opens the offer dialog: answer it with close_dialog("Accept"),
+    close_dialog("Free Drive") or close_dialog("Cancel"). The city must have been running for a few seconds so
+    vehicles are out.
+
+    Args:
+        mission: the mission title or guid.
+    """
+    return _udi(udi.start, mission)
+
+
+@tool(mcp, "act")
+@guarded
+def drive(keys: list[str], seconds: float = 1.0) -> dict:
+    """Hold driving keys for a while, as the player does, then release them; returns the mission and vehicle
+    state. The game must be running (not paused). Heading x is east, z south; "left" turns toward the vehicle's
+    left.
+
+    Args:
+        keys: any of accelerate, brake, left, right, special (horn / siren / hose), alternate, off_road, climb,
+            dive, power_up, power_down - held together.
+        seconds: how long to hold them (0 to 10).
+    """
+    return _udi(udi.drive, keys, seconds)
+
+
+@tool(mcp, "act")
+@guarded
+def stop_driving() -> dict:
+    """Leave the vehicle (the Escape key), ending a free drive or giving up a mission."""
+    return _udi(udi.stop)
 
 
 @tool(mcp, "destructive")

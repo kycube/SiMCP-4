@@ -163,6 +163,10 @@ there is demand.
   where the game's solver makes one. Each leg reports its `bridges` and `tunnels` (from, to, cells).
   `bridges(query)` lists every bridge the game loads; `design_bridge(name, base, height_m)` copies one under a
   new name with its deck higher or lower (after a restart it is in the choices).
+- The Lot Editor: `lot_layout(lot)` lists what a lot holds, row by row (building, props - a list of ids is a
+  prop family, one picked at random -, ground textures, trees, network tiles, water and land constraints) with
+  positions in metres; `edit_lot(name, lot, remove, move, add)` makes a new item from a game lot with rows
+  taken out, moved or turned and props, trees and grounds added.
 - Transit stations: `design_transit_station(name, kind)` (bus, subway, light_rail, monorail, passenger_rail,
   freight_rail, ferries, parking, toll_booth...) copies the game's station lot - its size and, for transit-
   enabled lots, its network tiles - and the station's transit properties, with SiMCP's building (a block or an

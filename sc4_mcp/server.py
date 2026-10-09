@@ -11,7 +11,7 @@ import os
 from mcp.server.fastmcp import FastMCP, Image
 
 from . import game as gamemod
-from . import bridgedesign, brushdesign, build, catalog, cheats, city, content, disasters, economy, heightmap, history, launch, layers, lotdesign, luaquery, netdesign, orddesign, housekeeping, memory, mysim, neighbors, networks, options, pointer, puzzle, regions, services, terrain, terrainlook, trees, udi, vehicles, view
+from . import bridgedesign, brushdesign, build, catalog, cheats, city, content, disasters, economy, heightmap, history, launch, layers, lotdesign, lotedit, luaquery, netdesign, orddesign, housekeeping, memory, mysim, neighbors, networks, options, pointer, puzzle, regions, services, terrain, terrainlook, trees, udi, vehicles, view
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -1950,6 +1950,65 @@ def design_transit_station(name: str, kind: str, width_m: float = 10.0, depth_m:
                                        None if plop_cost < 0 else plop_cost, None if monthly_cost < 0 else monthly_cost,
                                        model_path, model_scale)
     except content.ContentError as e:
+        return {"error": str(e), "hint": e.hint}
+
+
+def _lot_key(lot: str) -> str:
+    """A lot id, or a menu item's name resolved through the game's build menus (the game must run)."""
+    k = str(lot).strip()
+    if k.lower().startswith("0x"):
+        return k
+    try:
+        G.attach(5.0)
+        hits = catalog.find(build._Caller(G), k)
+        if hits:
+            return "0x%08X" % hits[0]["lot"]
+    except Exception:  # noqa: BLE001 - fall back to SiMCP's design names
+        pass
+    return k
+
+
+@tool(mcp, "read")
+@guarded
+def lot_layout(lot: str) -> dict:
+    """What a lot holds, object by object, as the Lot Editor shows it: each row's index, type (building, prop,
+    ground, tree, network, water, land), what it is (id, name - a list of ids is a prop family, one picked at
+    random), where (x, z in metres from the lot's north-west corner; the street is on the +z edge), its rotation
+    and size. Reads the game's own lots and SiMCP's designs.
+
+    Args:
+        lot: a lot id (0x... from build_menu) or a menu item's name.
+    """
+    try:
+        return lotedit.layout(_lot_key(lot))
+    except (lotedit.LotEditError, content.ContentError, lotdesign.LotError) as e:
+        return {"error": str(e), "hint": e.hint}
+
+
+@tool(mcp, "act")
+@guarded
+def edit_lot(name: str, lot: str, remove: list[int] | None = None, move: list[dict] | None = None,
+             add: list[dict] | None = None, description: str = "", plop_cost: int = -1,
+             monthly_cost: int = -1) -> dict:
+    """A new menu item from one of the game's lots edited as in the Lot Editor: rows removed, moved or turned, and
+    props, trees and ground textures added (lot_layout gives the rows). The building and the rest stay as they are.
+    The game loads it at the next start (quit_game, game_launch).
+
+    Args:
+        name: the new item's name.
+        lot: the game's lot to start from (a lot id from build_menu, or the item's name).
+        remove: row indexes to take out (not the building's).
+        move: [{"index": n, "x": m, "z": m, "rotation": 0-3}] - rows to move or turn.
+        add: [{"prop": id or name, "x": m, "z": m, "rotation": 0-3}, {"tree": name, ...}, {"ground": texture,
+            "x", "z"}] - as design_park's objects.
+        description: the menu text.
+        plop_cost: what placing it costs (-1: as the original).
+        monthly_cost: its monthly cost (-1: as the original).
+    """
+    try:
+        return lotedit.edit(name, _lot_key(lot), remove, move, add, description,
+                            None if plop_cost < 0 else plop_cost, None if monthly_cost < 0 else monthly_cost)
+    except (lotedit.LotEditError, content.ContentError, lotdesign.LotError) as e:
         return {"error": str(e), "hint": e.hint}
 
 

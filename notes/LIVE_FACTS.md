@@ -812,3 +812,10 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   at (52, 37) in MCP Town and laid the same light rail tiles as the Maxis station plopped beside it (0x08000500 end
   pieces, 0x08031500 between, the same edges); its middle track is not drawn - the Maxis station's model carries
   the platform. "MCP Bus Stop" showed in the transit menu next to Maxis' and plopped for 150.
+- **Lot Editor parity**: a lot's rows read whole (lot_layout): the light rail station's three network rows
+  (light_rail, edges W and E), the gazebo park's 31 rows - most of them prop families (rows listing several prop
+  ids, one picked at random per placement: the big trees on the Maxis gazebo come from them), the gazebo itself a
+  prop and the building row an invisible building. Lot coordinates are signed 16.16 (a bound of 0xFFFFF334 is
+  -0.05 m). "MCP Gazebo Grove" (edit_lot: six family rows removed, the gazebo moved 1 m, an oak, a maple and a
+  lamp post added) plopped at (60, 20) beside the Maxis gazebo: the lamp and the cleared corners show; the added
+  menu trees stand as saplings (they never grow, Phase 9).

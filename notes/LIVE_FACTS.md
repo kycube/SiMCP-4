@@ -920,3 +920,13 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   windows and floor bands, shallow oriels, an arched crown, a cornice grown 1.3 m from the plan, a set-back
   penthouse; generated facades at 14 px per metre (216 triangles; 81 s to render 20 views; 620 KB). Plopped at
   (20, 2) in MCP Town it drew in all four rotations with its own cast shadow, crisp at the closest zoom.
+- **Walkers made** (walkers.py, design_walker): the game's walker tables are its two closest views (UI zooms 5
+  and 6: about 7 and 14 px per metre; the game's walkers are about life size there). Direction d walks along
+  (cos 45d, sin 45d) in the camera-fixed frame (X, Z): probe walkers with a digit card each (a temporary test
+  plugin pointed every "Ped_*-walk" exemplar at them) showed 2 and 6 on a north-south street in MCP Village,
+  and of the headings 45 degrees apart only that order gives the game's own frame widths (wide, narrow, narrow,
+  wide...) - the Maxis protester's sign faces the camera in direction 2. Pedestrians are drawn afresh each frame
+  (no walker could be followed from one snapshot to the next), and they are not in the vehicle list. "MCP
+  Walker Man" / "MCP Walker Woman" (8 directions x 8 frames, legs and arms swinging, a half-length shadow; one
+  DXT3 page) walked the sidewalks at the closest zoom showing their fronts or backs along the street. The test
+  plugin went to SiMCP's backups folder afterwards.

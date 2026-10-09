@@ -30,8 +30,9 @@ from PIL import Image
 from . import fsh, s3d
 from .render3d import TILE_M, _raster
 
-CELL_PX = (8, 16, 32, 73, 146)             # a 16 m cell's width on screen, zooms 1 - 5 (index 0 - 4)
-PITCH_DEG = (60.0, 55.0, 50.0, 45.0, 45.0)  # the camera from the vertical
+CELL_PX = (8, 16, 32, 73, 146, 292)        # a 16 m cell's width on screen, zooms 1 - 5 (index 0 - 4); index 5 is
+                                            # the game's closest view (UI zoom 6) at full resolution (BAT "HD")
+PITCH_DEG = (60.0, 55.0, 50.0, 45.0, 45.0, 45.0)  # the camera from the vertical
 YAW_DEG = 22.5
 SUN = np.array([-474.0, 575.0, 352.0])      # towards the sun, in the turned model frame (X, Y up, Z)
 SUN /= np.linalg.norm(SUN)

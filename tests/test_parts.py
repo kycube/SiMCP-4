@@ -179,3 +179,29 @@ def test_shell_covers_the_picture():
     right, down, view, k = batrender.camera(4)
     S = batrender.shell(np.asarray(mesh.arrays()[0], float).reshape(-1, 3, 3)[:, :, [0, 2, 1]] * [-1, 1, 1])
     assert len(S) == 5 * 22
+
+
+def test_walker_sprites():
+    """Walker atlases follow the game's layout: per direction, frames left to right wrapping at the page's edge;
+    a frame table is a 32-byte header, a count and 8-byte entries; the descriptor names the atlas and tables."""
+    import struct
+    import numpy as np
+    from sc4_mcp import walkers
+    dirs = [([np.ones((30, 20 + d % 2 * 3, 4), np.float32)] * 8, (10, 28)) for d in range(8)]
+    pages, tables = walkers.pack([dirs, dirs])
+    assert len(tables) == 2 and all(len(t) == 8 for t in tables)
+    for pg, n, x, y, w, h, ax, ay in tables[0] + tables[1]:
+        X, Y = x, y
+        assert x + w <= 256
+        for _ in range(n):                                      # every frame lies inside its page
+            if X + w > 256:
+                X, Y = 0, Y + h
+            assert Y + h <= 256 and pages[pg][Y:Y + h, X:X + w, 3].min() == 1.0
+            X += w
+    t = walkers.frame_table(tables[0])
+    assert len(t) == 100 and struct.unpack_from("<4I", t) == (walkers.T_FRAMES, 8, 1, 1)
+    d = struct.unpack("<12I", walkers.descriptor(0x100, 0x100, 0x101))
+    assert d[0] == walkers.T_SPRITE and d[3] == 0x100 and d[9:] == (0x100, 0x101, 11)
+    fsh_pages = walkers.write_pages(pages)
+    assert fsh_pages[:4] == b"SHPI" and struct.unpack_from("<I", fsh_pages, 8)[0] == len(pages)
+    assert [round(walkers.DIR_DEG[k]) % 360 for k in (0, 2, 4, 6)] == [90, 0, 270, 180]

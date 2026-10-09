@@ -349,6 +349,11 @@ Cars
     cabin narrower than the body, wheels with rims, and real paint colours - silver, white, black, greys, dark
     blue, deep red. Pure saturated colours look like toys.
 
+Pedestrians
+17. design_walker draws a person as the game's walkers are: about life size at the two closest zooms, 8
+    directions x 8 walk frames, a short shadow. Clothes in everyday colours (navy, grey, denim, a few warm
+    tops) read as a crowd; one bright colour on everyone looks like a uniform.
+
 ## Cheats
 
 `cheat(name, argument)` runs one of the game's player cheats. Cheats are not honest play: SiMCP runs only vetted

@@ -64,7 +64,7 @@ them.
       Craftsman bungalow (ploppable and growable), a pocket park, the Flatiron Building
 - [x] Props: rendered per view (bench, acorn lamp, statue, paths), scaled as the game's
 - [x] Vegetation: broadleaf, conifer, palm, shrub of rendered leaf clumps (seasonal trees still painted)
-- [ ] Pedestrians: new walkers as sprite atlases (format decoded, LIVE_FACTS; direction order open)
-- [x] A written guide of what worked: guide topic "realism" (best practices 1 - 16)
+- [x] Pedestrians: new walkers rendered as sprite atlases (design_walker), direction order measured
+- [x] A written guide of what worked: guide topic "realism" (best practices 1 - 17)
 
 U-Drive-It (drivable vehicles, missions) is left out for now, at the user's request.

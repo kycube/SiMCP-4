@@ -1649,6 +1649,37 @@ def design_prop(name: str, shape: str = "box", width_m: float = 2.0, depth_m: fl
 
 @tool(mcp, "act")
 @guarded
+def design_walker(name: str, kind: str = "male", shirt_rgb: list[int] | None = None,
+                  trousers_rgb: list[int] | None = None, skin_rgb: list[int] | None = None,
+                  hair_rgb: list[int] | None = None, replace: bool = False):
+    """Design a new pedestrian for the city's sidewalks: a person drawn the way the game's own walkers are -
+    pre-rendered with the game's camera and light, walking (legs and arms swinging) in 8 directions, at the two
+    closest zooms, with a shadow - who joins the city's pedestrians (men or women). Written as a plugin into
+    SiMCP's own Plugins folder; the game loads it at start-up (quit_game, game_launch). Takes about half a minute.
+    Returns the design and its sprite sheet.
+
+    Args:
+        name: the walker's name.
+        kind: male or female (a skirt over the trousers).
+        shirt_rgb: the shirt or top colour [r, g, b].
+        trousers_rgb: trousers or skirt colour.
+        skin_rgb: skin colour.
+        hair_rgb: hair colour.
+        replace: rebuild an existing walker design of this name (quit_game first).
+    """
+    from . import walkers
+    cols = {k: v for k, v in (("shirt", shirt_rgb), ("trousers", trousers_rgb), ("skin", skin_rgb),
+                              ("hair", hair_rgb)) if v}
+    try:
+        d = walkers.design_walker(name, kind, cols, replace=replace)
+    except content.ContentError as e:
+        return {"error": str(e), "hint": e.hint}
+    png = d.pop("atlas_png")
+    return [json.dumps(d), Image(data=png, format="png")]
+
+
+@tool(mcp, "act")
+@guarded
 def design_seasonal_tree(name: str, shape: str = "broadleaf", height_m: float = 12.0, width_m: float = 8.0,
                          leaf_rgb: list[int] | None = None, trunk_rgb: list[int] | None = None):
     """Design a tree that follows the seasons, for lots (design_park / design_model_building objects

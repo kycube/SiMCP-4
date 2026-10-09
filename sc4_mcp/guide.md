@@ -268,9 +268,14 @@ lot_cells=..., parts_model={...})`.
    shingle, fishscale, brick, stone, roof_shingle, slate, paving, clapboard_window, wall_window), texture (a
    picture file), photo (with quad), facade (authored: windows, doors, bands, railings, ornaments at measured
    positions). partmodel.py and facade.py document every key.
-4. `parts_preview(parts_model, lot_cells)` - all four sides without the game; iterate on the massing first.
-5. `design_model_building(...)` writes the building (a model per view and zoom); quit_game, game_launch, plop it,
-   and judge it with `snapshot` at the closest zoom in daylight, in all four rotations, beside the game's own.
+4. `parts_preview(parts_model, lot_cells, zoom=5, scale=2)` - the building exactly as the game will draw it, all
+   four sides, without the game; iterate on the massing first.
+5. `design_model_building(...)` writes the building the way the game's own are made (the Building Architect's
+   way): every view - five zooms, four rotations - rendered with the game's camera and light (a warm sun from the
+   viewer's left, blue shade, shadows, sky occlusion) and laid over the model's triangles that face the camera.
+   quit_game, game_launch, plop it, and judge it with `snapshot` at the closest zoom in daylight, in all four
+   rotations, beside the game's own. To iterate, `design_model_building(..., replace=true)` (with the game
+   closed) rebuilds it under the same ids: copies already placed update after game_launch.
 
 ## Cheats
 

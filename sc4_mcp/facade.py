@@ -13,7 +13,7 @@ consistent instead of carrying the photo's blur, noise and sunlight.
 u = metres from the face's left edge (seen from outside), v = metres down from its top. Colours are "#rrggbb",
 "r,g,b", a palette name or "clear" (see-through: the renderer cuts the face away there - open balustrades, iron
 fences, porch arches; "base": {"color": "clear"} starts from an empty face). On a round tower u runs around it
-(see photomodel: prism "angle").
+(see partmodel: prism "angle").
 Element types (defaults in brackets):
 - window: u, v, w, h; frame [trim], glass [glass], sash [sash], curtain [none], transom [false] (stained top
   light), arch [false] (round top), hood [false] (cap above), pediment [false], sill [true], mullion [w > 1.4]
@@ -73,7 +73,7 @@ class Facade:
 
     # ---------------------------------------------------------------- helpers
     def c(self, v, default=None):
-        from .photomodel import parse_color
+        from .partmodel import parse_color
         if v is None:
             v = default
         if v is None:
@@ -135,7 +135,7 @@ class Facade:
             self.d.chord([x0, y0, x1 - 1, y1], 180, 360, fill=col)
 
     def field(self, e):
-        from .photomodel import pattern_image
+        from .partmodel import pattern_image
         u, v, w, h = float(e["u"]), float(e["v"]), float(e["w"]), float(e["h"])
         if "pattern" not in e:
             self.box(u, v, w, h, self.c(e.get("color"), "body"))

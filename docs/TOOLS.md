@@ -125,7 +125,7 @@ All tools have openWorldHint false (they act on the local game only).
 | [`photo_add`](#photo_add) | set | Add a photograph to work from (a reference for a building, a car, a tree...): a picture file or base64, optionally cropped and scaled; later calls name it. |
 | [`photo_view`](#photo_view) | observe | A photo (or part of it) with a labelled pixel grid in the photo's own coordinates: for reading the corners of facades, roofs and windows (to measure, and for photo materials' quad), and colours to sample. |
 | [`photo_rectify`](#photo_rectify) | observe | A photo region with the perspective removed: the facade inside quad (four photo pixels: top-left, top-right, bottom-right, bottom-left), as a photo material would paint a face. |
-| [`parts_preview`](#parts_preview) | observe | A quick picture of a parts model (design_model_building's parts_model) without the game: SiMCP 3000's isometric renderer with its own light, all four sides (rotation -1) or one. |
+| [`parts_preview`](#parts_preview) | observe | A parts model (design_model_building's parts_model) exactly as the game will draw it - the same renderer, camera and light that make its models - without the game: all four rotations (rotation -1) or one. |
 | [`terrain_look`](#terrain_look) | act | The look of all terrain (global, every city): the game's own ground, beach and cliff textures recoloured, and its texture table moved drier or wetter, as one plugin. |
 | [`design_advice`](#design_advice) | act | Write a new piece of advice or a news headline for the game's advisors, as a Lua plugin like the game's own advice scripts: the advisor shows it when its trigger is true. |
 | [`design_growable_building`](#design_growable_building) | act | Design a building that grows by itself in zones (a house, shop, office or factory) with its own 3D model and lot. |
@@ -1073,6 +1073,7 @@ Design a new building with its own 3D model and textures on its own lot, for the
 | `model_scale` | number | `1.0` | metres per model unit. |
 | `department` | object or null | `null` | a budget department of its own for the building, in the Budget window: {"name": "Museum Fund", "group": "government" (or business_deals, city_beautification, health_education, public_safety, transportation, utilities), "monthly_cost": 40, "monthly_income": 0}; each building of the design adds its line. |
 | `parts_model` | object or null | `null` | a building made of parts: {"materials": {name: {...}}, "parts": [{"type": "box" \| "roof" \| "extrude" \| "prism" \| "cone" \| "beam" \| "panel" \| "patch", ...}]} in metres on the lot (x, y from the lot's corner, the +y side facing the street, z up) - see guide(topic="parts"); parts_preview shows it. Its size replaces width, depth and height. |
+| `replace` | boolean | `false` | rebuild an existing design of this name under its own ids (quit_game first): copies already placed in cities show the new version after game_launch - the way to iterate on a design. |
 
 ## design_tree
 
@@ -1410,13 +1411,15 @@ A photo region with the perspective removed: the facade inside quad (four photo 
 
 *observe*
 
-A quick picture of a parts model (design_model_building's parts_model) without the game: SiMCP 3000's isometric renderer with its own light, all four sides (rotation -1) or one. The game draws the real thing with its own camera and SiMCP's baked light: check there with snapshot after design_model_building.
+A parts model (design_model_building's parts_model) exactly as the game will draw it - the same renderer, camera and light that make its models - without the game: all four rotations (rotation -1) or one.
 
 | parameter | type | default | description |
 |---|---|---|---|
 | `parts_model` | object | required | the model ({"materials": ..., "parts": [...]}). |
 | `lot_cells` | integer | `1` | the lot's size in cells a side. |
 | `rotation` | integer | `-1` | 0-3, or -1 for all four side by side. |
+| `zoom` | integer | `5` | the game's zoom, 1-5 (5 = the closest). |
+| `scale` | integer | `2` | enlarge the picture (nearest pixel) to judge single pixels; 1 = the game's size. |
 
 ## terrain_look
 

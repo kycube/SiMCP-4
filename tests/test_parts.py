@@ -21,13 +21,16 @@ def _points(m):
     return out
 
 
-def test_turned_quarter_turns():
+def test_turned_per_view():
+    """View index r = (lot facing - camera rotation) mod 4 (north 0); the model is drawn fixed to the camera with +Z
+    toward the lower left, so view r turns it (r + 2) quarter turns."""
     m = s3d.textured_mesh([(1, 0, 0, 0, 0), (0, 2, 3, 1, 0), (0, 0, 0, 0, 1)], [(0, 1, 2)], 0x100)
-    assert _points(s3d.turned(m, 0)) == _points(m)
-    half = _points(s3d.turned(m, 2))
+    assert [s3d.view_turns(r) for r in range(4)] == [2, 3, 0, 1]
+    assert _points(s3d.turned(m, 2)) == _points(m)                          # facing south, camera 0: as built
+    half = _points(s3d.turned(m, 0))
     assert half[0] == (-1, 0, 0) and half[1] == (0, 2, -3)                 # x, z negated; y (up) kept
-    assert _points(s3d.turned(s3d.turned(m, 1), 3)) == _points(m)
-    assert _points(s3d.turned(m, 1)) != _points(m)
+    assert _points(s3d.turned(m, 3))[1] == (-3, 2, 0)                       # one turn: (x, z) -> (-z, x)
+    assert _points(s3d.turned(s3d.turned(m, 1), 3)) == _points(m)                 # 3 + 1 turns
 
 
 def test_parts_to_game_model():
@@ -82,3 +85,47 @@ def test_parts_building_has_a_model_per_view(tmp_path, monkeypatch):
     views = [_points(s3d.parse(d.read(e))) for e in d if e.type == dbpf.T_S3D and e.instance in models[:4]]
     assert views[0] != views[1] and sorted(views[0]) != sorted(views[2])
     assert r["parts"] == 2 and 5.8 < r["size_m"][2] < 6.1
+
+
+def test_camera_matches_the_games():
+    """BAT4Max's camera: a 16 m cell 146 px wide at the closest zoom, 45 degrees from the vertical, turned 22.5."""
+    from sc4_mcp import batrender
+    right, down, view, k = batrender.camera(4)
+    assert abs(k - 6.985) < 0.01 and abs(16 * k * (right[0] - right[2]) - 146) < 0.01
+    assert abs(view @ [-0.271, -0.707, -0.653] - 1) < 1e-3 and abs(right @ view) < 1e-9 and abs(down @ view) < 1e-9
+    assert abs(batrender.camera(0)[3] - 8 / 20.905) < 1e-3 and abs(batrender.camera(0)[2][1] + 0.5) < 1e-9
+
+
+def test_baked_views_project_like_the_camera():
+    """Every baked view: triangles facing the camera, texture coordinates exactly the camera's projection, tiles of
+    at most 256 pixels, the light in the picture (the sunny side brighter than the shaded one)."""
+    import numpy as np
+    from sc4_mcp import batrender, fsh
+    mesh, mats = partmodel.Builder(dict(HOUSE, lot=1)).build()
+    scene = batrender.Scene(mesh, mats, 1)
+    models, textures = batrender.bake(scene, 0x40000000, 0x50000000)
+    assert len(models) == 20 and [i for i, _ in models][:2] == [0x40000000, 0x40000010]
+    tex = {i: fsh.read_first(b) for i, b in textures}
+    assert all(w <= 256 and h <= 256 for w, h, _ in tex.values())
+    right, down, view, k = batrender.camera(4)
+    m = s3d.parse(dict(models)[0x40000400])
+    for vb, mt in zip(m.verts, m.mats):
+        w, h, _ = tex[mt.textures[0].instance]
+        assert mt.flags == 0xAB and mt.textures[0].wrap == (3, 3)
+        V = np.frombuffer(vb.data, np.float32).reshape(-1, 5)
+        px, py = V[:, :3] @ right * k, V[:, :3] @ down * k
+        du, dv = V[:, 3] * w - px, V[:, 4] * h - py               # constant offset per tile = an exact projection
+        assert np.ptp(du) < 1e-2 and np.ptp(dv) < 1e-2
+    img = np.asarray(scene.picture(4, 2), np.float32)
+    lum = img[..., :3] @ [0.3, 0.59, 0.11]
+    seen = img[..., 3] > 250
+    assert lum[seen].max() > 150 and lum[seen].min() < 80        # lit and shaded sides
+
+
+def test_facade_material():
+    mesh, mats = partmodel.Builder({"lot": 1, "materials": {"front": {"facade": {
+        "size_m": [6, 3], "palette": {"body": "#7f8e6c"},
+        "elements": [{"type": "window", "u": 1, "v": 0.6, "w": 1, "h": 1.4},
+                     {"type": "door", "u": 4, "v": 0.8, "w": 0.9, "h": 2.1}]}}},
+        "parts": [{"type": "box", "x": 5, "y": 5, "w": 6, "d": 4, "h": 3, "mat": "front"}]}).build()
+    assert mats[0].fit and mats[0].tex.shape[1] == 240                           # 6 m at 40 px per metre

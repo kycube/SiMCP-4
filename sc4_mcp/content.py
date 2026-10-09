@@ -74,14 +74,18 @@ def _check_tokens(text: str, what: str) -> None:
                                                                              tok))
 
 
-def _check_name(name: str) -> None:
-    """A design's name: 1-60 printable characters, no game text tokens or Lua long-string brackets."""
+def _check_name(name: str, existing: bool = False) -> None:
+    """A design's name: 1-60 printable characters, no game text tokens or Lua long-string brackets; unused (or, with
+    existing, in use - a design being replaced)."""
     if not name or len(name) > 60 or any(ord(c) < 32 for c in name):
         raise ContentError("give the design a name of 1-60 printable characters")
     if "#" in name or "[[" in name or "]]" in name:
         raise ContentError("a design name may not contain '#', '[[' or ']]'")
+    if existing:
+        return
     if any(d["name"].lower() == name.lower() and not d.get("disabled") for d in _manifest()):
-        raise ContentError("a design named %r exists" % name, "content_designs lists them")
+        raise ContentError("a design named %r exists" % name,
+                           "content_designs lists them; replace=true rebuilds a model building under its ids")
 
 
 def _design_path(prefix: str, name: str) -> str:
@@ -355,7 +359,7 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
                    model_path: str = "", model_scale: float = 1.0, overrides: dict | None = None,
                    kind: str = "", template_group: int | None = None, extra=None,
                    department: dict | None = None, lot_template: int | None = None,
-                   parts_model: dict | None = None) -> dict:
+                   parts_model: dict | None = None, replace: bool = False) -> dict:
     """A new building with its own model and texture on its own lot (Parks / landmarks properties of the template
     building), written as a plugin into SiMCP's Plugins folder. `ground` covers every cell of the lot (a name from
     lotdesign.GROUNDS or a lot texture id) and `objects` adds props, trees and grounds (lotdesign.rows). invisible:
@@ -364,7 +368,8 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
     size, properties and rows (network tiles of transit-enabled lots, props, textures) the new lot copies, with
     SiMCP's building on the template's building row (ground and objects are then not used). parts_model: a
     building made of parts and materials (partmodel; guide topic "parts") instead of the generated block - its
-    "lot" (cells) is lot_cells, its size the model's."""
+    "lot" (cells) is lot_cells, its size the model's. replace: rebuild the design of that name under its own lot,
+    building and model ids (its file is rewritten; copies in saved cities show the new version after a restart)."""
     from . import fsh, lotdesign, meshimport, s3d
     mesh = meshimport.load(model_path, model_scale) if model_path else None
     built = None
@@ -399,7 +404,13 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
             raise ContentError("the model is %g x %g m (x %g m tall): it must fit a %d x %d-cell lot (%d x %d m) - "
                                "scale it or use a bigger lot" % (width, depth, height, lot_w, lot_d, 16 * lot_w,
                                                                  16 * lot_d))
-    _check_name(name)
+    prior = None
+    if replace:
+        hit = [d for d in _manifest() if d["name"].lower() == name.lower() and not d.get("disabled")]
+        if not hit or not all(k in hit[0] for k in ("lot", "building", "model", "file")):
+            raise ContentError("no model building named %r to replace" % name, "content_designs lists them")
+        prior = hit[0]
+    _check_name(name, existing=prior is not None)
     _check_tokens(description, "description")
     if plop_cost < 0 or monthly_cost < 0:
         raise ContentError("costs are 0 or more")
@@ -412,21 +423,27 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
     be, bld = _find_exemplar(dbpf.T_EXEMPLAR, template_building, template_group, not_group=G_LOTS)
     if bld is None:
         raise ContentError("the template building is not in the game's own data")
-    lot_iid, bld_iid = _new_ids(taken or set(), 2)
-    model_iid = _free(dbpf.T_S3D, G_MODELS, 0xFFFF0000, taken or set())
+    if prior:
+        lot_iid, bld_iid, model_iid = (int(prior[k], 16) for k in ("lot", "building", "model"))
+    else:
+        lot_iid, bld_iid = _new_ids(taken or set(), 2)
+        model_iid = _free(dbpf.T_S3D, G_MODELS, 0xFFFF0000, taken or set())
     tex_iid = _free(dbpf.T_FSH, G_TEXTURES, 0xFFFFFF00, taken or set())
     views = False
+    baked = None
     if invisible:              # alpha 0 everywhere: the default material's alpha test drops every pixel
         wall_fsh = roof_fsh = fsh.write_argb(8, 8, bytes(8 * 8 * 4))
         model = s3d.write(s3d.textured_mesh([(-0.5, 0.01, -0.5, 0, 0), (0.5, 0.01, -0.5, 1, 0), (0.5, 0.01, 0.5, 1, 1),
                                              (-0.5, 0.01, 0.5, 0, 1)], [(0, 2, 1), (0, 3, 2)], tex_iid))
         textures = [(tex_iid, wall_fsh)]
         icon_png = lotdesign.park_icon()
-    elif built:
-        from . import partmodel
-        model, textures, _ = partmodel.to_s3d(built[0], built[1], lot_cells, tex_iid)
-        icon_png = partmodel.icon(built[0], built[1], lot_cells)
-        views = True                    # one turned copy per view rotation (RKT1)
+    elif built:                         # rendered as the game's own buildings are: a picture per view (batrender)
+        from . import batrender
+        scene = batrender.Scene(built[0], built[1], lot_cells)
+        tex_iid = _free(dbpf.T_FSH, G_TEXTURES, 0xFFFF0000, taken or set())
+        baked, textures = batrender.bake(scene, model_iid, tex_iid)
+        icon_png = batrender.icon(scene)
+        views = True
     elif mesh:
         mobj, textures = meshimport.model(mesh, tex_iid)
         model = s3d.write(mobj)
@@ -439,7 +456,7 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
         textures = [(tex_iid, wall_fsh), (tex_iid + 1, roof_fsh)]
         icon_png = box_icon(width, depth, height, tuple(wall), tuple(roof))
         views = True
-    rotated = [s3d.write(s3d.turned(s3d.parse(model), r)) for r in range(4)] if views else []
+    rotated = [s3d.write(s3d.turned(s3d.parse(model), r)) for r in range(4)] if views and not baked else []
     side = 16.0 * lot_cells
     cx = cz = side / 2
     if built:                            # the model's own footprint (its x is mirrored: +x is west)
@@ -510,7 +527,9 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
                                                                       else LOT_COHORT)),
                (dbpf.T_PNG, G_ICONS, icon_iid, icon_png)] + \
               [(dbpf.T_FSH, G_TEXTURES, inst, data) for inst, data in textures]
-    if views:                            # RKT1: the model for zoom z, view rotation r at base + z * 0x100 + r * 0x10
+    if baked:
+        records += [(dbpf.T_S3D, G_MODELS, inst, data) for inst, data in baked]
+    elif views:                          # RKT1: the model for zoom z, view rotation r at base + z * 0x100 + r * 0x10
         records += [(dbpf.T_S3D, G_MODELS, model_iid + z * 0x100 + r * 0x10, rotated[r])
                     for z in range(5) for r in range(4)]
     else:
@@ -522,7 +541,7 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
         records += more
         extra_entry.update(more_entry)
     os.makedirs(FOLDER, exist_ok=True)
-    path = _design_path("SiMCP_park_" if invisible else "SiMCP_", name)
+    path = prior["file"] if prior else _design_path("SiMCP_park_" if invisible else "SiMCP_", name)
     dbpf.write_dbpf(path, records)
     entry = {"name": name, "file": path, "lot": "0x%08X" % lot_iid, "building": "0x%08X" % bld_iid,
              "model": "0x%08X" % model_iid, "texture": "0x%08X" % tex_iid, "size_m": [width, depth, height],
@@ -543,7 +562,13 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
         entry["parts"] = len(parts_model.get("parts", []))
         entry["size_m"] = [round(width, 2), round(depth, 2), round(height, 2)]
     items = _manifest()
-    items.append(entry)
+    if prior:
+        entry["created"] = prior.get("created", entry["created"])
+        entry["replaced"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        items = [entry if (d["name"] == prior["name"] and d.get("file") == prior["file"] and not d.get("disabled"))
+                 else d for d in items]
+    else:
+        items.append(entry)
     _save_manifest(items)
     return dict(entry, note="the game loads plugins at start-up: quit_game and game_launch, then build_menu")
 

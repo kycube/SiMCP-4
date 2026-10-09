@@ -233,16 +233,20 @@ def multi_mesh(parts: list[tuple[list, list, int, bool]], name: bytes = b"SiMCP"
     return m
 
 
-ROT_SIGN = -1         # which way a view rotation turns the model (found live with a four-colour box)
+def view_turns(r: int) -> int:
+    """Quarter turns ((x, z) -> (-z, x) each) that make a model's +Z side (its street front) right for the game's
+    view index r. The game draws a building's model fixed to the camera (+Z toward the lower left, +X toward the
+    lower right) and picks index r = (lot facing - camera rotation) mod 4, facing north 0, east 1, south 2, west 3
+    (found live with a probe showing its index on the roof, lots facing four ways, four camera rotations)."""
+    return (r + 2) % 4
 
 
 def turned(m: Model, r: int) -> Model:
-    """A copy of a model turned r quarter turns about the vertical axis, for the game's view rotation r: building
-    models are drawn as given in every view, so each view needs its own turned copy (RKT1: base + zoom * 0x100 +
-    rotation * 0x10)."""
+    """A copy of a model turned for the game's view index r (view_turns): building models are drawn fixed to the
+    camera, so each view needs its own turned copy (RKT1: base + zoom * 0x100 + r * 0x10)."""
     import copy
     out = copy.deepcopy(m)
-    k = (ROT_SIGN * r) % 4
+    k = view_turns(r)
     if not k:
         return out
     for vb in out.verts:

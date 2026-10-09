@@ -831,15 +831,41 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
 
 ## Session 2026-10-09 (Phase 11: realism - per-view building models)
 
-- **Building models are not turned by the game.** A box with four coloured walls ("MCP Compass Box", RKT0: one
-  model) showed the same wall toward the camera in every view rotation, and in rotation 3 it was not drawn at all.
-  With RKT1 (0x27812821: [S3D, group, base]) the game takes the model for zoom z and rotation r at base + z *
-  0x100 + r * 0x10, as Maxis' pre-rendered models are stored; SiMCP writes 20 copies turned by r quarter turns.
-  The turn's sign: "MCP Compass Box Two" (turned +r) was 180 degrees off on a lot facing west; "MCP Compass Box
-  Three" (turned -r, s3d.ROT_SIGN = -1) showed the right wall toward the street in all four rotations on lots
-  facing west (31, 38) and east (29, 38) in MCP Town. Every SiMCP building design (block, OBJ, parts, growable) is
-  now written this way.
+- **Which model the game draws** (corrected later the same day - the first reading below was wrong for half the
+  views): RKT1 (0x27812821: [S3D, group, base]) models sit at base + zoom * 0x100 + index * 0x10. The game draws
+  the model fixed to the camera (its +Z toward the lower left of the screen, +X toward the lower right, in every
+  camera rotation) and picks index = (lot facing - camera rotation) mod 4, facing north 0, east 1, south 2,
+  west 3. Measured with "MCP View Probe" (each index's model an unturned box with its index on the roof) on lots
+  facing four ways around a crossroads at (33, 12), in four camera rotations, the fountain roundabout south-east
+  of it as the anchor: north / east / south / west lots showed 0 / 1 / 2 / 3 at camera 0 and 3 / 0 / 1 / 2 at
+  camera 1. So index r must be the building turned (r + 2) quarter turns ((x, z) -> (-z, x) each;
+  s3d.view_turns). The first rule (-r turns, "MCP Compass Box Three") is right only for odd r: on a west-facing
+  lot it looked right at cameras 0 and 2 and was 180 degrees off at 1 and 3, which a first check missed. With
+  (r + 2) the baked "MCP Baked Compass" faced its road on all four lots in every rotation, and "MCP Bungalow"
+  (west-facing, between Maxis bungalows at (15, 32) and (15, 34)) showed its porch to the road as theirs do.
+  With RKT0 (one model) a building shows the same side to the camera whatever the rotation.
 - **Parts buildings** (partmodel, ported from SiMCP 3000): the model's x / y on the lot (+y to the street, +x
   west), z up become S3D X = -(x - c), Y = z, Z = y - c; triangles are wound so (b - a) x (c - a) points outward.
   Maxis models carry positions and UVs only (vertex format 0x80004001) with the light in the texture, so to_s3d
   groups triangles by material and light level and writes a lit copy of the texture per group.
+
+## Session 2026-10-09 (Phase 11: buildings rendered like the game's own)
+
+- **Maxis models are pictures on a shell**: a building's model per view (zoom, rotation) is a low-poly shell (the
+  Statue of Liberty: 73 vertices at the closest zoom, 7 at the farthest) whose texture coordinates are exactly the
+  camera's projection - a least-squares fit of UV against position leaves 0.002 (half a pixel) - and whose
+  textures are the BAT's rendered image cut into 256 x 256 tiles (DXT1, clamped: wrap 3, alpha test 0x7FFF,
+  material flags 0xAB). The light, shading and self-shadows are in the picture; there is no ground shadow in it.
+- **The camera**, fitted on four landmarks: 6.985 / 3.49 / 1.53 / 0.77 / 0.39 px per metre at zooms 5..1 and 45 /
+  45 / 50 / 55 / 60 degrees from the vertical, turned 22.5 degrees; the view direction in every view's model frame
+  is (-0.271, -0.707, -0.653). This is BAT4Max's camera rig as BAT4Blender (github.com/memo33/BAT4Blender) gives
+  it: a 16 m cell 146 / 73 / 32 / 16 / 8 px wide.
+- **The light**: BAT4Blender gives BAT4Max's sun at (-474, -352, 575) for the south view, turning with the
+  camera: in the model frame (-0.575, 0.698, 0.427), 44 degrees high, from the viewer's left and a little in
+  front; a fit of face brightness against face direction over 1,912 Maxis models put it at azimuth 320 - 340, 30 -
+  45 degrees high. Levels from 1,118 models' walls facing left (lit) and right (shaded): a white wall about (225,
+  210, 200) in the sun and (85, 82, 108) in the shade - lit / shaded about 2.5 in red, 1.8 in blue.
+- **SiMCP's renderer** (batrender) does the same for parts models: every view rendered with that camera and light
+  (4 x 4 supersampling, a sun shadow map, sky occlusion), laid over the model's triangles that face the camera,
+  cut into 256-pixel tiles. "MCP Bungalow" (a Craftsman bungalow: 140 triangles, 20 views, 107 KB) rendered in
+  1 s; in MCP Town it stood among Maxis' bungalows with the same light, blue shade and sharpness.

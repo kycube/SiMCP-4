@@ -1468,7 +1468,7 @@ def design_model_building(name: str, width_m: float, depth_m: float, height_m: f
                           roof_rgb: list[int], windows: bool = True, lot_cells: int = 1, description: str = "",
                           plop_cost: int = 500, monthly_cost: int = 20, ground: str = "plaza",
                           objects: list[dict] | None = None, model_path: str = "", model_scale: float = 1.0,
-                          department: dict | None = None, parts_model: dict | None = None):
+                          department: dict | None = None, parts_model: dict | None = None, replace: bool = False):
     """Design a new building with its own 3D model and textures on its own lot, for the Parks menu: a block with a
     window grid and a flat roof, your OBJ model, or a building made of parts (parts_model - walls, roofs, towers,
     trim, authored facades; guide topic "parts"). Written as a plugin into SiMCP's own Plugins folder; the game
@@ -1503,19 +1503,22 @@ def design_model_building(name: str, width_m: float, depth_m: float, height_m: f
             "extrude" | "prism" | "cone" | "beam" | "panel" | "patch", ...}]} in metres on the lot (x, y from the
             lot's corner, the +y side facing the street, z up) - see guide(topic="parts"); parts_preview shows it.
             Its size replaces width, depth and height.
+        replace: rebuild an existing design of this name under its own ids (quit_game first): copies already
+            placed in cities show the new version after game_launch - the way to iterate on a design.
     """
     if len(wall_rgb) != 3 or len(roof_rgb) != 3 or not all(0 <= c <= 255 for c in list(wall_rgb) + list(roof_rgb)):
         return {"error": "colours are [r, g, b] with values 0..255"}
     r = _content(content.model_building, name, width_m, depth_m, height_m, tuple(wall_rgb), tuple(roof_rgb),
                  windows, lot_cells, description, plop_cost, monthly_cost, ground=ground, objects=objects,
-                 model_path=model_path, model_scale=model_scale, department=department, parts_model=parts_model)
+                 model_path=model_path, model_scale=model_scale, department=department, parts_model=parts_model,
+                 replace=replace)
     if parts_model and "error" not in r:
         try:
-            from . import partmodel
+            from . import batrender, partmodel
             pm = dict(parts_model)
             pm["lot"] = lot_cells
             mesh, mats = partmodel.Builder(pm).build()
-            return [json.dumps(r), _png_image(partmodel.preview(mesh, mats, lot_cells, 0, 192))]
+            return [json.dumps(r), _png_image(batrender.views_picture(batrender.Scene(mesh, mats, lot_cells)))]
         except Exception:  # noqa: BLE001 - the design is written; the picture is a convenience
             return r
     if model_path and "error" not in r:
@@ -2145,30 +2148,34 @@ def photo_rectify(name: str, quad: list[list[float]], width_m: float = 0, height
 
 @tool(mcp, "observe")
 @guarded
-def parts_preview(parts_model: dict, lot_cells: int = 1, rotation: int = -1):
-    """A quick picture of a parts model (design_model_building's parts_model) without the game: SiMCP 3000's
-    isometric renderer with its own light, all four sides (rotation -1) or one. The game draws the real thing with
-    its own camera and SiMCP's baked light: check there with snapshot after design_model_building.
+def parts_preview(parts_model: dict, lot_cells: int = 1, rotation: int = -1, zoom: int = 5, scale: int = 2):
+    """A parts model (design_model_building's parts_model) exactly as the game will draw it - the same renderer,
+    camera and light that make its models - without the game: all four rotations (rotation -1) or one.
 
     Args:
         parts_model: the model ({"materials": ..., "parts": [...]}).
         lot_cells: the lot's size in cells a side.
         rotation: 0-3, or -1 for all four side by side.
+        zoom: the game's zoom, 1-5 (5 = the closest).
+        scale: enlarge the picture (nearest pixel) to judge single pixels; 1 = the game's size.
     """
     def run():
         from PIL import Image as PImage
-        from . import partmodel
+        from . import batrender, partmodel
+        if not 1 <= zoom <= 5 or not 1 <= scale <= 6:
+            raise partmodel.GameError("zoom 1-5, scale 1-6")
         pm = dict(parts_model)
         pm["lot"] = lot_cells
         mesh, mats = partmodel.Builder(pm).build()
-        rots = range(4) if rotation < 0 else [rotation % 4]
-        ims = [partmodel.preview(mesh, mats, lot_cells, r, 256) for r in rots]
-        w = sum(im.width for im in ims) + 8 * (len(ims) - 1)
-        out = PImage.new("RGBA", (w, max(im.height for im in ims)), (150, 185, 215, 255))
-        x = 0
-        for im in ims:
-            out.alpha_composite(im, (x, out.height - im.height))
-            x += im.width + 8
+        scene = batrender.Scene(mesh, mats, lot_cells)
+        if rotation < 0:
+            out = batrender.views_picture(scene, zoom - 1)
+        else:
+            im = scene.picture(zoom - 1, rotation % 4)
+            out = PImage.new("RGBA", im.size, (98, 128, 72, 255))
+            out.alpha_composite(im)
+        if scale > 1:
+            out = out.resize((out.width * scale, out.height * scale), PImage.NEAREST)
         return _png_image(out)
     return _photo(run)
 

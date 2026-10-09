@@ -286,15 +286,32 @@ def _remove_color(mat: Material, color, tol: float) -> None:
     t[:, :, :3] = col
 
 
+GRAIN = 0.06                 # default weathering: the renderer's noise in model space (batrender)
+
+
 def make_material(name: str, spec: dict, rect_px_per_m: float = 48.0) -> Material:
     if not isinstance(spec, dict):
         raise GameError(f"material {name!r}: an object such as {{\"color\": \"#8a8a8a\"}}")
+    mat = _make_material(name, spec, rect_px_per_m)
+    try:
+        mat.grain = float(spec.get("grain", GRAIN))
+    except (TypeError, ValueError):
+        raise GameError(f"material {name!r}: grain is a number (0 = clean, 0.06 default, 0.2 strong)")
+    if not 0 <= mat.grain <= 0.5:
+        raise GameError(f"material {name!r}: grain 0..0.5")
+    return mat
+
+
+def _make_material(name: str, spec: dict, rect_px_per_m: float = 48.0) -> Material:
     tint = parse_color(spec["tint"]) if spec.get("tint") else None
     bright = float(spec.get("brightness", 1.0))
     size = spec.get("size_m")
     if "facade" in spec:                     # an authored wall: drawn element by element (facade.py)
         from . import facade
-        mat = Material(name, facade.draw(spec["facade"]), fit=True)
+        im, glow = facade.draw_with_light(spec["facade"])
+        mat = Material(name, im, fit=True)
+        if glow is not None:                 # what shines at night (batrender's night layer)
+            mat.glow = Material(name + " light", glow, fit=True)
         if bright != 1.0 or tint:
             t = np.array(tint or (255, 255, 255), np.float32) / 255.0 * bright
             mat.tex[:, :, :3] = np.clip(mat.tex[:, :, :3] * t, 0, 1)
@@ -343,10 +360,13 @@ UP = np.array([0, 0, 1.0])
 class Builder:
     def __init__(self, model: dict):
         self.model = model
-        self.lot = int(model.get("lot", 1))
-        if not 1 <= self.lot <= 5:
-            raise GameError("lot: 1..5 tiles")
+        lot = model.get("lot", 1)
+        self.lot_w, self.lot_d = (int(lot[0]), int(lot[1])) if isinstance(lot, (list, tuple)) else (int(lot), int(lot))
+        if not (1 <= self.lot_w <= 6 and 1 <= self.lot_d <= 6):
+            raise GameError("lot: 1..6 cells a side (a number, or [across the street, deep])")
+        self.lot = max(self.lot_w, self.lot_d)
         self.L = self.lot * TILE_M
+        self.LX, self.LY = self.lot_w * TILE_M, self.lot_d * TILE_M
         self.mesh = Mesh()
         self.mats: list[Material] = []
         self.mat_index: dict[str, int] = {}
@@ -678,8 +698,8 @@ class Builder:
         self.face([B[0], B[1], B[2], B[3]], d, mat)
 
     def ground(self, p):
-        L = self.L
-        self.face([(0, 0, 0), (0, L, 0), (L, L, 0), (L, 0, 0)], (0, 0, 1), self.face_mat(p, "top"))
+        LX, LY = self.LX, self.LY
+        self.face([(0, 0, 0), (0, LY, 0), (LX, LY, 0), (LX, 0, 0)], (0, 0, 1), self.face_mat(p, "top"))
 
     def patch(self, p):
         x, y, w, d = float(p["x"]), float(p["y"]), float(p["w"]), float(p["d"])

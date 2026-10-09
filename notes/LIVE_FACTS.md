@@ -869,3 +869,19 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   (4 x 4 supersampling, a sun shadow map, sky occlusion), laid over the model's triangles that face the camera,
   cut into 256-pixel tiles. "MCP Bungalow" (a Craftsman bungalow: 140 triangles, 20 views, 107 KB) rendered in
   1 s; in MCP Town it stood among Maxis' bungalows with the same light, blue shade and sharpness.
+- **Night lights**: a Maxis model's texture has a night twin at instance + 0x8000 (1,526 of 1,867 buildings and props
+  with per-view models): a mostly transparent DXT3 layer holding only the light (lit windows and their glow; the
+  house 0x03970400: 3.5 % of the texels, warm grey-beige at alpha 128 - 255); the day pictures are DXT1, all under
+  directory "G354". The game shades the day picture for night and lays the layer over it. SiMCP's renderer bakes
+  one from the facades' lit window glass and lamps ("night": {"lit": share}): "MCP Craftsman Bungalow" (DXT1 / DXT3,
+  101 KB for 20 views) showed warm lit windows a few seconds after dusk with the city running; snapshots taken
+  with the city paused right after day_night("night") showed them unlit. A copy with an ARGB8888 layer was not seen
+  lit in that paused check (not retested running).
+- **Maxis house lots** (R$$4_1x2, 0x30000490): the building row has rotation 2 (SiMCP's lots use 0; view_turns is
+  measured for 0, so SiMCP's growables write 0), the house near the street, shrubs along the front, maples,
+  backyard prop families (0xA000xxxx) and two ground textures per cell: 0x251C2000 (a natural lawn - SiMCP's
+  "yard") and 0x251B2000 (an overlay with alpha: the house pad and the path to the street).
+- **MCP Craftsman Bungalow** (after the public-domain Commons photo "Craftsman Bungalow.jpg"; 1 x 2 lot, yard,
+  Maxis shrubs, flowers and maples): beside Maxis houses in MCP Town at (15, 37) / (15, 38) it took the same
+  light and shade; the porch read only once it had its own front gable (an integral porch under the main roof is
+  hidden from the game's 45-degree camera), and a box top under a shallow roof showed through as a bright patch.

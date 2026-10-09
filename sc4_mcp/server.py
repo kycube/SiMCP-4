@@ -1468,7 +1468,8 @@ def design_model_building(name: str, width_m: float, depth_m: float, height_m: f
                           roof_rgb: list[int], windows: bool = True, lot_cells: int = 1, description: str = "",
                           plop_cost: int = 500, monthly_cost: int = 20, ground: str = "plaza",
                           objects: list[dict] | None = None, model_path: str = "", model_scale: float = 1.0,
-                          department: dict | None = None, parts_model: dict | None = None, replace: bool = False):
+                          department: dict | None = None, parts_model: dict | None = None, replace: bool = False,
+                          lot_depth: int = 0):
     """Design a new building with its own 3D model and textures on its own lot, for the Parks menu: a block with a
     window grid and a flat roof, your OBJ model, or a building made of parts (parts_model - walls, roofs, towers,
     trim, authored facades; guide topic "parts"). Written as a plugin into SiMCP's own Plugins folder; the game
@@ -1482,11 +1483,11 @@ def design_model_building(name: str, width_m: float, depth_m: float, height_m: f
         wall_rgb: the wall colour [r, g, b] (0..255).
         roof_rgb: the roof colour [r, g, b].
         windows: draw a window on every 4 m x 4 m of wall.
-        lot_cells: the lot's size in cells a side (1..6).
+        lot_cells: the lot's size in cells a side (1..6); with lot_depth, its width along the street.
         description: the menu description.
         plop_cost: the plop cost.
         monthly_cost: the monthly cost.
-        ground: the lot's ground texture: paving, plaza, concrete, asphalt, grass, lawn, meadow, gravel, garden,
+        ground: the lot's ground texture: paving, plaza, concrete, asphalt, grass, lawn, yard, meadow, gravel, garden,
             sand or parking.
         objects: things on the lot around the building, as for design_park: [{"prop": id or name, "x": m, "z": m,
             "rotation": 0-3}, {"tree": name, "x": m, "z": m}, {"ground": name, "x": m, "z": m}].
@@ -1505,20 +1506,23 @@ def design_model_building(name: str, width_m: float, depth_m: float, height_m: f
             Its size replaces width, depth and height.
         replace: rebuild an existing design of this name under its own ids (quit_game first): copies already
             placed in cities show the new version after game_launch - the way to iterate on a design.
+        lot_depth: the lot's depth in cells from the street (0 = lot_cells, a square lot); e.g. lot_cells 1,
+            lot_depth 2 as the game's house lots.
     """
     if len(wall_rgb) != 3 or len(roof_rgb) != 3 or not all(0 <= c <= 255 for c in list(wall_rgb) + list(roof_rgb)):
         return {"error": "colours are [r, g, b] with values 0..255"}
+    lot = [lot_cells, lot_depth] if lot_depth and lot_depth != lot_cells else lot_cells
     r = _content(content.model_building, name, width_m, depth_m, height_m, tuple(wall_rgb), tuple(roof_rgb),
-                 windows, lot_cells, description, plop_cost, monthly_cost, ground=ground, objects=objects,
+                 windows, lot, description, plop_cost, monthly_cost, ground=ground, objects=objects,
                  model_path=model_path, model_scale=model_scale, department=department, parts_model=parts_model,
                  replace=replace)
     if parts_model and "error" not in r:
         try:
             from . import batrender, partmodel
             pm = dict(parts_model)
-            pm["lot"] = lot_cells
+            pm["lot"] = lot
             mesh, mats = partmodel.Builder(pm).build()
-            return [json.dumps(r), _png_image(batrender.views_picture(batrender.Scene(mesh, mats, lot_cells)))]
+            return [json.dumps(r), _png_image(batrender.views_picture(batrender.Scene(mesh, mats, lot)))]
         except Exception:  # noqa: BLE001 - the design is written; the picture is a convenience
             return r
     if model_path and "error" not in r:
@@ -1672,7 +1676,7 @@ def design_park(name: str, objects: list[dict], lot_cells: int = 1, ground: str 
             {"tree": name or id, "x": m, "z": m}, {"seasonal_tree": name, "x": m, "z": m},
             {"ground": texture name, "x": m, "z": m} (that cell's ground)].
         lot_cells: the lot's size in cells a side (1..6; a cell is 16 m).
-        ground: the ground texture of every cell: paving, plaza, concrete, asphalt, grass, lawn, meadow, gravel,
+        ground: the ground texture of every cell: paving, plaza, concrete, asphalt, grass, lawn, yard, meadow, gravel,
             garden, sand or parking.
         description: the menu description.
         plop_cost: the plop cost.
@@ -2148,16 +2152,18 @@ def photo_rectify(name: str, quad: list[list[float]], width_m: float = 0, height
 
 @tool(mcp, "observe")
 @guarded
-def parts_preview(parts_model: dict, lot_cells: int = 1, rotation: int = -1, zoom: int = 5, scale: int = 2):
+def parts_preview(parts_model: dict, lot_cells: int = 1, rotation: int = -1, zoom: int = 5, scale: int = 2,
+                  lot_depth: int = 0):
     """A parts model (design_model_building's parts_model) exactly as the game will draw it - the same renderer,
     camera and light that make its models - without the game: all four rotations (rotation -1) or one.
 
     Args:
         parts_model: the model ({"materials": ..., "parts": [...]}).
-        lot_cells: the lot's size in cells a side.
+        lot_cells: the lot's size in cells a side (with lot_depth: its width along the street).
         rotation: 0-3, or -1 for all four side by side.
         zoom: the game's zoom, 1-5 (5 = the closest).
         scale: enlarge the picture (nearest pixel) to judge single pixels; 1 = the game's size.
+        lot_depth: the lot's depth in cells (0 = square).
     """
     def run():
         from PIL import Image as PImage
@@ -2165,9 +2171,10 @@ def parts_preview(parts_model: dict, lot_cells: int = 1, rotation: int = -1, zoo
         if not 1 <= zoom <= 5 or not 1 <= scale <= 6:
             raise partmodel.GameError("zoom 1-5, scale 1-6")
         pm = dict(parts_model)
-        pm["lot"] = lot_cells
+        lot = [lot_cells, lot_depth] if lot_depth and lot_depth != lot_cells else lot_cells
+        pm["lot"] = lot
         mesh, mats = partmodel.Builder(pm).build()
-        scene = batrender.Scene(mesh, mats, lot_cells)
+        scene = batrender.Scene(mesh, mats, lot)
         if rotation < 0:
             out = batrender.views_picture(scene, zoom - 1)
         else:
@@ -2243,7 +2250,9 @@ def design_advice(name: str, advisor: str, title: str, message: str, trigger: st
 @guarded
 def design_growable_building(name: str, purpose: str, wealth: int, width_m: float, depth_m: float, height_m: float,
                              wall_rgb: list[int], roof_rgb: list[int], windows: bool = True, lot_width: int = 1,
-                             lot_depth: int = 2, stage: int = 0, capacity: int = 0, description: str = "") -> dict:
+                             lot_depth: int = 2, stage: int = 0, capacity: int = 0, description: str = "",
+                             parts_model: dict | None = None, objects: list[dict] | None = None,
+                             replace: bool = False) -> dict:
     """Design a building that grows by itself in zones (a house, shop, office or factory) with its own 3D model and
     lot. A game growable of the same purpose, wealth and lot size lends its zone types, demand, pollution and
     capacity; the design gets its own building family and carries all four building styles, so the city may grow
@@ -2266,11 +2275,19 @@ def design_growable_building(name: str, purpose: str, wealth: int, width_m: floa
         stage: growth stage (1 = the earliest; 0 = the template's).
         capacity: residents or jobs (0 = the template's).
         description: a note kept in the design list.
+        parts_model: a building made of parts (as design_model_building's; guide topic "parts"), rendered the way
+            the game's own are: x across the lot (0..16 * lot_width m), y toward the street (0..16 * lot_depth m),
+            z up. Its size replaces width, depth and height; check it with parts_preview(lot_cells=[w, d]).
+        objects: props, trees and grounds on the lot, as design_park's ({"prop" | "tree" | "ground": ..., "x": m,
+            "z": m} from the lot's north-west corner, the street along +z); the template lot's ground textures
+            (driveway, paths) stay when its size is the same.
+        replace: rebuild an existing growable design of this name under its own ids (quit_game first).
     """
     if len(wall_rgb) != 3 or len(roof_rgb) != 3 or not all(0 <= c <= 255 for c in list(wall_rgb) + list(roof_rgb)):
         return {"error": "colours are [r, g, b] with values 0..255"}
     return _content(content.growable_building, name, purpose, int(wealth), width_m, depth_m, height_m,
-                    tuple(wall_rgb), tuple(roof_rgb), windows, (lot_width, lot_depth), stage, capacity, description)
+                    tuple(wall_rgb), tuple(roof_rgb), windows, (lot_width, lot_depth), stage, capacity, description,
+                    parts_model=parts_model, objects=objects, replace=replace)
 
 
 @tool(mcp, "destructive")

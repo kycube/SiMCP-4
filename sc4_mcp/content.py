@@ -371,12 +371,18 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
     "lot" (cells) is lot_cells, its size the model's. replace: rebuild the design of that name under its own lot,
     building and model ids (its file is rewritten; copies in saved cities show the new version after a restart)."""
     from . import fsh, lotdesign, meshimport, s3d
+    if isinstance(lot_cells, (list, tuple)):          # [across the street, deep]
+        if len(lot_cells) != 2:
+            raise ContentError("lot_cells: a number, or [cells across the street, cells deep]")
+        cw, cd = int(lot_cells[0]), int(lot_cells[1])
+    else:
+        cw = cd = int(lot_cells)
     mesh = meshimport.load(model_path, model_scale) if model_path else None
     built = None
     if parts_model is not None:
         from . import partmodel
         pm = dict(parts_model)
-        pm["lot"] = lot_cells
+        pm["lot"] = [cw, cd]
         try:
             built = partmodel.Builder(pm).build()
         except (partmodel.GameError, ValueError) as e:
@@ -387,11 +393,11 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
         width = float(P[:, :, 0].max() - P[:, :, 0].min())
         depth = float(P[:, :, 1].max() - P[:, :, 1].min())
         height = float(P[:, :, 2].max())
-        if P[:, :, :2].min() < -1.0 or P[:, :, :2].max() > 16 * lot_cells + 1.0:
-            raise ContentError("parts model: parts reach outside the %d-cell lot (0..%d m)" % (lot_cells,
-                                                                                            16 * lot_cells))
+        if P[:, :, :2].min() < -1.0 or P[:, :, 0].max() > 16 * cw + 1.0 or P[:, :, 1].max() > 16 * cd + 1.0:
+            raise ContentError("parts model: parts reach outside the %d x %d-cell lot (x 0..%d, y 0..%d m)"
+                               % (cw, cd, 16 * cw, 16 * cd))
     lt = None
-    lot_w = lot_d = lot_cells
+    lot_w, lot_d = cw, cd
     if lot_template is not None:
         _, lt = _find_exemplar(dbpf.T_EXEMPLAR, lot_template, G_LOTS)
         if lt is None:
@@ -418,7 +424,7 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
                                                          2 <= depth <= 16 * lot_d - 1 and 2 <= height <= 400):
         raise ContentError("the building must fit its lot: width 2..%d m, depth 2..%d m, height 2..400 m"
                            % (16 * lot_w - 1, 16 * lot_d - 1))
-    if not 1 <= lot_cells <= 6:
+    if not (1 <= cw <= 6 and 1 <= cd <= 6):
         raise ContentError("lots are 1 to 6 cells a side here")
     be, bld = _find_exemplar(dbpf.T_EXEMPLAR, template_building, template_group, not_group=G_LOTS)
     if bld is None:
@@ -439,7 +445,7 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
         icon_png = lotdesign.park_icon()
     elif built:                         # rendered as the game's own buildings are: a picture per view (batrender)
         from . import batrender
-        scene = batrender.Scene(built[0], built[1], lot_cells)
+        scene = batrender.Scene(built[0], built[1], [cw, cd])
         tex_iid = _free(dbpf.T_FSH, G_TEXTURES, 0xFFFF0000, taken or set())
         baked, textures = batrender.bake(scene, model_iid, tex_iid)
         icon_png = batrender.icon(scene)
@@ -457,14 +463,14 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
         icon_png = box_icon(width, depth, height, tuple(wall), tuple(roof))
         views = True
     rotated = [s3d.write(s3d.turned(s3d.parse(model), r)) for r in range(4)] if views and not baked else []
-    side = 16.0 * lot_cells
-    cx = cz = side / 2
+    side_x, side_z = 16.0 * cw, 16.0 * cd
+    cx, cz = side_x / 2, side_z / 2
     if built:                            # the model's own footprint (its x is mirrored: +x is west)
         P = built[0].arrays()[0]
-        bx0, bx1 = side - float(P[:, :, 0].max()), side - float(P[:, :, 0].min())
+        bx0, bx1 = side_x - float(P[:, :, 0].max()), side_x - float(P[:, :, 0].min())
         bz0, bz1 = float(P[:, :, 1].min()), float(P[:, :, 1].max())
-        building_row = [0, 0, 0, _fx(cx), 0, _fx(cz), _fx(max(0.0, bx0)), _fx(max(0.0, bz0)), _fx(min(side, bx1)),
-                        _fx(min(side, bz1)), 0, 1, bld_iid]
+        building_row = [0, 0, 0, _fx(cx), 0, _fx(cz), _fx(max(0.0, bx0)), _fx(max(0.0, bz0)), _fx(min(side_x, bx1)),
+                        _fx(min(side_z, bz1)), 0, 1, bld_iid]
     else:
         building_row = [0, 0, 0, _fx(cx), 0, _fx(cz), _fx(cx - width / 2), _fx(cz - depth / 2), _fx(cx + width / 2),
                         _fx(cz + depth / 2), 0, 1, bld_iid]
@@ -482,12 +488,12 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
                   for p in lt.props if not (LOT_ROW0 <= p.id <= LOT_ROW0 + 0x4FF) and p.id != P_NAME]
         lprops.insert(1, dbpf.Property(P_NAME, dbpf.PT_STRING, "SiMCP_" + _slug(name)))
     else:
-        rows, placed = lotdesign.rows(lot_cells, building_row, ground, objects)
+        rows, placed = lotdesign.rows([cw, cd], building_row, ground, objects)
         lprops = []
     lprops = lprops or [dbpf.Property(0x10, dbpf.PT_UINT32, [0x10]), dbpf.Property(P_NAME, dbpf.PT_STRING, "SiMCP_" + _slug(name)),
               dbpf.Property(0x27812837, dbpf.PT_UINT8, [1], True), dbpf.Property(0x4A4A88F0, dbpf.PT_UINT8, [8], True),
               dbpf.Property(0x88EDC789, dbpf.PT_UINT8, [2], True),
-              dbpf.Property(0x88EDC790, dbpf.PT_UINT8, [lot_cells, lot_cells], True),
+              dbpf.Property(0x88EDC790, dbpf.PT_UINT8, [cw, cd], True),
               dbpf.Property(0x88EDC793, dbpf.PT_UINT8, [15], True), dbpf.Property(0x88EDC795, dbpf.PT_UINT8, [0], True),
               dbpf.Property(0x88EDC796, dbpf.PT_UINT8, [0], True)]
     for i, r in enumerate(rows):
@@ -545,7 +551,8 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
     dbpf.write_dbpf(path, records)
     entry = {"name": name, "file": path, "lot": "0x%08X" % lot_iid, "building": "0x%08X" % bld_iid,
              "model": "0x%08X" % model_iid, "texture": "0x%08X" % tex_iid, "size_m": [width, depth, height],
-             "lot_cells": lot_cells if lt is None else [lot_w, lot_d], "ground": ground if lt is None else None,
+             "lot_cells": (lot_cells if cw == cd else [cw, cd]) if lt is None else [lot_w, lot_d],
+             "ground": ground if lt is None else None,
              "objects": placed, "created": time.strftime("%Y-%m-%d %H:%M:%S")}
     if lt is not None:
         entry["lot_template"] = "0x%08X" % lot_template
@@ -636,18 +643,47 @@ def _capacity_range(templates: list[dict]) -> tuple[int, int]:
 
 def growable_building(name: str, purpose: str, wealth: int, width: float, depth: float, height: float,
                       wall=(205, 195, 170), roof=(90, 90, 95), windows: bool = True, lot_size=(1, 1),
-                      stage: int = 0, capacity: int = 0, description: str = "", taken: set[int] | None = None) -> dict:
+                      stage: int = 0, capacity: int = 0, description: str = "", taken: set[int] | None = None,
+                      parts_model: dict | None = None, objects: list[dict] | None = None,
+                      replace: bool = False) -> dict:
     """A building that grows in zones, with its own model, on its own lot. The lot and building of a game growable
     of the same purpose, wealth and size (closest growth stage) give the zone types, demand, capacity, pollution and
     the rest; the design gets a building family of its own (its lot and building only go with each other) and the
-    generated model. Written as a plugin into SiMCP's Plugins folder."""
+    generated model - or parts_model, a building of parts rendered as the game's own (batrender; its size is the
+    model's, on a lot of lot_size: x across the street, y toward it). objects: props, trees and grounds on the lot
+    (lotdesign.rows; the template's ground textures stay when the lot sizes match). replace: rebuild the design of
+    that name under its own ids. Written as a plugin into SiMCP's Plugins folder."""
     from . import fsh, s3d
     if purpose not in PURPOSES:
         raise ContentError("purpose is one of %s" % ", ".join(PURPOSES))
-    _check_name(name)
+    prior = None
+    if replace:
+        hit = [d for d in _manifest() if d["name"].lower() == name.lower() and not d.get("disabled")
+               and d.get("kind") == "growable"]
+        if not hit:
+            raise ContentError("no growable design named %r to replace" % name, "content_designs lists them")
+        prior = hit[0]
+    _check_name(name, existing=prior is not None)
     lw, ld = int(lot_size[0]), int(lot_size[1])
     if not (1 <= lw <= 6 and 1 <= ld <= 6):
         raise ContentError("lots are 1 to 6 cells a side")
+    built = None
+    if parts_model is not None:
+        from . import partmodel
+        try:
+            built = partmodel.Builder(dict(parts_model, lot=[lw, ld])).build()
+        except (partmodel.GameError, ValueError) as e:
+            raise ContentError("parts model: %s" % e, getattr(e, "hint", ""))
+        P = built[0].arrays()[0]
+        if not len(P):
+            raise ContentError("parts model: no parts")
+        if P[:, :, 0].min() < -1 or P[:, :, 0].max() > 16 * lw + 1 or P[:, :, 1].min() < -1 or \
+                P[:, :, 1].max() > 16 * ld + 1:
+            raise ContentError("parts model: parts reach outside the %d x %d-cell lot (x 0..%d, y 0..%d m)"
+                               % (lw, ld, 16 * lw, 16 * ld))
+        width = float(P[:, :, 0].max() - P[:, :, 0].min())
+        depth = float(P[:, :, 1].max() - P[:, :, 1].min())
+        height = float(P[:, :, 2].max())
     if not (2 <= width <= 16 * lw - 1 and 2 <= depth <= 16 * ld - 1 and 2 <= height <= 400):
         raise ContentError("the building must fit its lot: width 2..%d m, depth 2..%d m, height 2..400 m"
                            % (16 * lw - 1, 16 * ld - 1))
@@ -663,9 +699,12 @@ def growable_building(name: str, purpose: str, wealth: int, width: float, depth:
     _, bld = _find_exemplar(dbpf.T_EXEMPLAR, tpl["building"], not_group=G_LOTS)
     if lot is None or bld is None:
         raise ContentError("the template lot or building could not be read")
-    lot_iid, bld_iid, family = _new_ids(taken or set(), 3)
-    model_iid = _free(dbpf.T_S3D, G_MODELS, 0xFFFF0000, taken or set())
-    tex_iid = _free(dbpf.T_FSH, G_TEXTURES, 0xFFFFFF00, taken or set())
+    if prior:
+        lot_iid, bld_iid, family, model_iid = (int(prior[k], 16) for k in ("lot", "building", "family", "model"))
+    else:
+        lot_iid, bld_iid, family = _new_ids(taken or set(), 3)
+        model_iid = _free(dbpf.T_S3D, G_MODELS, 0xFFFF0000, taken or set())
+    tex_iid = _free(dbpf.T_FSH, G_TEXTURES, 0xFFFF0000 if built else 0xFFFFFF00, taken or set())
     # the lot: the template's settings and its building and texture rows (props and flora are dropped: they could
     # stand inside the new building); the building row names the new family with the new footprint
     rows, kept = [], []
@@ -679,7 +718,14 @@ def growable_building(name: str, purpose: str, wealth: int, width: float, depth:
     side_x, side_z = 16.0 * lw, 16.0 * ld
     new_rows = []
     for r in rows:
-        if r[0] == 0:
+        if r[0] == 0 and built:          # the parts model's origin is the lot's centre; its footprint from the model;
+            # rotation 0 (the game's lots use 2): s3d.view_turns is measured with SiMCP's rows at 0
+            P = built[0].arrays()[0]
+            bx0, bx1 = side_x - float(P[:, :, 0].max()), side_x - float(P[:, :, 0].min())
+            bz0, bz1 = float(P[:, :, 1].min()), float(P[:, :, 1].max())
+            new_rows.append(r[:2] + [0, _fx(side_x / 2), r[4], _fx(side_z / 2), _fx(max(0.0, bx0)), _fx(max(0.0, bz0)),
+                                     _fx(min(side_x, bx1)), _fx(min(side_z, bz1))] + r[10:12] + [family])
+        elif r[0] == 0:
             cx, cz = (r[3] / 65536.0, r[5] / 65536.0) if same_size else (side_x / 2, side_z / 2)
             cx = min(max(cx, width / 2 + 0.5), side_x - width / 2 - 0.5)
             cz = min(max(cz, depth / 2 + 0.5), side_z - depth / 2 - 0.5)
@@ -692,6 +738,15 @@ def growable_building(name: str, purpose: str, wealth: int, width: float, depth:
                          _fx(side_z + 0.04), 0, 2, PAVING])
     if not any(r[0] == 0 for r in new_rows):
         raise ContentError("the template lot has no building row")
+    placed = []
+    if objects:
+        from . import lotdesign
+        try:
+            extra, placed = lotdesign.rows([lw, ld], None, None, objects,
+                                           first_id=max([r[11] for r in new_rows] + [99]) + 1)
+        except lotdesign.LotError as e:
+            raise ContentError(str(e), getattr(e, "hint", ""))
+        new_rows += extra
     lprops = list(kept)
     _set(lprops, P_NAME, dbpf.PT_STRING, "SiMCP_" + _slug(name))
     _set(lprops, P_LOT_FAMILY, dbpf.PT_UINT32, [family], multi=True)
@@ -721,18 +776,23 @@ def growable_building(name: str, purpose: str, wealth: int, width: float, depth:
         if not lo <= int(capacity) <= hi:
             raise ContentError("capacity for this purpose, wealth and lot size is %d-%d (the game's own)" % (lo, hi))
         cap.values = [cap.values[0], int(capacity)] + list(cap.values[2:])
-    wall_fsh = fsh.write_argb(32, 32, wall_tile(tuple(wall), windows))
-    roof_fsh = fsh.write_argb(8, 8, solid(tuple(roof)))
-    base_model = box_mesh(width, depth, height, tex_iid, tex_iid + 1)
     records = [(dbpf.T_EXEMPLAR, G_SIMCP_BUILDINGS, bld_iid, dbpf.build_exemplar(bprops, bld.parent)),
-               (dbpf.T_EXEMPLAR, G_LOTS, lot_iid, dbpf.build_exemplar(lprops, lot.parent))] + \
-              [(dbpf.T_S3D, G_MODELS, model_iid + z * 0x100 + r * 0x10, s3d.write(s3d.turned(base_model, r)))
-               for z in range(5) for r in range(4)] + [
-               (dbpf.T_FSH, G_TEXTURES, tex_iid, wall_fsh),
-               (dbpf.T_FSH, G_TEXTURES, tex_iid + 1, roof_fsh),
+               (dbpf.T_EXEMPLAR, G_LOTS, lot_iid, dbpf.build_exemplar(lprops, lot.parent)),
                (dbpf.T_LTEXT, G_SIMCP_NAMES, bld_iid, dbpf.build_ltext(name))]
+    if built:                               # rendered as the game's own buildings are (batrender)
+        from . import batrender
+        models, textures = batrender.bake(batrender.Scene(built[0], built[1], [lw, ld]), model_iid, tex_iid)
+        records += [(dbpf.T_S3D, G_MODELS, i, b) for i, b in models]
+        records += [(dbpf.T_FSH, G_TEXTURES, i, b) for i, b in textures]
+    else:
+        wall_fsh = fsh.write_argb(32, 32, wall_tile(tuple(wall), windows))
+        roof_fsh = fsh.write_argb(8, 8, solid(tuple(roof)))
+        base_model = box_mesh(width, depth, height, tex_iid, tex_iid + 1)
+        records += [(dbpf.T_S3D, G_MODELS, model_iid + z * 0x100 + r * 0x10, s3d.write(s3d.turned(base_model, r)))
+                    for z in range(5) for r in range(4)]
+        records += [(dbpf.T_FSH, G_TEXTURES, tex_iid, wall_fsh), (dbpf.T_FSH, G_TEXTURES, tex_iid + 1, roof_fsh)]
     os.makedirs(FOLDER, exist_ok=True)
-    path = _design_path("SiMCP_", name)
+    path = prior["file"] if prior else _design_path("SiMCP_", name)
     dbpf.write_dbpf(path, records)
     cap_now = next((p.values for p in bprops if p.id == P_CAPACITY), None)
     entry = {"name": name, "kind": "growable", "file": path, "lot": "0x%08X" % lot_iid,
@@ -743,8 +803,19 @@ def growable_building(name: str, purpose: str, wealth: int, width: float, depth:
              "template": {"lot": "0x%08X" % tpl["lot"], "building": "0x%08X" % tpl["building"],
                           "size": tpl["size"], "stage": tpl["stage"]},
              "created": time.strftime("%Y-%m-%d %H:%M:%S")}
+    if built:
+        entry["parts"] = len(parts_model.get("parts", []))
+        entry["size_m"] = [round(width, 2), round(depth, 2), round(height, 2)]
+    if placed:
+        entry["objects"] = placed
     items = _manifest()
-    items.append(entry)
+    if prior:
+        entry["created"] = prior.get("created", entry["created"])
+        entry["replaced"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        items = [entry if (d["name"] == prior["name"] and d.get("file") == prior["file"] and not d.get("disabled"))
+                 else d for d in items]
+    else:
+        items.append(entry)
     _save_manifest(items)
     return dict(entry, note="the game loads plugins at start-up: quit_game and game_launch; the design then grows on "
                             "zoned land of its zone and wealth when demand calls for it")

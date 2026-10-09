@@ -205,7 +205,7 @@ there is demand.
   class (cheap, middle, rich). It shares the road with the game's own cars of that class.
 - Lots: `design_park(name, objects, lot_cells, ground)` lays out a park, plaza or garden for the Parks menu from
   the game's props (`game_props("bench")` finds them by name; use the id when several share a name), SiMCP's
-  props, trees and ground textures (paving, plaza, concrete, asphalt, grass, lawn, meadow, gravel, garden, sand,
+  props, trees and ground textures (paving, plaza, concrete, asphalt, grass, lawn, yard, meadow, gravel, garden, sand,
   parking). Objects are {"prop" | "tree" | "ground": name or id, "x": m, "z": m, "rotation": 0-3}, metres
   from the lot's north-west corner, the street along the south (+z) edge. `design_model_building` takes the same
   `ground` and `objects`. `design_prop(name, shape, ...)` makes a box, cylinder, cone or sign (with a picture on

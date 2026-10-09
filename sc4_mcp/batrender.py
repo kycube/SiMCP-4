@@ -67,6 +67,35 @@ def _turn(v: np.ndarray, k: int) -> np.ndarray:
     return q
 
 
+def _vnoise(p: np.ndarray, scale: float, seed: float = 0.0) -> np.ndarray:
+    """Smooth value noise in -1..1 at points p (n x 3, metres) with features about `scale` metres across."""
+    q = p / scale + seed
+    i = np.floor(q)
+    f = q - i
+    f = f * f * (3 - 2 * f)
+
+    def h(o):
+        c = i + o
+        v = np.sin(c @ np.array([12.9898, 78.233, 37.719])) * 43758.5453
+        return v - np.floor(v)
+    out = 0.0
+    for dx in (0, 1):
+        for dy in (0, 1):
+            for dz in (0, 1):
+                w = (f[:, 0] if dx else 1 - f[:, 0]) * (f[:, 1] if dy else 1 - f[:, 1]) * (f[:, 2] if dz else 1 - f[:, 2])
+                out = out + w * h(np.array([dx, dy, dz], float))
+    return out * 2 - 1
+
+
+def weathering(pos0: np.ndarray, nrm0: np.ndarray, grain: np.ndarray) -> np.ndarray:
+    """A brightness factor per point: blotches (0.4 and 1.6 m) and a little grime low on walls - in the unturned
+    model frame, so every view shows the same weathering and nothing repeats like a tiled texture."""
+    n = 0.55 * _vnoise(pos0, 0.4, 3.1) + 0.45 * _vnoise(pos0, 1.6, 7.7)
+    wall = np.clip(1 - np.abs(nrm0[:, 1]) * 1.5, 0, 1)
+    grime = 1 - 0.10 * wall * np.clip(1 - pos0[:, 1] / 0.9, 0, 1)
+    return (1 + grain * n) * grime
+
+
 def _pow2(v: int, lo: int = 8) -> int:
     p = lo
     while p < v:
@@ -77,12 +106,14 @@ def _pow2(v: int, lo: int = 8) -> int:
 class Scene:
     """A built parts model (partmodel.Builder) ready to render: triangles in the game's model frame."""
 
-    def __init__(self, mesh, mats, lot: int, night: bool = False):
+    def __init__(self, mesh, mats, lot, night: bool = False):
+        """lot: cells a side, or [across the street, deep]: the model's origin is the lot's centre."""
         P, N, UV, M, E = mesh.arrays()
         if not len(P):
             raise ValueError("the model has no faces")
-        c = lot * TILE_M / 2.0
-        self.P0 = np.stack([-(P[..., 0] - c), P[..., 2], P[..., 1] - c], -1).astype(np.float64)
+        lw, ld = (lot[0], lot[1]) if isinstance(lot, (list, tuple)) else (lot, lot)
+        cx, cy = lw * TILE_M / 2.0, ld * TILE_M / 2.0
+        self.P0 = np.stack([-(P[..., 0] - cx), P[..., 2], P[..., 1] - cy], -1).astype(np.float64)
         self.N0 = np.stack([-N[..., 0], N[..., 2], N[..., 1]], -1).astype(np.float64)
         self.UV, self.M, self.E, self.mats = UV, M, E, mats
         self.lot = lot
@@ -155,7 +186,8 @@ class Scene:
     # ------------------------------------------------------------ one view
     def render(self, z: int, r: int, ss: int = SS, light: bool = True):
         """The view as the game shows it: (RGBA image, its origin in pixels (x, y) in the camera's plane, the
-        turned triangles, the ids of the triangles seen)."""
+        turned triangles, the ids of the triangles seen); self.night_img is then the view's night light layer (RGBA,
+        transparent where nothing shines) or None."""
         P = _turn(self.P0, s3d.view_turns(r))
         N = _turn(self.N0, s3d.view_turns(r))
         right, down, view, k = camera(z)
@@ -165,6 +197,7 @@ class Scene:
         tid, _zb, bc = _raster((px - ox) * ss, (py - oy) * ss, -(P @ view), W * ss, H * ss, cut=self._cut())
         cov = tid >= 0
         rgb = np.zeros((H * ss, W * ss, 3), np.float32)
+        glow = None
         ys, xs = np.nonzero(cov)
         if len(ys):
             t = tid[ys, xs]
@@ -184,6 +217,17 @@ class Scene:
                 ext = self.E[t[sel]]
                 u, v = mat.uv(um[sel], vm[sel], (ext[:, 0], ext[:, 1]))
                 base[sel] = mat.sample(u, v)[:, :3]
+                gm = getattr(mat, "glow", None)
+                if gm is not None:
+                    if glow is None:
+                        glow = np.zeros((H * ss, W * ss, 4), np.float32)
+                    gl = gm.sample(u, v)
+                    glow[ys[sel], xs[sel]] = np.concatenate([gl[:, :3] * gl[:, 3:4], gl[:, 3:4]], -1)
+            pos0 = b[:, 0:1] * self.P0[t, 0] + b[:, 1:2] * self.P0[t, 1] + b[:, 2:3] * self.P0[t, 2]
+            n0 = _turn(nrm, -s3d.view_turns(r))
+            grain = np.array([getattr(self.mats[int(m)], "grain", 0.0) for m in range(len(self.mats))],
+                             np.float32)[mi]
+            base = np.clip(base * weathering(pos0, n0, grain)[:, None], 0, 1)
             if light:
                 if r not in self._sun:
                     self._sun[r] = self._depth_map(P, SUN, SHADOW_RES)
@@ -191,8 +235,6 @@ class Scene:
                 lit = sun > 0
                 if lit.any():
                     sun[lit] *= self._sun[r](pos[lit] + nrm[lit] * 0.04)
-                pos0 = b[:, 0:1] * self.P0[t, 0] + b[:, 1:2] * self.P0[t, 1] + b[:, 2:3] * self.P0[t, 2]
-                n0 = _turn(nrm, -s3d.view_turns(r))
                 ao = self.sky_occlusion(pos0 + n0 * 0.05, n0)
                 up = np.maximum(nrm[:, 1], 0).astype(np.float32)
                 amb = AMBIENT_RGB[None, :] * ao[:, None] + SKY_RGB[None, :] * (ao * up)[:, None]
@@ -205,6 +247,11 @@ class Scene:
         c = (rgb * cov[..., None]).reshape(H, ss, W, ss, 3).mean(axis=(1, 3))
         c = np.where(a[..., None] > 0, c / np.maximum(a[..., None], 1e-6), 0)
         img = np.concatenate([c, a[..., None]], -1)
+        self.night_img = None
+        if glow is not None:                    # premultiplied light, filtered like the picture
+            g = glow.reshape(H, ss, W, ss, 4).mean(axis=(1, 3))
+            ga = g[..., 3:4]
+            self.night_img = np.concatenate([np.where(ga > 0, g[..., :3] / np.maximum(ga, 1e-6), 0), ga], -1)
         seen = np.unique(tid[tid >= 0])
         return img, (ox, oy), P, seen
 
@@ -255,16 +302,21 @@ def _bleed(rgba: np.ndarray, steps: int = 4) -> np.ndarray:
     return out
 
 
+NIGHT = 0x8000                              # a texture's night light layer: its instance + 0x8000 (the game's own)
+
+
 def tex_instance(base: int, z: int, r: int, n: int) -> int:
-    """Texture n of the view (zoom z, rotation r): base + (n // 16) * 0x1000 + z * 0x100 + r * 0x10 + n % 16."""
-    if n >= 256:
-        raise ValueError("more than 256 textures in one view")
+    """Texture n of the view (zoom z, rotation r): base + (n // 16) * 0x1000 + z * 0x100 + r * 0x10 + n % 16
+    (+ NIGHT for its night light layer)."""
+    if n >= 128:
+        raise ValueError("more than 128 textures in one view")
     return base + (n >> 4) * 0x1000 + z * 0x100 + r * 0x10 + (n & 15)
 
 
 def bake_view(scene: Scene, z: int, r: int, tex_base: int, name: bytes = b"SiMCP"):
     """One view's model and textures: (S3D bytes, [(FSH instance, FSH bytes)])."""
     img, (ox, oy), P, seen = scene.render(z, r)
+    night = scene.night_img
     H, W = img.shape[:2]
     right, down, view, k = camera(z)
     alpha = img[..., 3] > 0.04                  # partly covered pixels count: the triangles draw the outline
@@ -315,7 +367,12 @@ def bake_view(scene: Scene, z: int, r: int, tex_base: int, name: bytes = b"SiMCP
         tile = _bleed(tile)
         iid = tex_instance(tex_base, z, r, n)
         data = (np.clip(tile, 0, 1) * 255 + 0.5).astype(np.uint8)
-        textures.append((iid, fsh.write_argb(TW, TH, data.tobytes())))
+        textures.append((iid, fsh.write_dxt(data, fsh.CODE_DXT1)))
+        if night is not None and (night[ty:ty + th, tx:tx + tw, 3] > 0.02).any():
+            nt = np.zeros((TH, TW, 4), np.float32)
+            nt[:th, :tw] = night[ty:ty + th, tx:tx + tw]
+            nd = (np.clip(nt, 0, 1) * 255 + 0.5).astype(np.uint8)
+            textures.append((iid + NIGHT, fsh.write_dxt(nd, fsh.CODE_DXT3)))
         k_ = len(m.verts)
         m.verts.append(s3d.VertBlock(0, s3d.FMT_XYZ_UV, b"".join(
             np.array(v, np.float32).tobytes() for v in verts)))

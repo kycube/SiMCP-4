@@ -1063,17 +1063,18 @@ Design a new building with its own 3D model and textures on its own lot, for the
 | `wall_rgb` | array of integer | required | the wall colour [r, g, b] (0..255). |
 | `roof_rgb` | array of integer | required | the roof colour [r, g, b]. |
 | `windows` | boolean | `true` | draw a window on every 4 m x 4 m of wall. |
-| `lot_cells` | integer | `1` | the lot's size in cells a side (1..6). |
+| `lot_cells` | integer | `1` | the lot's size in cells a side (1..6); with lot_depth, its width along the street. |
 | `description` | string | `''` | the menu description. |
 | `plop_cost` | integer | `500` | the plop cost. |
 | `monthly_cost` | integer | `20` | the monthly cost. |
-| `ground` | string | `'plaza'` | the lot's ground texture: paving, plaza, concrete, asphalt, grass, lawn, meadow, gravel, garden, sand or parking. |
+| `ground` | string | `'plaza'` | the lot's ground texture: paving, plaza, concrete, asphalt, grass, lawn, yard, meadow, gravel, garden, sand or parking. |
 | `objects` | array of object or null | `null` | things on the lot around the building, as for design_park: [{"prop": id or name, "x": m, "z": m, "rotation": 0-3}, {"tree": name, "x": m, "z": m}, {"ground": name, "x": m, "z": m}]. |
 | `model_path` | string | `''` | your own 3D model instead of the block: a Wavefront OBJ (y up, +z facing the street, faces counter-clockwise seen from outside) with its MTL and PNG / JPEG textures (texture coordinates 0..1; the game does not repeat textures). Its size (times model_scale, in metres) replaces width, depth and height; the walls and roof colours are then unused. |
 | `model_scale` | number | `1.0` | metres per model unit. |
 | `department` | object or null | `null` | a budget department of its own for the building, in the Budget window: {"name": "Museum Fund", "group": "government" (or business_deals, city_beautification, health_education, public_safety, transportation, utilities), "monthly_cost": 40, "monthly_income": 0}; each building of the design adds its line. |
 | `parts_model` | object or null | `null` | a building made of parts: {"materials": {name: {...}}, "parts": [{"type": "box" \| "roof" \| "extrude" \| "prism" \| "cone" \| "beam" \| "panel" \| "patch", ...}]} in metres on the lot (x, y from the lot's corner, the +y side facing the street, z up) - see guide(topic="parts"); parts_preview shows it. Its size replaces width, depth and height. |
 | `replace` | boolean | `false` | rebuild an existing design of this name under its own ids (quit_game first): copies already placed in cities show the new version after game_launch - the way to iterate on a design. |
+| `lot_depth` | integer | `0` | the lot's depth in cells from the street (0 = lot_cells, a square lot); e.g. lot_cells 1, lot_depth 2 as the game's house lots. |
 
 ## design_tree
 
@@ -1164,7 +1165,7 @@ Design a park (or plaza, garden, sculpture court...) for the Parks menu: a lot l
 | `name` | string | required | the park's name, shown in the menu. |
 | `objects` | array of object | required | what stands on it: [{"prop": id or name, "x": m, "z": m, "rotation": 0-3}, {"tree": name or id, "x": m, "z": m}, {"seasonal_tree": name, "x": m, "z": m}, {"ground": texture name, "x": m, "z": m} (that cell's ground)]. |
 | `lot_cells` | integer | `1` | the lot's size in cells a side (1..6; a cell is 16 m). |
-| `ground` | string | `'grass'` | the ground texture of every cell: paving, plaza, concrete, asphalt, grass, lawn, meadow, gravel, garden, sand or parking. |
+| `ground` | string | `'grass'` | the ground texture of every cell: paving, plaza, concrete, asphalt, grass, lawn, yard, meadow, gravel, garden, sand or parking. |
 | `description` | string | `''` | the menu description. |
 | `plop_cost` | integer | `200` | the plop cost. |
 | `monthly_cost` | integer | `10` | the monthly cost. |
@@ -1416,10 +1417,11 @@ A parts model (design_model_building's parts_model) exactly as the game will dra
 | parameter | type | default | description |
 |---|---|---|---|
 | `parts_model` | object | required | the model ({"materials": ..., "parts": [...]}). |
-| `lot_cells` | integer | `1` | the lot's size in cells a side. |
+| `lot_cells` | integer | `1` | the lot's size in cells a side (with lot_depth: its width along the street). |
 | `rotation` | integer | `-1` | 0-3, or -1 for all four side by side. |
 | `zoom` | integer | `5` | the game's zoom, 1-5 (5 = the closest). |
 | `scale` | integer | `2` | enlarge the picture (nearest pixel) to judge single pixels; 1 = the game's size. |
+| `lot_depth` | integer | `0` | the lot's depth in cells (0 = square). |
 
 ## terrain_look
 
@@ -1479,6 +1481,9 @@ Design a building that grows by itself in zones (a house, shop, office or factor
 | `stage` | integer | `0` | growth stage (1 = the earliest; 0 = the template's). |
 | `capacity` | integer | `0` | residents or jobs (0 = the template's). |
 | `description` | string | `''` | a note kept in the design list. |
+| `parts_model` | object or null | `null` | a building made of parts (as design_model_building's; guide topic "parts"), rendered the way the game's own are: x across the lot (0..16 * lot_width m), y toward the street (0..16 * lot_depth m), z up. Its size replaces width, depth and height; check it with parts_preview(lot_cells=[w, d]). |
+| `objects` | array of object or null | `null` | props, trees and grounds on the lot, as design_park's ({"prop" \| "tree" \| "ground": ..., "x": m, "z": m} from the lot's north-west corner, the street along +z); the template lot's ground textures (driveway, paths) stay when its size is the same. |
+| `replace` | boolean | `false` | rebuild an existing growable design of this name under its own ids (quit_game first). |
 
 ## disable_design
 

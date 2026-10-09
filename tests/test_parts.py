@@ -129,3 +129,37 @@ def test_facade_material():
                      {"type": "door", "u": 4, "v": 0.8, "w": 0.9, "h": 2.1}]}}},
         "parts": [{"type": "box", "x": 5, "y": 5, "w": 6, "d": 4, "h": 3, "mat": "front"}]}).build()
     assert mats[0].fit and mats[0].tex.shape[1] == 240                           # 6 m at 40 px per metre
+
+
+def test_dxt_round_trip():
+    import numpy as np
+    from sc4_mcp import fsh
+    rng = np.random.default_rng(1)
+    img = np.zeros((32, 32, 4), np.uint8)
+    img[..., :3] = rng.integers(60, 200, (32, 32, 3))
+    img[..., 3] = 255
+    img[:8, :8, 3] = 0
+    for code in (fsh.CODE_DXT1, fsh.CODE_DXT3):
+        b = fsh.write_dxt(img, code)
+        assert b[12:16] == b"G354" and b[24] == code
+        w, h, rgba = fsh.read_first(b)
+        back = np.frombuffer(rgba, np.uint8).reshape(h, w, 4).astype(int)
+        assert (back[:8, :8, 3] < 128).all() and (back[8:, 8:, 3] > 127).all()
+        assert np.abs(back[8:, 8:, :3] - img[8:, 8:, :3]).mean() < 40          # lossy, but the same picture
+
+
+def test_night_layer_for_lit_windows():
+    """Lit window glass makes a night light layer: DXT3 textures at the picture's instance + 0x8000."""
+    from sc4_mcp import batrender, fsh
+    wall = {"facade": {"size_m": [8, 3], "night": {"lit": 1.0},
+                       "elements": [{"type": "window", "u": 1, "v": 0.6, "w": 1.2, "h": 1.5},
+                                    {"type": "window", "u": 5, "v": 0.6, "w": 1.2, "h": 1.5}]}}
+    mesh, mats = partmodel.Builder({"lot": 1, "materials": {"wall": wall},
+                                    "parts": [{"type": "box", "x": 4, "y": 4, "w": 8, "d": 8, "h": 3,
+                                               "mat": "wall"}]}).build()
+    assert mats[0].glow is not None
+    models, textures = batrender.bake(batrender.Scene(mesh, mats, 1), 0x40000000, 0x50000000)
+    day = {i for i, _ in textures if not i & batrender.NIGHT}
+    night = {i: b for i, b in textures if i & batrender.NIGHT}
+    assert night and {i - batrender.NIGHT for i in night} <= day
+    assert all(b[24] == fsh.CODE_DXT3 for b in night.values())

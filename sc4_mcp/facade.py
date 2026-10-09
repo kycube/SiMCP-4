@@ -28,6 +28,11 @@ Element types (defaults in brackets):
   bars with spear tops), back [none] (the colour between the spindles: "clear" to see through)
 - ornament: u, v, w, h, style sunburst | rosette | fan | diamond, color [trim], color2 [dark]
 - repeat: n, du (and/or dv), element - the element n times, shifted by du / dv each time
+- lamp: u, v, r [0.2], color [lamp] - a wall or porch light: a small fixture by day, a pool of light at night
+
+Night: "night": {"lit": 0.65, "color": "#ffcf86"} - the share of windows lit at night (picked by position, the
+same in every view; a window's own "lit": true / false decides for it) and their light. The lit glass and lamps
+make the facade's light layer, which the game lays over the building at night.
 """
 
 from __future__ import annotations
@@ -65,6 +70,12 @@ class Facade:
             raise GameError("facade too large: lower px_per_m")
         self.im = Image.new("RGBA", (max(4, w), max(4, h)), self.c("body"))
         self.d = ImageDraw.Draw(self.im)
+        self.glow = Image.new("RGBA", self.im.size, (0, 0, 0, 0))
+        self.gd = ImageDraw.Draw(self.glow)
+        night = spec.get("night") or {}
+        self.lit_share = float(night.get("lit", 0.65))
+        self.light = parse_color_any(night.get("color", "#ffcf86"))
+        self.lit_any = False
         base = spec.get("base")
         if base:
             self.field({"u": 0, "v": 0, "w": self.W, "h": self.H, **base})
@@ -87,11 +98,18 @@ class Facade:
     def px(self, u, v):
         return int(round(u * self.k)), int(round(v * self.k))
 
-    def box(self, u, v, w, h, color):
+    def box(self, u, v, w, h, color, layer=None):
         x0, y0 = self.px(u, v)
         x1, y1 = self.px(u + w, v + h)
         if x1 > x0 and y1 > y0:
-            self.d.rectangle([x0, y0, x1 - 1, y1 - 1], fill=color)
+            (layer or self.d).rectangle([x0, y0, x1 - 1, y1 - 1], fill=color)
+
+    def is_lit(self, e) -> bool:
+        if "lit" in e:
+            return bool(e["lit"])
+        k = (int(round(float(e["u"]) * 10)) * 73856093) ^ (int(round(float(e["v"]) * 10)) * 19349663) ^ \
+            (int(self.W * 10) * 83492791)
+        return ((k & 0xFFFF) / 65535.0) < self.lit_share
 
     @staticmethod
     def shade(c, k):
@@ -103,10 +121,11 @@ class Facade:
     def element(self, e: dict, i: int):
         t = e.get("type")
         fn = {"window": self.window, "door": self.door, "band": self.band, "rect": self.rect, "field": self.field,
-              "railing": self.railing, "ornament": self.ornament, "repeat": self.repeat, "arch": self.arch}.get(t)
+              "railing": self.railing, "ornament": self.ornament, "repeat": self.repeat, "arch": self.arch,
+              "lamp": self.lamp}.get(t)
         if not fn:
-            raise GameError(f"facade element {i}: type window, door, band, rect, arch, field, railing, ornament "
-                            f"or repeat")
+            raise GameError(f"facade element {i}: type window, door, band, rect, arch, field, railing, ornament, "
+                            f"lamp or repeat")
         try:
             fn(e)
         except KeyError as ex:
@@ -228,6 +247,17 @@ class Facade:
         self.box(u, gv, w, gh, glass)
         # sky reflection in the upper part of each pane
         self.box(u, gv, w, gh * 0.18, sky)
+        if self.is_lit(e):                  # the light layer: the glass glows, sash bars stay dark
+            self.lit_any = True
+            warm = self.light + (235,)
+            self.box(u, gv, w, gh, warm, self.gd)
+            if e.get("curtain"):
+                soft = tuple(int(c * 0.85) for c in self.light) + (215,)
+                self.box(u + w * 0.05, gv + gh * 0.22, w * 0.22, gh * 0.75, soft, self.gd)
+                self.box(u + w * 0.73, gv + gh * 0.22, w * 0.22, gh * 0.75, soft, self.gd)
+            self.box(u, gv + gh / 2 - fw * 0.35, w, fw * 0.7, (0, 0, 0, 0), self.gd)
+            if e.get("mullion", w > 1.4):
+                self.box(u + w / 2 - fw * 0.35, gv, fw * 0.7, gh, (0, 0, 0, 0), self.gd)
         if e.get("curtain"):
             cur = self.c(e.get("curtain"))
             self.box(u + w * 0.05, gv + gh * 0.22, w * 0.22, gh * 0.75, cur)
@@ -246,6 +276,16 @@ class Facade:
         if e.get("sill", True):
             self.box(u - fw - 0.08, v + h + fw, w + 2 * fw + 0.16, 0.12, self.shade(frame, 1.15))
             self.box(u - fw - 0.08, v + h + fw + 0.12, w + 2 * fw + 0.16, 0.05, dark)
+
+    def lamp(self, e):
+        u, v, r = float(e["u"]), float(e["v"]), float(e.get("r", 0.2))
+        self.box(u - r * 0.5, v - r * 0.8, r, r * 1.6, self.c(e.get("color"), "dark"))
+        self.box(u - r * 0.35, v - r * 0.55, r * 0.7, r * 0.9, self.shade(self.light + (255,), 0.75))
+        self.lit_any = True
+        for k, a in ((3.2, 40), (2.2, 80), (1.3, 150), (0.6, 245)):     # a soft pool of light on the wall
+            x0, y0 = self.px(u - r * k, v - r * k)
+            x1, y1 = self.px(u + r * k, v + r * k)
+            self.gd.ellipse([x0, y0, x1, y1], fill=self.light + (a,))
 
     def door(self, e):
         u, v, w, h = float(e["u"]), float(e["v"]), float(e["w"]), float(e["h"])
@@ -328,5 +368,16 @@ class Facade:
             raise GameError("ornament style: sunburst, fan, rosette or diamond")
 
 
+def parse_color_any(v) -> tuple:
+    from .partmodel import parse_color
+    return tuple(parse_color(v)[:3])
+
+
 def draw(spec: dict) -> Image.Image:
     return Facade(spec).im
+
+
+def draw_with_light(spec: dict):
+    """(the facade, its light layer or None when nothing on it shines at night)."""
+    f = Facade(spec)
+    return f.im, (f.glow if f.lit_any else None)

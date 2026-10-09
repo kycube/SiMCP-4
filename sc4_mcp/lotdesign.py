@@ -30,7 +30,8 @@ ANIMATED_TEMPLATE = 0x29430000              # ACSign7x7x1_pizza: a 3D prop with 
 P_RKT4 = 0x27812824
 GROUNDS = {"paving": 0x258F2000, "plaza": 0x258E3000, "concrete": 0x258D1000, "asphalt": 0x258C2000,
            "grass": 0x25D60000, "lawn": 0x252B3000, "meadow": 0x25F40000, "gravel": 0x25FB1000,
-           "garden": 0x26213000, "sand": 0x25901000, "parking": 0x25A32000}
+           "garden": 0x26213000, "sand": 0x25901000, "parking": 0x25A32000,
+           "yard": 0x251C2000}                  # yard: the natural lawn of the game's house lots
 SHAPES = ("box", "cylinder", "cone", "sign")
 ROW_PROP, ROW_TEXTURE, ROW_FLORA, ROW_BUILDING = 1, 2, 4, 0
 PT = 128                                     # prop texture size
@@ -109,12 +110,15 @@ def _ground(key) -> int:
 
 
 # ---------------------------------------------------------------- lot rows
-def rows(lot_cells: int, building_row: list[int] | None, ground="plaza", objects: list[dict] | None = None):
+def rows(lot_cells, building_row: list[int] | None, ground="plaza", objects: list[dict] | None = None,
+         first_id: int = 100):
     """The lot's rows: the building (if any), the ground texture on every cell, then the objects - each a dict with
     one of "prop", "tree" or "ground" (a name or id), "x" and "z" in metres from the lot's north-west corner (the
-    street is the +z edge) and an optional "rotation" 0-3. Returns (rows, a description of what was placed)."""
+    street is the +z edge) and an optional "rotation" 0-3. lot_cells: cells a side, or [across, deep]. Returns
+    (rows, a description of what was placed)."""
     fx = content._fx
-    side = 16.0 * lot_cells
+    lw, ld = (int(lot_cells[0]), int(lot_cells[1])) if isinstance(lot_cells, (list, tuple)) else (lot_cells, lot_cells)
+    side_x, side_z = 16.0 * lw, 16.0 * ld
     out, placed = [], []
     if building_row:
         out.append(building_row)
@@ -122,13 +126,13 @@ def rows(lot_cells: int, building_row: list[int] | None, ground="plaza", objects
     for o in objects or []:
         if "ground" in o:
             cx, cz = int(float(o.get("x", 0)) // 16), int(float(o.get("z", 0)) // 16)
-            if not (0 <= cx < lot_cells and 0 <= cz < lot_cells):
+            if not (0 <= cx < lw and 0 <= cz < ld):
                 raise LotError("ground at (%s, %s) is outside the lot" % (o.get("x"), o.get("z")))
             cell_ground[(cx, cz)] = _ground(o["ground"])
     base = _ground(ground) if ground else None
-    oid = 100
-    for cz in range(lot_cells):
-        for cx in range(lot_cells):
+    oid = first_id
+    for cz in range(ld):
+        for cx in range(lw):
             tex = cell_ground.get((cx, cz), base)
             if tex is None:
                 continue
@@ -146,14 +150,14 @@ def rows(lot_cells: int, building_row: list[int] | None, ground="plaza", objects
         rot = int(o.get("rotation", 0))
         if not 0 <= rot <= 3:
             raise LotError("rotation is 0..3")
-        if not (0 <= x <= side and 0 <= z <= side):
-            raise LotError("(%g, %g) is outside the %g m lot" % (x, z, side))
+        if not (0 <= x <= side_x and 0 <= z <= side_z):
+            raise LotError("(%g, %g) is outside the %g x %g m lot" % (x, z, side_x, side_z))
         if "prop" in o:
             p = _prop(o["prop"])
             w, h, d = p["size_m"] or [1.0, 1.0, 1.0]
             if rot % 2:
                 w, d = d, w
-            if x - w / 2 < -0.5 or z - d / 2 < -0.5 or x + w / 2 > side + 0.5 or z + d / 2 > side + 0.5:
+            if x - w / 2 < -0.5 or z - d / 2 < -0.5 or x + w / 2 > side_x + 0.5 or z + d / 2 > side_z + 0.5:
                 raise LotError("%s (%g x %g m) at (%g, %g) sticks out of the lot" % (p["name"] or p["exemplar"], w, d, x, z))
             out.append([ROW_PROP, 0, rot, fx(x), 0, fx(z), fx(x - w / 2), fx(z - d / 2), fx(x + w / 2), fx(z + d / 2),
                         0, oid, int(p["id"], 16)])

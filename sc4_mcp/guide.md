@@ -276,6 +276,54 @@ lot_cells=..., parts_model={...})`.
    quit_game, game_launch, plop it, and judge it with `snapshot` at the closest zoom in daylight, in all four
    rotations, beside the game's own. To iterate, `design_model_building(..., replace=true)` (with the game
    closed) rebuilds it under the same ids: copies already placed update after game_launch.
+6. Homes the city grows: `design_growable_building(name, "residential", wealth, 0, 0, 0, [0, 0, 0], [0, 0, 0],
+   lot_width=1, lot_depth=2, parts_model=..., objects=[...])` - the same model on a growable lot (the game's
+   house lots are 1 x 2 or 1 x 3; x across the lot, y toward the street). Plop a copy first
+   (`design_model_building(..., lot_cells=1, lot_depth=2)`) to judge it.
+
+## Realism (best practices)
+
+Learned building houses after photographs and judging them in the game beside Maxis' own (more in
+notes/LIVE_FACTS.md). The game's look: an orthographic camera 45 degrees from the vertical, 7 px per metre at the
+closest zoom, a warm sun from the viewer's left and blue shade - SiMCP renders every view that way, so what you
+choose is shape, size, colour and detail.
+
+The camera
+1. Roofs dominate. From 45 degrees a one-storey house is mostly roof; walls show for their height minus the
+   overhang. Keep overhangs at 0.4 - 0.6 m, roof pitches 30 - 40 degrees (shallower reads as a flat grey slab),
+   and break big roofs with a front gable, dormers or a lower porch roof.
+2. What sits under a roof is hidden. A porch under the main roof does not read; give it its own roof (a front
+   gable over the porch is the strongest), and make piers, steps and the porch beam parts.
+3. Silhouette and volumes beat paint: chimneys, gables, bays, porches and steps are parts. Fine trim under about
+   0.15 m is a pixel at most; use light lines (bargeboards, ridge caps, fascia beams 0.2 - 0.3 m deep) to draw
+   the roof's shape.
+4. Check every view: parts_preview(..., rotation=-1, scale=3) shows all four sides at 3x. Nothing may poke
+   through a roof (a box top under a shallow roof shows as a bright patch); overlapping parts are fine.
+
+Size
+5. Scale to the game, not only to the photo: Maxis' 1 x 2 middle-income house lot holds a house about 12 x 10 m;
+   a real bungalow of 11 x 15 m looked bulky beside it. Front yards are short (the house near the street), back
+   yards long.
+
+Colour and material
+6. Pick colours as the material looks in daylight; the renderer adds the sun and the shade (a white wall comes
+   out about (225, 210, 200) in the sun and (85, 82, 108) in the shade, as the game's own). Roofs a little darker
+   and cooler than they seem (asphalt shingle about #4f5150).
+7. Every material gets weathering ("grain", default 0.06; 0.1 - 0.15 for roofs and paving): blotches in model
+   space, the same in every view, no tiling. Clean flat colours look like plastic beside Maxis' textures.
+8. Authored facades (windows, doors, trim at measured places) beat pasted photos; windows need a frame and sill in
+   a colour that contrasts with the wall to read at 7 px per metre.
+
+Night
+9. Lit windows make a building belong at night: facades light a share of their windows ("night": {"lit":
+   0.65}) and lamps ({"type": "lamp", ...}); the game lays this light over the building a few seconds after
+   dusk. A building without lights sits dark among lit neighbours.
+
+The lot
+10. Dress lots as Maxis does: the natural lawn ground "yard" (the striped "lawn" is a sports field), shrubs along
+    the front of the house (game prop 0x1ECF0000 and other "Shrub", "Bush", "Flowers" props from game_props), a
+    maple or two, a walk from the street to the door and a driveway (patch parts, a dark grey). The game draws
+    the building's shadow on the ground itself; nothing to paint.
 
 ## Cheats
 

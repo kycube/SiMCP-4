@@ -843,12 +843,23 @@ def build_network(network: str, points: list[list[int]], build_it: bool = True, 
     Args:
         network: road, street, avenue, one_way_road, rail, light_rail, monorail, subway, elevated_highway,
             ground_highway, dirt_road, pipe or power_line.
-        points: cells [[x, z], ...]: where the drag starts and each point where it bends or ends (2 to 64).
+        points: cells [[x, z], ...]: where the drag starts and each point where it bends or ends (2 to 64). To join
+            an existing road, start or end ON one of its cells (a drag beside it does not connect).
         build_it: false = only report each leg's cost and whether the game allows it.
         connect_neighbor: at the city edge, accept the game's offer to connect to the neighbour city.
         bridge: over water, which of the game's bridge choices to build (index; -1 = the game's default).
     """
-    return _build(build.network, network, [tuple(q) for q in points], build_it, connect_neighbor, bridge)
+    out = _build(build.network, network, [tuple(q) for q in points], build_it, connect_neighbor, bridge)
+    if build_it and isinstance(out, dict) and out.get("built"):
+        try:
+            loose = networks.unjoined_ends(G, [tuple(q) for q in points], network)
+        except Exception:  # noqa: BLE001 - only a hint
+            loose = []
+        if loose:
+            out["warning"] = ("the new %s ends next to another network without joining it at %s: a drag joins only "
+                              "the pieces it passes over - drag again from the existing piece to the new one"
+                              % (network, ", ".join("(%d, %d)" % c for c in loose)))
+    return out
 
 
 @tool(mcp, "act")

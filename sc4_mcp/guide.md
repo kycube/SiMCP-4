@@ -99,6 +99,9 @@ game's own cost, charged to the city's funds (nothing is built that the city can
 - `build_network(network, points)` - roads, streets, avenues, rail, pipes, power lines...: one drag per leg
   between consecutive points; the game's solver lays diagonals and curves. Building over an existing network of
   the same kind is charged again, as in the game.
+- A new road joins an old one only where the drag passes over the old one's cells: start or end the drag on
+  them. `build_network` warns when an end lies beside another network without joining it; `find_route` checks
+  that two places are connected.
 - `zone(zone_type, x0, z0, x1, z1)` - zoning (with automatic streets in large zones) and de-zoning.
 - `build_menu(menu)` - what can be plopped now, per build menu, with cost and monthly cost; greyed items are
   locked rewards or need more population, a later era, or are excluded. `build_menu(menu="trees")` lists trees.

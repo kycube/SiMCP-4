@@ -613,7 +613,7 @@ Build a road, rail, pipe, power line or other network through cells, as the play
 | parameter | type | default | description |
 |---|---|---|---|
 | `network` | string | required | road, street, avenue, one_way_road, rail, light_rail, monorail, subway, elevated_highway, ground_highway, dirt_road, pipe or power_line. |
-| `points` | array of array of integer | required | cells [[x, z], ...]: where the drag starts and each point where it bends or ends (2 to 64). |
+| `points` | array of array of integer | required | cells [[x, z], ...]: where the drag starts and each point where it bends or ends (2 to 64). To join an existing road, start or end ON one of its cells (a drag beside it does not connect). |
 | `build_it` | boolean | `true` | false = only report each leg's cost and whether the game allows it. |
 | `connect_neighbor` | boolean | `false` | at the city edge, accept the game's offer to connect to the neighbour city. |
 | `bridge` | integer | `-1` | over water, which of the game's bridge choices to build (index; -1 = the game's default). |

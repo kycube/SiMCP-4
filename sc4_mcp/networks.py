@@ -272,3 +272,31 @@ def shortest_path(data: dict, start: tuple[int, int], goal: tuple[int, int], kin
                 prev[n] = c
                 q.append(n)
     raise NetworkError("no %s route from %s to %s" % (kind, start, goal))
+
+
+def unjoined_ends(g, points: list[tuple[int, int]], network: str) -> list[tuple[int, int]]:
+    """End cells of a new drag that touch another network piece on a side neither of them connects (a road built
+    beside a street's dead end, for instance)."""
+    if network not in NAMES:
+        return []
+    xs = [c[0] for c in points]
+    zs = [c[1] for c in points]
+    data = cells(g, max(0, min(xs) - 1), max(0, min(zs) - 1), max(xs) + 1, max(zs) + 1)
+    out = []
+    for end in (tuple(points[0]), tuple(points[-1])):
+        mine = data.get(end, {})
+        bits = 0
+        for v in mine.values():
+            bits |= v
+        for side, (dx, dz) in STEP.items():
+            n = (end[0] + dx, end[1] + dz)
+            other = data.get(n, {})
+            if not other or n in [tuple(p) for p in points]:
+                continue
+            back = 0
+            for v in other.values():
+                back |= v
+            if not bits >> side & 1 and not back >> ((side + 2) & 3) & 1 and                     (set(other) & CAR if network in CAR else network in other):
+                out.append(end)
+                break
+    return out

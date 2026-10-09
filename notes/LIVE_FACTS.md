@@ -634,3 +634,18 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   identical statue-template buildings (groups [0x150B] only, a new exclusion group each) with a reward advice
   package each. After a restart build_menu("rewards") lists the Monument available and the Far Monument locked,
   still so after 10 more days: the game runs each design's condition itself.
+- **Plugins mirror, ordinance folder**: the custom ordinance host reads ordinances only from Plugins\140-ordinances
+  and its sub-folders, and SiMCP's mirror had that folder as a junction into the player's Plugins. launch.py now
+  makes it SiMCP's own real folder holding a junction "000-player" to the player's folder (the old junction removed
+  with rmdir, which removes only the link; tested on temporary folders first); the player's folder still holds only
+  cam.ordinances. design_ordinance refuses to write until the folder is SiMCP's own.
+- **design_ordinance "MCP Clean Air Pledge"** (type 0x0E exemplar in 140-ordinances\zzz_SiMCP: -30 a month, 100 to
+  enact, air pollution 0.9, mayor rating +3, available through a Lua function from "game.g_city_r_population >
+  10"): after a restart ordinances() lists it (0x71CCE6AE), first unavailable, available a month later (the DLL
+  checks monthly); set_ordinance enacted it (fee 100) and the next month's expenses rose 1,338 -> 1,368 and it
+  reports -30 a month.
+- **Budget department** on "MCP Town Archive" (design_model_building department "SiMCP Archives", Government,
+  40 cost / 15 income; the game's Budget Item properties with new department / line ids plus the DLL's 0x90222B81
+  group and 0x4252085F name key): plopped at (44, 29); a month later departments() lists "SiMCP Archives"
+  (0x13729023, Government Buildings, fixed funding) with 40 / 15, and the city's monthly totals moved by exactly
+  +15 income and +40 expense.

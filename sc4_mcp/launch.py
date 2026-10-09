@@ -73,6 +73,10 @@ def ensure_game_junction() -> str:
     return JUNCTION
 
 
+SPLIT_FOLDERS = {"140-ordinances"}     # mirrored as a real folder holding a junction, so SiMCP can add files
+PLAYER_SUBFOLDER = "000-player"
+
+
 def mirror_plugins(user_dir: str = USER_DIR, source: str | None = None) -> dict:
     """Make <user_dir>\\Plugins mirror the player's Plugins root: a junction per folder, a link to the same file per
     DLL link, a copy of each INI. Entries SiMCP created earlier that no longer exist in the source are removed (links
@@ -102,6 +106,19 @@ def mirror_plugins(user_dir: str = USER_DIR, source: str | None = None) -> dict:
                 os.unlink(d)
             os.symlink(target, d)
             done["links"].append(name)
+        elif os.path.isdir(s) and low in SPLIT_FOLDERS:
+            # a real folder of SiMCP's own: the player's folder as a junction inside it, SiMCP's designs beside it
+            # (the custom ordinance host reads ordinances only from Plugins\140-ordinances and its sub-folders)
+            wanted.add(low)
+            if os.path.lexists(d) and is_junction(d):
+                os.rmdir(d)                        # removes the junction itself, never the player's folder
+                done["removed"].append(name)
+            os.makedirs(d, exist_ok=True)
+            inner = os.path.join(d, PLAYER_SUBFOLDER)
+            if not (os.path.lexists(inner) and is_junction(inner) and
+                    os.path.normcase(os.path.realpath(inner)) == os.path.normcase(os.path.realpath(s))):
+                ensure_junction(inner, s)
+                done["junctions"].append(name + "\\" + PLAYER_SUBFOLDER)
         elif os.path.isdir(s):
             wanted.add(low)
             if not (os.path.lexists(d) and is_junction(d) and

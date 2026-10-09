@@ -353,7 +353,8 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
                    monthly_cost: int = 20, template_building: int = 0x4A635AD2, taken: set[int] | None = None,
                    ground="plaza", objects: list[dict] | None = None, invisible: bool = False,
                    model_path: str = "", model_scale: float = 1.0, overrides: dict | None = None,
-                   kind: str = "", template_group: int | None = None, extra=None) -> dict:
+                   kind: str = "", template_group: int | None = None, extra=None,
+                   department: dict | None = None) -> dict:
     """A new building with its own model and texture on its own lot (Parks / landmarks properties of the template
     building), written as a plugin into SiMCP's Plugins folder. `ground` covers every cell of the lot (a name from
     lotdesign.GROUNDS or a lot texture id) and `objects` adds props, trees and grounds (lotdesign.rows). invisible:
@@ -432,15 +433,22 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
     _set(bprops, P_MONTHLY, dbpf.PT_SINT64, [int(monthly_cost)], multi=old[0].multi if old else True)
     icon_iid = _free(dbpf.T_PNG, G_ICONS, 0xFFFFFFFF, taken or set())
     _set(bprops, P_ICON, dbpf.PT_UINT32, [icon_iid])
+    dept_records, dept_entry = [], {}
+    if department:                      # a custom budget department (CustomBudgetDepartments.dll)
+        from . import orddesign
+        dprops, dept_records, dept_entry = orddesign.department_props(**department)
+        bprops = _drop(bprops, *[pr.id for pr in dprops]) + dprops
     records = [(dbpf.T_EXEMPLAR, G_SIMCP_BUILDINGS, bld_iid, dbpf.build_exemplar(bprops, bld.parent)),
                (dbpf.T_EXEMPLAR, G_LOTS, lot_iid, dbpf.build_exemplar(lprops, LOT_COHORT)),
                (dbpf.T_S3D, G_MODELS, model_iid, model),
                (dbpf.T_PNG, G_ICONS, icon_iid, icon_png)] + \
               [(dbpf.T_FSH, G_TEXTURES, inst, data) for inst, data in textures]
-    extra_entry = {}
+    records += dept_records
+    extra_entry = dict(dept_entry)
     if extra:                                  # more records that need the building's id (a reward's advice)
-        more, extra_entry = extra(bld_iid)
+        more, more_entry = extra(bld_iid)
         records += more
+        extra_entry.update(more_entry)
     os.makedirs(FOLDER, exist_ok=True)
     path = _design_path("SiMCP_park_" if invisible else "SiMCP_", name)
     dbpf.write_dbpf(path, records)

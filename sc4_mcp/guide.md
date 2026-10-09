@@ -195,6 +195,11 @@ there is demand.
   requirement text) until `condition` - a read-only expression like an advice trigger, e.g.
   `game.g_city_r_population > 5000 and game.g_mayor_rating > 60` - is true, then available in the Rewards menu,
   with the effects of the game's statue or Mayor's House.
+- `design_ordinance(name, description, monthly, enact_cost, effects, condition)` adds an ordinance to the
+  Ordinances window (through the installed custom ordinance DLL): monthly income or cost, effects such as
+  crime 0.9 or mayor_rating 3, available when `condition` holds (checked monthly). The game keeps an
+  ordinance's values in a city's save. `design_model_building(..., department={...})` gives a building its
+  own budget department (name, budget group, monthly cost and / or income) in the Budget window.
 - `design_advice(name, advisor, title, message, trigger)` writes advice or a news headline for the advisors (a
   Lua package like the game's own): it appears when its trigger - a read-only expression such as
   `game.g_city_r_population > 1000` - is true. #city# in the text becomes the city's name.

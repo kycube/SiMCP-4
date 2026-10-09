@@ -10,7 +10,7 @@ import os
 from mcp.server.fastmcp import FastMCP, Image
 
 from . import game as gamemod
-from . import build, catalog, cheats, city, content, disasters, economy, heightmap, history, launch, layers, lotdesign, luaquery, housekeeping, memory, mysim, neighbors, networks, options, pointer, regions, services, terrain, trees, udi, vehicles, view
+from . import build, catalog, cheats, city, content, disasters, economy, heightmap, history, launch, layers, lotdesign, luaquery, orddesign, housekeeping, memory, mysim, neighbors, networks, options, pointer, regions, services, terrain, trees, udi, vehicles, view
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -1421,7 +1421,8 @@ def design_building(name: str, template: str, description: str = "", plop_cost: 
 def design_model_building(name: str, width_m: float, depth_m: float, height_m: float, wall_rgb: list[int],
                           roof_rgb: list[int], windows: bool = True, lot_cells: int = 1, description: str = "",
                           plop_cost: int = 500, monthly_cost: int = 20, ground: str = "plaza",
-                          objects: list[dict] | None = None, model_path: str = "", model_scale: float = 1.0):
+                          objects: list[dict] | None = None, model_path: str = "", model_scale: float = 1.0,
+                          department: dict | None = None):
     """Design a new building with its own 3D model and textures (a block with a window grid and a flat roof) on
     its own paved lot, for the Parks menu; written as a plugin into SiMCP's own Plugins folder. The game loads
     plugins at start-up: quit_game and game_launch, then it is in build_menu like any other.
@@ -1447,12 +1448,16 @@ def design_model_building(name: str, width_m: float, depth_m: float, height_m: f
             game does not repeat textures). Its size (times model_scale, in metres) replaces width, depth and height;
             the walls and roof colours are then unused.
         model_scale: metres per model unit.
+        department: a budget department of its own for the building, in the Budget window:
+            {"name": "Museum Fund", "group": "government" (or business_deals, city_beautification,
+            health_education, public_safety, transportation, utilities), "monthly_cost": 40,
+            "monthly_income": 0}; each building of the design adds its line.
     """
     if len(wall_rgb) != 3 or len(roof_rgb) != 3 or not all(0 <= c <= 255 for c in list(wall_rgb) + list(roof_rgb)):
         return {"error": "colours are [r, g, b] with values 0..255"}
     r = _content(content.model_building, name, width_m, depth_m, height_m, tuple(wall_rgb), tuple(roof_rgb),
                  windows, lot_cells, description, plop_cost, monthly_cost, ground=ground, objects=objects,
-                 model_path=model_path, model_scale=model_scale)
+                 model_path=model_path, model_scale=model_scale, department=department)
     if model_path and "error" not in r:
         import io
         from . import meshimport
@@ -1656,6 +1661,32 @@ def design_reward(name: str, condition: str, requirement: str = "", title: str =
     return _content(content.reward_building, name, condition, requirement, title, message, template, width_m,
                     depth_m, height_m, tuple(wall_rgb or (220, 210, 190)), tuple(roof_rgb or (150, 120, 60)),
                     lot_cells, description, plop_cost, monthly_cost, ground, objects, model_path, model_scale)
+
+
+@tool(mcp, "act")
+@guarded
+def design_ordinance(name: str, description: str, monthly: int = -50, enact_cost: int = 0,
+                     effects: dict | None = None, condition: str = "") -> dict:
+    """Design a new ordinance for the Ordinances window (through the installed custom ordinance DLL): its monthly
+    income or cost, enactment cost, effects and when it becomes available. Once a city is saved with it, the game
+    keeps the ordinance as it was then.
+
+    Args:
+        name: the ordinance's name.
+        description: its description (#city# and #mayor# allowed).
+        monthly: monthly income (positive) or expense (negative).
+        enact_cost: one-off cost of enacting it.
+        effects: {effect: value}: crime, air_pollution, water_pollution, garbage, flammability, water_use,
+            traffic_air_pollution (multipliers: 0.9 = 10 % less), power_use (reduction factor), mayor_rating
+            (added), school_eq_boost / health_hq_boost (%, 100 = unchanged), demand_r_low ... demand_i_high_tech
+            (demand factors).
+        condition: when it becomes available: a read-only expression like an advice trigger
+            ("game.g_city_r_population > 2000"); empty = always.
+    """
+    try:
+        return orddesign.design_ordinance(name, description, monthly, enact_cost, effects, condition)
+    except content.ContentError as e:
+        return {"error": str(e), "hint": e.hint}
 
 
 @tool(mcp, "act")

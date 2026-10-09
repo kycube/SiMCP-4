@@ -256,3 +256,34 @@ def test_reward_design(tmp_path, monkeypatch):
     for bad in ('game.g_city_r_population > 5"', "sc4game.budget.deposit_funds(5)", "x = 1\ny = 2"):
         with pytest.raises(content.ContentError):
             content.reward_building("Bad", bad)
+
+
+def test_ordinance_and_department(tmp_path, monkeypatch):
+    """An ordinance exemplar (type 0x0E, costs, effects, Lua availability) and a budget department's properties."""
+    import pytest
+    from sc4_mcp import dbpf, orddesign
+    monkeypatch.setattr(content, "MANIFEST", str(tmp_path / "content.json"))
+    folder = tmp_path / "Plugins" / "140-ordinances" / "zzz_SiMCP"
+    monkeypatch.setattr(orddesign, "FOLDER", str(folder))
+    monkeypatch.setattr(orddesign.launch, "USER_DIR", str(tmp_path))
+    with pytest.raises(content.ContentError):                       # the folder must be SiMCP's own first
+        orddesign.design_ordinance("Test Rule", "A rule", -20)
+    (tmp_path / "Plugins" / "140-ordinances").mkdir(parents=True)
+    r = orddesign.design_ordinance("Test Rule", "A rule", -20, 50, {"crime": 0.9, "mayor_rating": 2},
+                                   "game.g_city_r_population > 100")
+    d = dbpf.DBPF(r["file"])
+    ex = [dbpf.parse_exemplar(d.read(e)) for e in d if e.type == dbpf.T_EXEMPLAR][0]
+    assert ex.get(0x10) == 0x0E and ex.get(orddesign.P_MONTHLY) == -20 and ex.get(orddesign.P_ENACT) == -50
+    assert abs(ex.get(0x28ED0380) - 0.9) < 1e-6 and ex.get(0xAA5B8407) == 2 and ex.get(orddesign.P_INCOME) == 0
+    lua = [d.read(e).decode() for e in d if e.type == dbpf.T_LUA][0]
+    assert ex.get(orddesign.P_LUA_AVAILABLE) in lua and "game.g_city_r_population > 100" in lua
+    for bad in ({"crime": -1}, {"warp_drive": 1.0}):
+        with pytest.raises(content.ContentError):
+            orddesign.design_ordinance("Bad %d" % len(bad), "x", -1, 0, bad)
+    props, recs, info = orddesign.department_props("Archives", "government", 40, 15)
+    p = {pr.id: pr.values for pr in props}
+    assert p[orddesign.P_BUDGET_PURPOSE] == [orddesign.PURPOSE_EXPENSE, orddesign.PURPOSE_INCOME]
+    assert p[orddesign.P_BUDGET_COST] == [40, 15] and p[orddesign.P_DEPT_GROUP][1] == orddesign.BUDGET_GROUPS["government"]
+    assert len(set(p[orddesign.P_BUDGET_LINE])) == 2 and len(recs) == 1
+    with pytest.raises(content.ContentError):
+        orddesign.department_props("X", "space_program", 1)

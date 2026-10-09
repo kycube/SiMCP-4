@@ -9,7 +9,7 @@ Gemini agents, local models, or your own code. Everything happens in the real ga
 with the game's own rules and prices. It is the sibling of [SiMCP 3000](https://github.com/kycube/SiMCP-3000)
 (SimCity 3000 Unlimited).
 
-> **Status: Phases 1-7 and part of 8, 93 tools, tested in the running game.** What each test showed, and the known limits, are in
+> **Status: Phases 1-7 and part of 8, 94 tools, tested in the running game.** What each test showed, and the known limits, are in
 > [notes/LIVE_FACTS.md](notes/LIVE_FACTS.md); every tool's parameters are in [docs/TOOLS.md](docs/TOOLS.md). Not yet
 > done or not yet proven: the god-mode fire item. Driving a U-Drive-It mission
 > to success is left for a later release.
@@ -28,7 +28,7 @@ with the game's own rules and prices. It is the sibling of [SiMCP 3000](https://
 | **Building** | `build_network` (roads to monorail, pipes, power lines: the game's path solver and price), `zone`, `build_menu` / `plop` (every menu building with the menus' own availability rules), `bulldoze`, `plant_trees`, `make_historical`, `terrain_brushes` / `terraform` |
 | **Running the city** | `set_tax`, `departments` / `set_department_funding`, `building_funding` / `set_building_funding` (per building, with the measured effect on its service), `ordinances` / `set_ordinance`, `loans` / `take_loan`, `neighbor_deals` / `open_neighbor_deals` / `cancel_neighbor_deal`, `game_options` / `set_play_option`, `graphics_options` / `audio_options` (through the game's own dialogs) |
 | **The rest of the game** | `start_disaster` / `disaster_status`, `dispatch` (fire and police), `missions` / `start_mission` / `drive` / `stop_driving` (U-Drive-It), `my_sims` / `move_in_sim` / `my_sim_faces`, `cheat` (vetted, logged) |
-| **New content** | `design_building` (a new menu item from a Maxis one), `design_model_building` (its own generated 3D model and textures, or your OBJ model), `design_growable_building` (houses, shops, offices and factories the city grows by itself), `design_civic_building` (working police, fire, clinic and school buildings with their own coverage and capacity), `design_reward` (rewards with their own unlock condition), `design_advice` (advisor messages and news as Lua), `design_tree` (new tree types for the tree menu), `design_car` (new cars in the traffic), `design_park` / `design_prop` / `game_props` (lots laid out with props, trees and ground textures), `content_designs`, `disable_design` |
+| **New content** | `design_building` (a new menu item from a Maxis one), `design_model_building` (its own generated 3D model and textures, or your OBJ model), `design_growable_building` (houses, shops, offices and factories the city grows by itself), `design_civic_building` (working police, fire, clinic and school buildings with their own coverage and capacity), `design_reward` (rewards with their own unlock condition), `design_ordinance` (new ordinances) and budget departments on designs, `design_advice` (advisor messages and news as Lua), `design_tree` (new tree types for the tree menu), `design_car` (new cars in the traffic), `design_park` / `design_prop` / `game_props` (lots laid out with props, trees and ground textures), `content_designs`, `disable_design` |
 
 **Honest play.** Every action goes through the code the player's own tools use: the network tool's solver and
 price, the zone tool's rules, the plop tool's placement and the build menus' availability (locked rewards stay
@@ -57,7 +57,7 @@ starts the game through a directory junction instead, unelevated (see PHASE0.md)
 | `sc4_mcp/city.py`, `layers.py`, `economy.py`, `history.py`, `luaquery.py`, `dialogs.py`, `view.py` | observation and the budget window; graphs; the advisors' figures; dialogs; camera and snapshots |
 | `sc4_mcp/networks.py`, `services.py`, `neighbors.py`, `options.py`, `heightmap.py`, `housekeeping.py` | the network map, routes and traffic; per-building funding and its effect; neighbour connections and deals; play options; region layouts and height-map import; region backups, renames and removals |
 | `sc4_mcp/disasters.py`, `udi.py`, `mysim.py`, `cheats.py` | disasters and dispatch; U-Drive-It; My Sims; cheats |
-| `sc4_mcp/content.py`, `trees.py`, `vehicles.py`, `lotdesign.py`, `meshimport.py`, `s3d.py`, `fsh.py`, `gamedata.py` | new buildings, trees, cars, props and lot layouts; OBJ import; S3D models and FSH textures; reading the game's own data files |
+| `sc4_mcp/content.py`, `trees.py`, `vehicles.py`, `lotdesign.py`, `meshimport.py`, `orddesign.py`, `s3d.py`, `fsh.py`, `gamedata.py` | new buildings, trees, cars, props and lot layouts; OBJ import; ordinances and budget departments; S3D models and FSH textures; reading the game's own data files |
 | `sc4_mcp/dbpf.py` | DBPF files: read and write, QFS (RefPack) compression, exemplars and cohorts, LTEXT |
 | `sc4_mcp/identity.py` | the supported build and the check that refuses others |
 | `sc4_mcp/registry.py`, `guide.md` | tool registration (docstrings become JSON schemas and annotations); the agent guide (`guide` tool) |

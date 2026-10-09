@@ -1421,7 +1421,7 @@ def design_building(name: str, template: str, description: str = "", plop_cost: 
 def design_model_building(name: str, width_m: float, depth_m: float, height_m: float, wall_rgb: list[int],
                           roof_rgb: list[int], windows: bool = True, lot_cells: int = 1, description: str = "",
                           plop_cost: int = 500, monthly_cost: int = 20, ground: str = "plaza",
-                          objects: list[dict] | None = None) -> dict:
+                          objects: list[dict] | None = None, model_path: str = "", model_scale: float = 1.0):
     """Design a new building with its own 3D model and textures (a block with a window grid and a flat roof) on
     its own paved lot, for the Parks menu; written as a plugin into SiMCP's own Plugins folder. The game loads
     plugins at start-up: quit_game and game_launch, then it is in build_menu like any other.
@@ -1442,11 +1442,24 @@ def design_model_building(name: str, width_m: float, depth_m: float, height_m: f
             sand or parking.
         objects: things on the lot around the building, as for design_park: [{"prop": id or name, "x": m, "z": m,
             "rotation": 0-3}, {"tree": name, "x": m, "z": m}, {"ground": name, "x": m, "z": m}].
+        model_path: your own 3D model instead of the block: a Wavefront OBJ (y up, +z facing the street, faces
+            counter-clockwise seen from outside) with its MTL and PNG / JPEG textures (texture coordinates 0..1; the
+            game does not repeat textures). Its size (times model_scale, in metres) replaces width, depth and height;
+            the walls and roof colours are then unused.
+        model_scale: metres per model unit.
     """
     if len(wall_rgb) != 3 or len(roof_rgb) != 3 or not all(0 <= c <= 255 for c in list(wall_rgb) + list(roof_rgb)):
         return {"error": "colours are [r, g, b] with values 0..255"}
-    return _content(content.model_building, name, width_m, depth_m, height_m, tuple(wall_rgb), tuple(roof_rgb),
-                    windows, lot_cells, description, plop_cost, monthly_cost, ground=ground, objects=objects)
+    r = _content(content.model_building, name, width_m, depth_m, height_m, tuple(wall_rgb), tuple(roof_rgb),
+                 windows, lot_cells, description, plop_cost, monthly_cost, ground=ground, objects=objects,
+                 model_path=model_path, model_scale=model_scale)
+    if model_path and "error" not in r:
+        import io
+        from . import meshimport
+        buf = io.BytesIO()
+        meshimport.preview(meshimport.load(model_path, model_scale), 256, (150, 190, 230, 255)).save(buf, "PNG")
+        return [json.dumps(r), Image(data=buf.getvalue(), format="png")]
+    return r
 
 
 @tool(mcp, "act")
@@ -1520,7 +1533,7 @@ def game_props(query: str = "", limit: int = 40) -> dict:
 @tool(mcp, "act")
 @guarded
 def design_prop(name: str, shape: str = "box", width_m: float = 2.0, depth_m: float = 2.0, height_m: float = 2.0,
-                rgb: list[int] | None = None, image_path: str = ""):
+                rgb: list[int] | None = None, image_path: str = "", model_path: str = "", model_scale: float = 1.0):
     """Design a new prop - a box, cylinder, cone or sign (a board on a post; image_path puts a picture on its
     street side) in one colour - to place on lots with design_park or design_model_building. Written as a plugin;
     the game loads it at start-up. Returns the design and its texture.
@@ -1533,9 +1546,13 @@ def design_prop(name: str, shape: str = "box", width_m: float = 2.0, depth_m: fl
         height_m: height in metres (0.2..60).
         rgb: the colour [r, g, b] (default grey).
         image_path: a picture for the sign's face (any common format).
+        model_path: your own 3D model (Wavefront OBJ with MTL and textures, as for design_model_building) instead
+            of a shape; its size times model_scale replaces width, depth and height.
+        model_scale: metres per model unit.
     """
     try:
-        d = lotdesign.design_prop(name, shape, width_m, depth_m, height_m, tuple(rgb or (150, 150, 150)), image_path)
+        d = lotdesign.design_prop(name, shape, width_m, depth_m, height_m, tuple(rgb or (150, 150, 150)), image_path,
+                                  model_path=model_path, model_scale=model_scale)
     except content.ContentError as e:
         return {"error": str(e), "hint": e.hint}
     png = d.pop("texture_png")

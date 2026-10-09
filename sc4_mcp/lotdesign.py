@@ -267,17 +267,22 @@ def prop_mesh(shape: str, w: float, d: float, h: float, texture: int):
 
 
 def design_prop(name: str, shape: str = "box", width: float = 2.0, depth: float = 2.0, height: float = 2.0,
-                rgb=(150, 150, 150), image_path: str = "", taken: set[int] | None = None) -> dict:
+                rgb=(150, 150, 150), image_path: str = "", taken: set[int] | None = None, model_path: str = "",
+                model_scale: float = 1.0) -> dict:
     """Write a new prop as a plugin; place it on a lot with design_park / design_model_building objects."""
-    from . import fsh, s3d
+    from . import fsh, meshimport, s3d
     content._check_name(name)
-    if shape not in SHAPES:
+    mesh = meshimport.load(model_path, model_scale) if model_path else None
+    if mesh:
+        width, height, depth = mesh["size_m"]
+        shape = "model"
+    if not mesh and shape not in SHAPES:
         raise LotError("shape is %s" % ", ".join(SHAPES))
     if not (0.2 <= width <= 32 and 0.2 <= depth <= 32 and 0.2 <= height <= 60):
         raise LotError("a prop is 0.2..32 m wide and deep and 0.2..60 m tall")
     if len(rgb) != 3 or not all(0 <= v <= 255 for v in rgb):
         raise LotError("colours are [r, g, b] with values 0..255")
-    if shape == "sign" and depth > 1:
+    if not mesh and shape == "sign" and depth > 1:
         depth = 0.3
     _, tpl = content._find_exemplar(dbpf.T_EXEMPLAR, PROP_TEMPLATE, G_PROPS)
     if tpl is None:
@@ -286,9 +291,15 @@ def design_prop(name: str, shape: str = "box", width: float = 2.0, depth: float 
     prop_iid = content._new_ids(taken, 1)[0]
     model_iid = content._free(dbpf.T_S3D, content.G_MODELS, 0xFFFF0000, taken)
     tex_iid = content._free(dbpf.T_FSH, content.G_TEXTURES, 0xFFFFFF00, taken)
-    image = _picture(image_path) if image_path else None
-    tex = prop_texture(tuple(rgb), image)
-    model = s3d.write(prop_mesh(shape, width, depth, height, tex_iid))
+    if mesh:
+        mobj, textures = meshimport.model(mesh, tex_iid)
+        model = s3d.write(mobj)
+        tex = meshimport.preview(mesh, 256)
+    else:
+        image = _picture(image_path) if image_path else None
+        tex = prop_texture(tuple(rgb), image)
+        model = s3d.write(prop_mesh(shape, width, depth, height, tex_iid))
+        textures = [(tex_iid, fsh.write_argb(PT, PT, tex.tobytes()))]
     props = content._drop([dbpf.Property(p.id, p.ptype, list(p.values) if isinstance(p.values, list) else p.values,
                                          p.multi) for p in tpl.props], content.P_RKT1, content.P_NAME_KEY)
     content._set(props, content.P_NAME, dbpf.PT_STRING, "SiMCP_prop_" + content._slug(name))
@@ -297,8 +308,8 @@ def design_prop(name: str, shape: str = "box", width: float = 2.0, depth: float 
     content._set(props, content.P_NAME_KEY, dbpf.PT_UINT32, [dbpf.T_LTEXT, content.G_SIMCP_NAMES, prop_iid], multi=True)
     records = [(dbpf.T_EXEMPLAR, G_PROPS, prop_iid, dbpf.build_exemplar(props, tpl.parent)),
                (dbpf.T_S3D, content.G_MODELS, model_iid, model),
-               (dbpf.T_FSH, content.G_TEXTURES, tex_iid, fsh.write_argb(PT, PT, tex.tobytes())),
-               (dbpf.T_LTEXT, content.G_SIMCP_NAMES, prop_iid, dbpf.build_ltext(name))]
+               (dbpf.T_LTEXT, content.G_SIMCP_NAMES, prop_iid, dbpf.build_ltext(name))] + \
+              [(dbpf.T_FSH, content.G_TEXTURES, inst, data) for inst, data in textures]
     os.makedirs(content.FOLDER, exist_ok=True)
     path = content._design_path("SiMCP_prop_", name)
     dbpf.write_dbpf(path, records)

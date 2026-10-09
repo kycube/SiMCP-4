@@ -1022,6 +1022,8 @@ Design a new building with its own 3D model and textures (a block with a window 
 | `monthly_cost` | integer | `20` | the monthly cost. |
 | `ground` | string | `'plaza'` | the lot's ground texture: paving, plaza, concrete, asphalt, grass, lawn, meadow, gravel, garden, sand or parking. |
 | `objects` | array of object or null | `null` | things on the lot around the building, as for design_park: [{"prop": id or name, "x": m, "z": m, "rotation": 0-3}, {"tree": name, "x": m, "z": m}, {"ground": name, "x": m, "z": m}]. |
+| `model_path` | string | `''` | your own 3D model instead of the block: a Wavefront OBJ (y up, +z facing the street, faces counter-clockwise seen from outside) with its MTL and PNG / JPEG textures (texture coordinates 0..1; the game does not repeat textures). Its size (times model_scale, in metres) replaces width, depth and height; the walls and roof colours are then unused. |
+| `model_scale` | number | `1.0` | metres per model unit. |
 
 ## design_tree
 
@@ -1080,6 +1082,8 @@ Design a new prop - a box, cylinder, cone or sign (a board on a post; image_path
 | `height_m` | number | `2.0` | height in metres (0.2..60). |
 | `rgb` | array of integer or null | `null` | the colour [r, g, b] (default grey). |
 | `image_path` | string | `''` | a picture for the sign's face (any common format). |
+| `model_path` | string | `''` | your own 3D model (Wavefront OBJ with MTL and textures, as for design_model_building) instead of a shape; its size times model_scale replaces width, depth and height. |
+| `model_scale` | number | `1.0` | metres per model unit. |
 
 ## design_park
 

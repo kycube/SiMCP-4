@@ -181,6 +181,12 @@ there is demand.
   from the lot's north-west corner, the street along the south (+z) edge. `design_model_building` takes the same
   `ground` and `objects`. `design_prop(name, shape, ...)` makes a box, cylinder, cone or sign (with a picture on
   its street side) to place on lots.
+- Your own 3D models: `design_model_building(..., model_path="house.obj", model_scale=1)` and
+  `design_prop(..., model_path=...)` take a Wavefront OBJ with its MTL and PNG / JPEG textures: y up, the +z side
+  facing the street, faces counter-clockwise seen from outside (a face seen from behind does not draw - model
+  both sides of thin parts), texture coordinates 0..1 (the game does not repeat textures), one texture per
+  material (scaled to a power of two up to 512). Transparent pixels are cut out. The tool returns a picture of
+  the imported model; its size times model_scale (metres) must fit the lot.
 - `design_advice(name, advisor, title, message, trigger)` writes advice or a news headline for the advisors (a
   Lua package like the game's own): it appears when its trigger - a read-only expression such as
   `game.g_city_r_population > 1000` - is true. #city# in the text becomes the city's name.

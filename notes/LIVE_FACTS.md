@@ -597,3 +597,16 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   a fully transparent texture (alpha test drops it). After a restart build_menu lists it under parks (2 x 2, 300);
   plopped at (40, 28) facing south onto the road (charged 300) and seen at zoom 5 laid out as designed (the Maxis
   maples are saplings; a small bin by the street the game added). Props are written single-sided, facing out.
+
+## Session 2026-10-08 (Phase 8: agent-supplied models)
+
+- **OBJ import** (meshimport): a test house written as a Wavefront OBJ (13 faces, 50 vertices; materials "wall"
+  with a 256 x 128 brick-and-windows PNG and "roof" with a 128 x 128 tile PNG via an MTL's map_Kd; walls, gable
+  triangles, an overhanging two-slope roof and a chimney; faces counter-clockwise from outside) became "MCP Gable
+  House" (10.8 x 8.8 m, 9 m tall, two meshes and two FSH textures, lawn ground, an MCP Maple and an MCP Cone on the
+  lot). After a restart it plopped at (43, 29) facing south (charged 400) and drew correctly at rotations 0 and 2:
+  brick walls with windows, the door toward the road, the roof and chimney. OBJ v is flipped (the game's v runs
+  down); the model is centred on x / z and stood on y = 0.
+- **Night textures**: Maxis models' textures often have a twin at +0x8000 (3,413 of 11,558 references) and at +0x100
+  (the next zoom), but the +0x8000 twins seen are unrelated pictures (another sprite atlas, a water tile), not lit
+  versions - how 3D models get lit windows at night is still open.

@@ -28,7 +28,8 @@ L = a day or more, XL = several days.
 
 ## Phase 8 - real buildings
 
-- [ ] Agent-supplied geometry (OBJ or vertices / triangles + PNG textures), roofs, several parts, night lights (M-L)
+- [x] Agent-supplied geometry: OBJ + MTL + PNG / JPEG textures, roofs, several parts (M-L)
+- [ ] Night lights for designs (how the game lights a 3D model's windows at night is not found yet)
 - [ ] Working civic designs: police, fire, school, power with their own capacity, coverage and costs (M)
 - [ ] Custom ordinances and budget departments (the installed host DLLs) (M)
 - [ ] Rewards and landmarks with unlock conditions (M)

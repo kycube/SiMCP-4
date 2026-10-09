@@ -192,3 +192,26 @@ def test_lot_rows_and_props(tmp_path, monkeypatch):
     lrows = [pr.values for pr in lot.props if content.LOT_ROW0 <= pr.id <= 0x88EDCDFF]
     assert [x[0] for x in lrows] == [0, 2, 1] and lrows[2][12] == int(p["prop"], 16)
     assert r["kind"] == "park"
+
+
+def test_obj_import(tmp_path):
+    """An OBJ with two materials (one textured): parts, flipped v, fitted size, preview and model."""
+    from PIL import Image
+    from sc4_mcp import meshimport
+    Image.new("RGB", (100, 60), (200, 0, 0)).save(tmp_path / "red.png")
+    (tmp_path / "m.mtl").write_text("newmtl red\nmap_Kd red.png\nnewmtl blue\nKd 0 0 1\n")
+    (tmp_path / "m.obj").write_text(
+        "mtllib m.mtl\nv 0 0 0\nv 2 0 0\nv 2 4 0\nv 0 4 0\nv 0 0 -1\nvt 0 0\nvt 1 0\nvt 1 1\nvt 0 1\n"
+        "usemtl red\nf 1/1 2/2 3/3 4/4\nusemtl blue\nf 1 5 2\n")
+    o = meshimport.load(str(tmp_path / "m.obj"), 2.0)
+    assert o["size_m"] == [4.0, 8.0, 2.0] and o["faces"] == 2
+    verts, tris = o["parts"]["red"]
+    assert tris == [(0, 1, 2), (0, 2, 3)] and verts[0][4] == 1.0            # OBJ v = 0 -> the game's v = 1
+    assert min(v[1] for v in verts) == 0.0 and abs(sum(v[0] for v in verts)) < 1e-9   # stood up, centred
+    m, tex = meshimport.model(o, 0x5000)
+    assert len(m.meshes) == 2 and [t[0] for t in tex] == [0x5000, 0x5001]
+    assert meshimport.texture_for(o["materials"]["red"]).size == (128, 64)        # powers of two
+    assert meshimport.preview(o, 64).size == (64, 64)
+    import pytest
+    with pytest.raises(meshimport.MeshError):
+        meshimport.read_obj(str(tmp_path / "missing.obj"))

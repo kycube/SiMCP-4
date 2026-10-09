@@ -351,17 +351,25 @@ def box_icon(width: float, depth: float, height: float, wall, roof) -> bytes:
 def model_building(name: str, width: float, depth: float, height: float, wall=(205, 195, 170), roof=(90, 90, 95),
                    windows: bool = True, lot_cells: int = 1, description: str = "", plop_cost: int = 500,
                    monthly_cost: int = 20, template_building: int = 0x4A635AD2, taken: set[int] | None = None,
-                   ground="plaza", objects: list[dict] | None = None, invisible: bool = False) -> dict:
+                   ground="plaza", objects: list[dict] | None = None, invisible: bool = False,
+                   model_path: str = "", model_scale: float = 1.0) -> dict:
     """A new building with its own model and texture on its own lot (Parks / landmarks properties of the template
     building), written as a plugin into SiMCP's Plugins folder. `ground` covers every cell of the lot (a name from
     lotdesign.GROUNDS or a lot texture id) and `objects` adds props, trees and grounds (lotdesign.rows). invisible:
-    the building is a transparent 1 m quad (lotdesign.park)."""
-    from . import fsh, lotdesign, s3d
+    the building is a transparent 1 m quad (lotdesign.park). model_path: an OBJ model (meshimport) instead of the
+    generated block; its size (after model_scale) replaces width / depth / height."""
+    from . import fsh, lotdesign, meshimport, s3d
+    mesh = meshimport.load(model_path, model_scale) if model_path else None
+    if mesh:
+        width, height, depth = mesh["size_m"]
+        if not (0.5 <= width <= 16 * lot_cells - 0.5 and 0.5 <= depth <= 16 * lot_cells - 0.5 and height <= 400):
+            raise ContentError("the model is %g x %g m (x %g m tall): it must fit a %d-cell lot (%d m) - scale it or "
+                               "use a bigger lot" % (width, depth, height, lot_cells, 16 * lot_cells))
     _check_name(name)
     _check_tokens(description, "description")
     if plop_cost < 0 or monthly_cost < 0:
         raise ContentError("costs are 0 or more")
-    if not invisible and not (2 <= width <= 16 * lot_cells - 1 and 2 <= depth <= 16 * lot_cells - 1
+    if not invisible and not mesh and not (2 <= width <= 16 * lot_cells - 1 and 2 <= depth <= 16 * lot_cells - 1
                               and 2 <= height <= 400):
         raise ContentError("the building must fit its lot: width and depth 2..%d m, height 2..400 m"
                            % (16 * lot_cells - 1))
@@ -377,10 +385,18 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
         wall_fsh = roof_fsh = fsh.write_argb(8, 8, bytes(8 * 8 * 4))
         model = s3d.write(s3d.textured_mesh([(-0.5, 0.01, -0.5, 0, 0), (0.5, 0.01, -0.5, 1, 0), (0.5, 0.01, 0.5, 1, 1),
                                              (-0.5, 0.01, 0.5, 0, 1)], [(0, 2, 1), (0, 3, 2)], tex_iid))
+        textures = [(tex_iid, wall_fsh)]
+        icon_png = lotdesign.park_icon()
+    elif mesh:
+        mobj, textures = meshimport.model(mesh, tex_iid)
+        model = s3d.write(mobj)
+        icon_png = meshimport.icon(mesh)
     else:
         wall_fsh = fsh.write_argb(32, 32, wall_tile(tuple(wall), windows))
         roof_fsh = fsh.write_argb(8, 8, solid(tuple(roof)))
         model = s3d.write(box_mesh(width, depth, height, tex_iid, tex_iid + 1))
+        textures = [(tex_iid, wall_fsh), (tex_iid + 1, roof_fsh)]
+        icon_png = box_icon(width, depth, height, tuple(wall), tuple(roof))
     side = 16.0 * lot_cells
     cx = cz = side / 2
     building_row = [0, 0, 0, _fx(cx), 0, _fx(cz), _fx(cx - width / 2), _fx(cz - depth / 2), _fx(cx + width / 2),
@@ -410,10 +426,8 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
     records = [(dbpf.T_EXEMPLAR, G_SIMCP_BUILDINGS, bld_iid, dbpf.build_exemplar(bprops, bld.parent)),
                (dbpf.T_EXEMPLAR, G_LOTS, lot_iid, dbpf.build_exemplar(lprops, LOT_COHORT)),
                (dbpf.T_S3D, G_MODELS, model_iid, model),
-               (dbpf.T_FSH, G_TEXTURES, tex_iid, wall_fsh),
-               (dbpf.T_FSH, G_TEXTURES, tex_iid + 1, roof_fsh),
-               (dbpf.T_PNG, G_ICONS, icon_iid, lotdesign.park_icon() if invisible
-                else box_icon(width, depth, height, tuple(wall), tuple(roof)))]
+               (dbpf.T_PNG, G_ICONS, icon_iid, icon_png)] + \
+              [(dbpf.T_FSH, G_TEXTURES, inst, data) for inst, data in textures]
     os.makedirs(FOLDER, exist_ok=True)
     path = _design_path("SiMCP_park_" if invisible else "SiMCP_", name)
     dbpf.write_dbpf(path, records)
@@ -422,6 +436,9 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
              "lot_cells": lot_cells, "ground": ground, "objects": placed, "created": time.strftime("%Y-%m-%d %H:%M:%S")}
     if invisible:
         entry["kind"] = "park"
+    if mesh:
+        entry["model_file"] = os.path.basename(model_path)
+        entry["size_m"] = [width, depth, height]
     items = _manifest()
     items.append(entry)
     _save_manifest(items)

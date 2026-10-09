@@ -589,7 +589,7 @@ What the player can plop now, from the game's build menus (with plugins): each i
 
 | parameter | type | default | description |
 |---|---|---|---|
-| `menu` | string | `''` | one menu only: parks, transport, ferry, power, water, garbage, police, jail, fire, education, health, airports, landmarks, rewards, other, or trees. "" = all. |
+| `menu` | string | `''` | one menu only: parks, rail, transit (bus, subway, tram, parking, toll), ferries, power, water, garbage, police, jail, fire, education, health, airports, landmarks, rewards, or trees. "" = all. |
 
 ## plop
 

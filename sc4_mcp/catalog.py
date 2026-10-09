@@ -33,10 +33,11 @@ P_GROUPS, P_PLOP_COST, P_BULLDOZE_COST, P_ORDER = 0xAA1DD396, 0x49CAC341, 0x099A
 P_CONDITIONAL, P_EXCLUSION, P_SIZE, P_NAME, P_ITEM_NAME = 0xEA3209F8, 0xEA2E078B, 0x27812810, 0x20, 0x899AFBAD
 P_LOT_KEY, P_MONTHLY = 0xEA260589, 0xEA54D286
 
-MENUS = {0x1006: "parks", 0x1300: "transport", 0x130A: "ferry", 0x1400: "power", 0x1401: "water",
+MENUS = {0x1006: "parks", 0x1300: "rail", 0x130A: "transit", 0x1400: "power", 0x1401: "water",
          0x1402: "garbage", 0x1500: "police", 0x1501: "jail", 0x1502: "fire", 0x1503: "education",
          0x1504: "education", 0x1505: "education", 0x1506: "education", 0x1507: "health", 0x1508: "airports",
-         0x150A: "landmarks", 0x150B: "rewards", 0x1519: "other"}
+         0x150A: "landmarks", 0x150B: "rewards", 0x1519: "ferries"}
+MENU_ALIASES = {"transport": ("rail", "transit"), "ferry": ("ferries",), "other": ("ferries",)}
 
 _VFMT = {1: "?", 2: "B", 3: "b", 4: "H", 5: "h", 6: "I", 7: "i", 8: "Q", 9: "q", 10: "f", 11: "d"}
 
@@ -267,7 +268,8 @@ def _menu_items(k) -> list[dict]:
 def ploppables(k, menu: str = "") -> list[dict]:
     """Every lot the player could plop from a build menu now: building, menu, size, cost, monthly cost, and
     whether the menu offers it (False = greyed: a locked reward, an era / population requirement, an exclusion)."""
-    items = [i for i in _menu_items(k) if not menu or menu in i["menus"]]
+    wanted = MENU_ALIASES.get(menu, (menu,))
+    items = [i for i in _menu_items(k) if not menu or any(m in i["menus"] for m in wanted)]
     out = []
     for i, state in zip(items, availability(k, items)):
         if state != "hidden":

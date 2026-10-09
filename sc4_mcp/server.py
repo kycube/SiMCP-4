@@ -806,8 +806,9 @@ def build_menu(menu: str = "") -> dict:
     greyed - a locked reward, a population or era requirement, an exclusion). menu="trees" lists the trees.
 
     Args:
-        menu: one menu only: parks, transport, ferry, power, water, garbage, police, jail, fire, education, health,
-            airports, landmarks, rewards, other, or trees. "" = all.
+        menu: one menu only: parks, rail, transit (bus, subway, tram, parking, toll), ferries, power, water,
+            garbage, police, jail, fire, education, health,
+            airports, landmarks, rewards, or trees. "" = all.
     """
     if menu == "trees":
         return {"trees": build.tree_types()}

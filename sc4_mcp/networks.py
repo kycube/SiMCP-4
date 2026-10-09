@@ -8,7 +8,7 @@ scratch area (the game only allocates and frees the nodes it adds).
 Network pieces (roads, rails, streets, highways, pipes, subways...) are occupants of type 0xC772BF98 (the type the
 NAM DLL queries); their cISC4NetworkOccupant interface sits 4 bytes before the occupant interface. Fields of that
 interface (read by its getters, slots 12 / 23 / 24 / 40 / 59): +0x13C network flags (bit i = network type i),
-+0xFC piece id, +0x104 rotation (low 7 bits) and flip (bit 7), +0x10C primary network type, +0x110 its edges, +0x108
++0xFC piece id, +0x104 rotation (low 7 bits) and flip (bit 7), +0x10C primary network type (u8), +0x110 its edges, +0x108
 count and +0x114 array of {u32 network type (low byte), u32 edges} for the other networks on the cell, +0x9C / +0xA4
 position x / z in metres. Edges hold one byte per side - west, north, east, south - non-zero (low 3 bits) where the
 piece connects. Pipes are a subclass with the same fields. Power lines are separate occupants: segments 0x0990B2EA (one per cell) and poles 0x2890D4DE.
@@ -104,8 +104,8 @@ def _piece(p, occ: int) -> dict | None:
         return None
     raw = p.read(occ - 4, 0x140)
     flags = struct.unpack_from("<I", raw, 0x13C)[0] & 0x1FFF
-    primary, e0, extra = struct.unpack_from("<III", raw, 0x10C)[0], struct.unpack_from("<I", raw, 0x110)[0], \
-        struct.unpack_from("<I", raw, 0x114)[0]
+    primary = raw[0x10C]                  # a byte: the next three are not part of it
+    e0, extra = struct.unpack_from("<II", raw, 0x110)
     nets = {}
     if primary < len(NAMES):
         nets[NAMES[primary]] = _sides(e0)

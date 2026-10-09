@@ -411,3 +411,21 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   jobs, Small Shops CS$ 31 / 32 jobs; types R$ 0x1010 .. R$$$ 0x1030, CS$ 0x3110 .. CS$$$ 0x3130, CO$$ 0x3320,
   CO$$$ 0x3330, IR 0x4100, ID 0x4200, IM 0x4300, IHT 0x4400. lots(occupancy=true) reads 190 lots in 3.5 s (a call
   sequence reports at most 16 results, so 8 lots-and-types per frame).
+- **God-mode fire (not solved)**: the Disasters menu's Fire item (exemplar 4, no manager id) makes the disaster tool a
+  torch ("torch_active" / "torch_inactive" effects): tool slot 56 (0x5808B0) picks the terrain (view slot 36),
+  converts the point to a cell (`[0xB43CEC]` slot 95) and calls the fire manager's interface (QI 0x49B43F57, kept
+  at tool +0x2C by the init slot 43 0x580660) IgniteCell(x, z, 0, 1, 0) and SetCause(1). Drags with the virtual
+  pointer (terrain or tree occupant picks, 1-2 s) lit nothing - on houses under fire coverage 148-255 or on 169
+  oak trees with no coverage (flammability 13) - and calling slot 56 directly faulted (caught: +0x2C was null). The
+  slot's caller (a timer while the button is held) is not found yet. Disasters with managers work (earthquake,
+  meteor, see above).
+- **Transit and garbage** (MCP Village): build_menu's groups were mislabelled - 0x130A is the road-transit menu (bus
+  and subway stops, trams, light rail, parking garage, toll booth: 19 items), 0x1300 rail stations, 0x1519 ferry
+  terminals and the marina; now "transit", "rail", "ferries" ("transport", "ferry", "other" kept as aliases). The
+  Maxis roadside bus stop plopped at (14, 29) facing the road for 150. A landfill zone (45..49, 42..45, 1000)
+  showed the no-road-access zot and stayed empty for 100 days; network_map / find_route showed why: the road drawn
+  from (31, 37) ended beside the street's dead end at (31, 36) without joining it (street N only, road S only), so
+  the civic road was cut off. One road cell over the street end joined them (cell 36 = road + street); within 45
+  days the city's garbage mean fell 9.4 -> 1.1 and a trash pile grew - landfill trash is occupants (type
+  0x6A11BD2B), not lots. Network reader fix: the primary network type at +0x10C is one byte (the u32 read gave
+  garbage, dropping those pieces' sides).

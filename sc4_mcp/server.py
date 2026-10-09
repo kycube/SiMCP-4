@@ -5,12 +5,13 @@ from __future__ import annotations
 import argparse
 import functools
 import json
+import re
 import os
 
 from mcp.server.fastmcp import FastMCP, Image
 
 from . import game as gamemod
-from . import brushdesign, build, catalog, cheats, city, content, disasters, economy, heightmap, history, launch, layers, lotdesign, luaquery, orddesign, housekeeping, memory, mysim, neighbors, networks, options, pointer, regions, services, terrain, terrainlook, trees, udi, vehicles, view
+from . import brushdesign, build, catalog, cheats, city, content, disasters, economy, heightmap, history, launch, layers, lotdesign, luaquery, orddesign, housekeeping, memory, mysim, neighbors, networks, options, pointer, puzzle, regions, services, terrain, terrainlook, trees, udi, vehicles, view
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -1784,6 +1785,69 @@ def design_brush(name: str, base: str = "mountain_default", radius_scale: float 
         return brushdesign.design_brush(name, base, radius_scale, strength_scale)
     except content.ContentError as e:
         return {"error": str(e), "hint": e.hint}
+
+
+def _puzzle(fn, *a):
+    try:
+        return fn(_city(), *a)
+    except (puzzle.PuzzleError, build.BuildError) as e:
+        return {"error": str(e), "hint": e.hint}
+
+
+def _hid(v: str) -> int:
+    v = str(v).strip().lower()
+    return int(v, 16) if v.startswith("0x") else int(v, 16) if re.fullmatch(r"[0-9a-f]+", v) else -1
+
+
+@tool(mcp, "read")
+@guarded
+def puzzle_pieces(query: str = "", group: str = "", hid: str = "", limit: int = 40) -> dict:
+    """The puzzle pieces the network tool can place whole (the game's interchanges and ramps, and NAM's thousands
+    of pieces: roundabouts, turn lanes, overpasses, transitions...), from the game's own RUL0 rules, named from the
+    RUL0 text NAM ships. Without arguments: the count and the groups.
+
+    Args:
+        query: words in the piece's name (e.g. "roundabout", "cloverleaf", "turn lane").
+        group: a group (NAM's RUL0 part, e.g. "AvenueRoundabouts", "Clovers").
+        hid: one piece's id (hex): its size, cells, handle, rotations (Home / End) and Tab ring.
+        limit: how many to list.
+    """
+    if hid:
+        h = _hid(hid)
+
+        def one(g):
+            table = puzzle.rules(g)
+            if h not in table:
+                raise puzzle.PuzzleError("no puzzle piece %s" % hid, "puzzle_pieces(query=...) finds ids")
+            _, nm = puzzle.names()
+            d = dict(puzzle.rule_info(g, table[h]), **{k: v for k, v in nm.get(h, {}).items()
+                                                        if k in ("name", "group", "cost")})
+            d["rotations"] = ["0x%X" % x for x in puzzle.ring(g, table, h, 0xF0)]
+            d["tab_ring"] = ["0x%X" % x for x in puzzle.ring(g, table, h, 0xF8)]
+            return d
+        return _puzzle(one)
+    return _puzzle(puzzle.search, query, group, limit)
+
+
+@tool(mcp, "act")
+@guarded
+def place_puzzle_piece(hid: str, x: int, z: int, build: bool = True, auto_fit: bool = False) -> dict:
+    """Place a puzzle piece as the game's puzzle-piece tool does: its handle on cell (x, z) (the cell under the
+    pointer), the piece's own networks laid and its cost charged to the city. Pieces that join networks need them
+    there (e.g. a single-tile roundabout on a road crossing); others stand alone.
+
+    Args:
+        hid: the piece's id (puzzle_pieces finds them); its other rotations are other ids (puzzle_pieces(hid=...)).
+        x: the handle's cell, west-east.
+        z: the handle's cell, north-south.
+        build: false only checks that it fits and reports the cost.
+        auto_fit: also try the four neighbouring cells and the piece's other rotations, as the tool does while the
+            player moves the pointer.
+    """
+    h = _hid(hid)
+    if h < 0:
+        return {"error": "hid is a hex id such as 0x1020", "hint": "puzzle_pieces finds ids"}
+    return _puzzle(puzzle.place, h, x, z, build, auto_fit)
 
 
 @tool(mcp, "act")

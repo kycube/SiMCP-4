@@ -153,6 +153,11 @@ there is demand.
   `close_dialog("Accept")` starts it. `drive(keys, seconds)` holds driving keys (accelerate, brake, left, right...)
   - the game must be running; `missions()` gives the vehicle's cell and heading and the target's cell.
   `stop_driving()` leaves the vehicle.
+- Puzzle pieces (interchanges, ramps, NAM's roundabouts, turn lanes, overpasses...): `puzzle_pieces(query)`
+  finds them by name or group, `puzzle_pieces(hid=...)` gives one's size, rotations and Tab ring, and
+  `place_puzzle_piece(hid, x, z)` places it with its handle on that cell, charged like the player's tool.
+  Check first with build=false: the result's cells are where it lands (NAM's FLEX pieces sit a cell off their
+  handle). auto_fit tries neighbouring cells and other rotations, as the tool does under the pointer.
 - `move_in_sim(x, z)` moves a My Sim into the house on a cell; `my_sims()` follows them (home, job, where they are).
 - `design_my_sim_face(name, gender, sign, image_path)` adds a face of one's own to the Select A My Sim dialog (a
   photo cropped and scaled to 36 x 36, or a simple drawn face); `move_in_sim(x, z, face=name)` uses it. A city

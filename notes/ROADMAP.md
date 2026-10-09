@@ -46,7 +46,7 @@ L = a day or more, XL = several days.
 
 ## Phase 10 - hardest
 
-- [ ] New network pieces (XL)
+- [ ] New network pieces (XL) - placing the game's and NAM's puzzle pieces works (puzzle_pieces, place_puzzle_piece); designing new ones next
 - [ ] Bridges and tunnels (XL)
 - [ ] Transit-enabled lots (XL)
 - [ ] Lot Editor parity (L-XL)

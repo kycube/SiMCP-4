@@ -743,3 +743,21 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   guard only unwinds frames below its own. A fault caught inside a simulator step (an agent mid-update) remains
   the likeliest cause. The bridge's crash log now adds, under each caught fault, the op, the call target or the
   command line that was running ("op 17 fn 00000010" for a deliberate bad call).
+
+## Session 2026-10-08 (Phase 10: puzzle pieces)
+
+- **Puzzle pieces**: the game parses RUL0 (NAM's controller here: 25,551 rules) into a hash map at 0xB452B0
+  (buckets 0xB452B4 / 0xB452B8, node {next, hid, rule}); lookup 0x625380(hid). The rule layout matches the NAM DLL's
+  cIntRule: +0x94 handle offset, +0x18 / +0x20 a min / max of its key cells only (the full footprint is the union of
+  the '+' cells +0x28, static cells +0x4C and checked cells +0x58), +0xEC / +0xF0 rotation ring prev / next,
+  +0xF4 / +0xF8 Tab ring. The puzzle-piece input control (vtable 0xAAAF60) previews in 0x661260 and places in
+  0x661010: highway network tool (type 2), rule 0x608CD0(x, z, cells x, cells z) bounds check, rule
+  0x6097E0(x, z, tool), cSC4NetworkTool 0x62CD50(x, z, hid, commit) (ret 0x10), GetCostOfSolution, then the budget's
+  WithdrawFunds after placing. The UI tries the pointer cell and (1, 0), (0, -1), (-1, 0), (0, 1) (0xAAAFCC), each
+  with every rotation of the ring. The "PlaceNetworkIntersection" command is unimplemented. Live in MCP Town:
+  cloverleaf 0x1020 with its handle on (48, 24) charged 5,400 (16 x 16 cells; on (45, 45) it did not fit: test
+  parks in the way); NAM's avenue roundabout 0x9520 at (37, 14) charged 440, its fountain and ring drawn. Names come
+  from the RUL0 text: the comment above each rule and NAM's "next file" parts (groups); rotated copies (CopyFrom +
+  Rotate / Transpose) take their source's name. NAM's FLEX pieces (AutoTileBase 0x55387000) lose the static cell at
+  their origin (the NAM DLL) and land on the nearest real cell: the single-tile roundabout 0x7C11 lands one cell
+  west of its handle.

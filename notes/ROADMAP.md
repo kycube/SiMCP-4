@@ -14,7 +14,7 @@ L = a day or more, XL = several days.
 - [x] Region housekeeping: rename a region, delete a city / region (confirmed), back up a region (S)
 - [x] Graphics and sound settings through the options dialogs' path (S-M)
 - [x] School / hospital auto-budget: not a player option in this version, so not offered (cheat-class) (S)
-- [ ] Starting an offered neighbour deal (S-M)
+- [x] Starting an offered neighbour deal: the game has no offered state - deals start when proposed (S-M)
 
 ## Phase 6 - new trees and vehicles
 

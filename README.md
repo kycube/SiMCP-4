@@ -9,9 +9,9 @@ Gemini agents, local models, or your own code. Everything happens in the real ga
 with the game's own rules and prices. It is the sibling of [SiMCP 3000](https://github.com/kycube/SiMCP-3000)
 (SimCity 3000 Unlimited).
 
-> **Status: Phases 1-4 and part of 5, 86 tools, tested in the running game.** What each test showed, and the known limits, are in
+> **Status: Phases 1-5, 86 tools, tested in the running game.** What each test showed, and the known limits, are in
 > [notes/LIVE_FACTS.md](notes/LIVE_FACTS.md); every tool's parameters are in [docs/TOOLS.md](docs/TOOLS.md). Not yet
-> done or not yet proven: starting an offered neighbour deal, the god-mode fire item. Driving a U-Drive-It mission
+> done or not yet proven: the god-mode fire item. Driving a U-Drive-It mission
 > to success is left for a later release.
 
 > SiMCP 4 is a fan project, not affiliated with or endorsed by Electronic Arts or Maxis. SimCity is a trademark of

@@ -530,3 +530,9 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   snapshots under a modal dialog; the Civic -> Parks menu open in a city that is then left): no fault. The view's
   camera control was non-null throughout (view 0x2CF2814 / 0x1AE57014, one city view in the window tree after a
   leave and reopen).
+- **No offered neighbour deals in this version**: the panel's ProposeDeals(list, 1) runs 0x6D0520 per possible
+  deal: N slot 24 ProposeDeal makes it, the flag clears its bit 0x80 and links it into the city's deal list (+0x20),
+  slot 11 sets its partner, and the term is random between the tuning values 0xAA46934B / 0xEA46934F (1-5 years,
+  365 days each) through slots 29 / 25 / 27 (dates). There is no accept step, so no deal waits as "offered": the
+  player's way to start a deal is to open the panel (all possible deals start) and cancel the unwanted ones, which
+  is what open_neighbor_deals / cancel_neighbor_deal do. The unused start_deal (deal slot 35) was removed.

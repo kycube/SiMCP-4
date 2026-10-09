@@ -22,7 +22,7 @@ from . import memory
 
 G_NEIGHBORS, G_OM = 0xB43D8C, 0xB43D0C
 N_PROPOSE_DEALS, N_INCOME, N_EXPENSE = 25, 32, 33
-DEAL_CANCEL, DEAL_ACTIVATE, DEAL_SET_FLAGS = 34, 35, 37
+DEAL_CANCEL, DEAL_SET_FLAGS = 34, 37
 OM_RELEASE_LIST = 48
 
 DEAL_TYPES = {0x4773FFE0: "buy_power", 0x4773FFE1: "sell_power", 0x4773FFE2: "buy_water",
@@ -138,16 +138,3 @@ def cancel_deal(g, index: int) -> dict:
     _v(g, d, DEAL_CANCEL)
     _v(g, d, DEAL_SET_FLAGS, 1, 1)
     return {"cancelled": before, "now": deals(g)}
-
-
-def start_deal(g, index: int) -> dict:
-    """The panel's "Initiate Deal" button for an offered deal."""
-    p = g.proc
-    d = _pick(g, index)
-    fl = p.u32(d + 0x78)
-    if fl & 2:
-        raise NeighborError("deal %d is already running" % index)
-    if not fl & 1 or fl & 0x138:
-        raise NeighborError("deal %d cannot start (state %s)" % (index, _deal(p, d, index)["state"]))
-    ok = _v(g, d, DEAL_ACTIVATE) & 0xFF
-    return {"started": bool(ok), "now": deals(g)}

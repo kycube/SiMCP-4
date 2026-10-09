@@ -172,6 +172,12 @@ class Game:
         if crashes:
             out["faults_in_game_code"] = crashes[-3:]
         faults = self.bridge.faults() if self.bridge and self.bridge.block else 0
+        try:                             # calls the bridge refused (a stale object or not code): harmless, counted
+            refused = self.bridge.ping().ret[3] if self.bridge and self.bridge.block else 0
+        except Exception:  # noqa: BLE001 - a status read must not fail
+            refused = 0
+        if refused:
+            out["calls_refused"] = refused
         if faults:
             out["faults_caught"] = faults
             out["warning"] = ("the bridge caught %d fault(s) inside the game's code since it loaded; a simulator may "

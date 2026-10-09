@@ -951,3 +951,36 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   lots that never developed in MCP Town - its "growth stall" was that: zoned two deep with streets=false beside a
   joined street, MCP Town grew in a month. MCP Town's clock reached 2049 during the long traffic watches at fast
   speed (funds 86,000).
+
+## Session 2026-10-09 (follow-ups: the stall guard, power plants, animation, older designs)
+
+- **Bridge address guard**: the two caught faults logged right after load_city this day (op 17, fn 0x5CA2420A and
+  0x938411FA, reading the address itself) were calls to addresses that are not code. The bridge now checks every
+  call target (committed, executable image memory) and `this` pointer (readable, with a readable vtable) before
+  calling and refuses otherwise (status -4, "refused: ... is not code, or this ... is not a live object"), counting
+  refusals (ping ret[3]; game_status calls_refused). Live: garbage calls (0x938411FA; code with this 0x12345678)
+  were refused and counted, nothing reached the game or the crash log; loads, saves, snapshots and building tools
+  worked as before.
+- **A save whose reply timed out still saved**: one save_city answered "SendMessageTimeout failed (error 5)" while
+  the game did save (the plant plopped before it was in the reloaded city); the next save took 11 s and reported
+  normally.
+- **Power plants**: the base game's plant lots (coal 0x02000002, oil 0x02000003, gas 0x0A32DBFF, wind 0x8A32E4CB)
+  hold buildings 0x1F4D0000 / 0x1F420000 / 0x1F430000 / 0x1F450000 (group 0xC8DBCCBA): 0x27812852 is the output
+  in MWh (coal 6000, oil 7000, gas 3000, nuclear 16000, solar 5000, hydrogen 50000, wind 200), 0x27812853 the plant
+  type (coal 1, hydrogen 2, gas 3, nuclear 5, oil 6, solar 7, wind 9), 0x27812851 pollution at the centre (air,
+  water, garbage, radiation), 0x49CAC341 the plop cost, 0xEA54D286 the monthly cost. In MCP Village the build menu's
+  "Coal Power Plant" is a plugin's (building 0xE0C896CC, $13,000, 7,500 MWh), not the base game's. "MCP Gas Plant"
+  (a parts model on the gas plant's properties) showed 3,000 MWh capacity, carried 132 MWh at once and the coal
+  plant's load fell from 462 to 330 MWh. The game's gas plant lot raises its smoke props (0x2A94B0DB, and oil smoke
+  0x005B0000 as steam) to the stack tops by the prop row's y (75 m); lot objects now take "y" and the plant's
+  stacks smoke in the game.
+- **Animated props move**: the pinwheel (24 frames at 12 fps, one model, RKT0) showed three angles in three
+  snapshots about half a second apart, running or paused (the game animates on its draw clock). The earlier "not
+  confirmed" came from snapshots 4 s apart: two whole loops.
+- **Older designs upgraded**: upgrade_designs gave 22 single-model (RKT0) designs a turned copy per view (RKT1);
+  in MCP Village the Sign's face now points at its street from every rotation (from the far side its back shows)
+  and the Gable House and Town Archive turn with the view. Four test designs made under the earlier turn rule
+  (compass boxes, the first bungalow) were moved to content-disabled; the old crossed-plane trees and seasonal
+  trees were rebuilt rendered under their own ids.
+- **Window patterns at night**: "glow" on a wall_window pattern lit the whole band (wall too); the night layer now
+  takes the pattern's own layout and lights only the panes - in the game, a row of separate lit windows.

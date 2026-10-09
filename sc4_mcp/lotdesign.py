@@ -114,8 +114,9 @@ def rows(lot_cells, building_row: list[int] | None, ground="plaza", objects: lis
          first_id: int = 100):
     """The lot's rows: the building (if any), the ground texture on every cell, then the objects - each a dict with
     one of "prop", "tree" or "ground" (a name or id), "x" and "z" in metres from the lot's north-west corner (the
-    street is the +z edge) and an optional "rotation" 0-3. lot_cells: cells a side, or [across, deep]. Returns
-    (rows, a description of what was placed)."""
+    street is the +z edge), an optional "rotation" 0-3 and, for a prop, an optional "y": metres above the ground (a
+    smoke effect at a chimney's top, a prop on a roof - as the game's plant lots raise their smoke to the stacks).
+    lot_cells: cells a side, or [across, deep]. Returns (rows, a description of what was placed)."""
     fx = content._fx
     lw, ld = (int(lot_cells[0]), int(lot_cells[1])) if isinstance(lot_cells, (list, tuple)) else (lot_cells, lot_cells)
     side_x, side_z = 16.0 * lw, 16.0 * ld
@@ -150,6 +151,12 @@ def rows(lot_cells, building_row: list[int] | None, ground="plaza", objects: lis
         rot = int(o.get("rotation", 0))
         if not 0 <= rot <= 3:
             raise LotError("rotation is 0..3")
+        try:
+            y = float(o.get("y", 0))
+        except (TypeError, ValueError):
+            raise LotError("y is metres above the ground: %r" % (o,))
+        if not 0 <= y <= 400:
+            raise LotError("y is 0..400 m above the ground")
         if not (0 <= x <= side_x and 0 <= z <= side_z):
             raise LotError("(%g, %g) is outside the %g x %g m lot" % (x, z, side_x, side_z))
         if "prop" in o:
@@ -159,9 +166,11 @@ def rows(lot_cells, building_row: list[int] | None, ground="plaza", objects: lis
                 w, d = d, w
             if x - w / 2 < -0.5 or z - d / 2 < -0.5 or x + w / 2 > side_x + 0.5 or z + d / 2 > side_z + 0.5:
                 raise LotError("%s (%g x %g m) at (%g, %g) sticks out of the lot" % (p["name"] or p["exemplar"], w, d, x, z))
-            out.append([ROW_PROP, 0, rot, fx(x), 0, fx(z), fx(x - w / 2), fx(z - d / 2), fx(x + w / 2), fx(z + d / 2),
-                        0, oid, int(p["id"], 16)])
+            out.append([ROW_PROP, 0, rot, fx(x), fx(y), fx(z), fx(x - w / 2), fx(z - d / 2), fx(x + w / 2),
+                        fx(z + d / 2), 0, oid, int(p["id"], 16)])
             placed.append({"prop": p["name"] or p["exemplar"], "id": p["id"], "at": [x, z], "rotation": rot})
+            if y:
+                placed[-1]["y"] = y
         elif "seasonal_tree" in o:
             hit = [d for d in content._manifest() if d.get("kind") == "seasonal_tree" and not d.get("disabled")
                    and d["name"].lower() == str(o["seasonal_tree"]).strip().lower()]
@@ -370,6 +379,10 @@ def design_prop(name: str, shape: str = "box", width: float = 2.0, depth: float 
             animate(mobj, animation)
         model = s3d.write(mobj)
         textures = [(tex_iid, fsh.write_argb(PT, PT, tex.tobytes()))]
+    if model is not None and not animation:   # one turned copy per view (RKT1): the game draws a prop's model fixed
+        # to the camera, so a sign faces its street only with a copy for each view; animated props keep one model,
+        # as the game's own do
+        baked = [(model_iid + z * 0x100 + r * 0x10, s3d.write(s3d.turned(mobj, r))) for z in range(5) for r in range(4)]
     props = content._drop([dbpf.Property(p.id, p.ptype, list(p.values) if isinstance(p.values, list) else p.values,
                                          p.multi) for p in tpl.props], content.P_RKT1, P_RKT4, content.P_NAME_KEY,
                           P_DATE_START, P_DATE_DAYS, P_DATE_EVERY, P_HOURS)

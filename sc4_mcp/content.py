@@ -240,6 +240,89 @@ def disable(name: str) -> dict:
     return dict(d, note="restart the game for the change to take effect")
 
 
+def upgrade_views(name: str = "") -> dict:
+    """Designs made before models were drawn per view (one model under RKT0, which the game draws the same from
+    every side, so a building faces the camera, not its street) get one turned copy per view under RKT1, as new
+    designs have (s3d.turned; the turn counts the lot's building row rotation). Ids stay the same, so lots in
+    saved cities show the upgraded design after a restart. Animated props keep their one model, as the game's own
+    animated props do. name: one design (default: every active one)."""
+    from . import s3d
+    items = _manifest()
+    upgraded, skipped = [], []
+    for d in items:
+        if d.get("disabled") or (name and d["name"].lower() != name.lower()) or not os.path.exists(d.get("file", "")):
+            continue
+        if d.get("kind") == "park":           # a park's building is an invisible quad: nothing to turn
+            continue
+        D = dbpf.DBPF(d["file"])
+        records = [(e.type, e.group, e.instance, D.read(e)) for e in D if e.type != dbpf.T_DIR]
+        own = {i: data for t, g, i, data in records if t == dbpf.T_S3D and g == G_MODELS}
+        turn = 0                              # the lot's building row rotation (SiMCP's lots 0, the game's 2)
+        for t, g, i, data in records:
+            if t == dbpf.T_EXEMPLAR and g == G_LOTS:
+                for p in dbpf.parse_exemplar(data).props:
+                    if LOT_ROW0 <= p.id <= LOT_ROW0 + 0x4FF and p.multi and p.values and p.values[0] == 0:
+                        turn = p.values[2] % 4
+        models, out, why = {}, [], ""
+
+        def views(base: int, q: int) -> bool:
+            nonlocal why
+            if base not in own or not base:
+                return False
+            if base & 0xFFFF:
+                why = "its model id 0x%08X leaves no room for views" % base
+                return False
+            m = s3d.parse(own[base])
+            for z in range(5):
+                for r in range(4):
+                    models[base + z * 0x100 + r * 0x10] = s3d.write(s3d.turned(m, (r - q) % 4))
+            return True
+
+        for t, g, i, data in records:
+            if t != dbpf.T_EXEMPLAR or g == G_LOTS:
+                out.append((t, g, i, data))
+                continue
+            ex = dbpf.parse_exemplar(data)
+            if any(p.id == 0xE83A081D and p.values and p.values[0] for p in ex.props):   # animated: one model
+                out.append((t, g, i, data))
+                why = why or "animated: the game's animated props have one model"
+                continue
+            q = turn if g != 0xC977C536 else 0    # a prop (lotdesign.G_PROPS) turns with its own row rotation
+            changed = False
+            for p in ex.props:
+                if p.id == P_RKT0 and len(p.values) == 3 and p.values[1] == G_MODELS and views(p.values[2], q):
+                    p.id = P_RKT1
+                    changed = True
+                elif p.id == P_RKT4 and p.multi:
+                    v = list(p.values)
+                    for k in range(0, len(v) - 7, 8):
+                        if v[k + 4] == P_RKT0 and v[k + 6] == G_MODELS and views(v[k + 7], q):
+                            v[k + 4] = P_RKT1
+                            changed = True
+                    p.values = v
+            out.append((t, g, i, dbpf.build_exemplar(ex.props, ex.parent, ex.kind) if changed else data))
+        if not models:
+            if why:
+                skipped.append({"name": d["name"], "why": why})
+            continue
+        out = [r for r in out if not (r[0] == dbpf.T_S3D and r[1] == G_MODELS and r[2] in models)]
+        out += [(dbpf.T_S3D, G_MODELS, i, b) for i, b in sorted(models.items())]
+        try:
+            dbpf.write_dbpf(d["file"], out)
+        except PermissionError:
+            raise ContentError("the game has the design's file open", "quit_game first, then upgrade_designs")
+        d["views"] = "upgraded %s" % time.strftime("%Y-%m-%d %H:%M:%S")
+        upgraded.append(d["name"])
+    if upgraded:
+        _save_manifest(items)
+    if name and not upgraded and not skipped:
+        hit = [d for d in items if d["name"].lower() == name.lower() and not d.get("disabled")]
+        if not hit:
+            raise ContentError("no active design named %r" % name, "content_designs lists them")
+    return {"upgraded": upgraded, "skipped": skipped,
+            "note": "restart the game (quit_game, game_launch) to see them" if upgraded else "nothing to upgrade"}
+
+
 # ------------------------------------------------------------------------------------- stage 2: our own models
 G_MODELS, G_TEXTURES, G_LOT_TEXTURES = 0xBADB57F1, 0x1ABE787D, 0x0986135E
 LOT_COHORT = (dbpf.T_COHORT, G_LOTS, 0xAA1B5002)
@@ -729,7 +812,7 @@ def growable_building(name: str, purpose: str, wealth: int, width: float, depth:
             cx, cz = (r[3] / 65536.0, r[5] / 65536.0) if same_size else (side_x / 2, side_z / 2)
             cx = min(max(cx, width / 2 + 0.5), side_x - width / 2 - 0.5)
             cz = min(max(cz, depth / 2 + 0.5), side_z - depth / 2 - 0.5)
-            new_rows.append(r[:3] + [_fx(cx), r[4], _fx(cz), _fx(cx - width / 2), _fx(cz - depth / 2),
+            new_rows.append(r[:2] + [0, _fx(cx), r[4], _fx(cz), _fx(cx - width / 2), _fx(cz - depth / 2),
                                      _fx(cx + width / 2), _fx(cz + depth / 2)] + r[10:12] + [family])
         elif r[0] == 2 and same_size:
             new_rows.append(r)
@@ -920,35 +1003,50 @@ CIVIC = {   # kind -> (Maxis building (group 0x07BDDF1C), lot cells, {knob: (pro
 }
 
 
+# power plants: the game's plants a city has from the start (solar, nuclear and hydrogen are unlocked by the game's
+# own conditions, which a copy would not inherit); kind -> (the plant building (group 0xC8DBCCBA), lot cells)
+POWER = {"coal_power": (0x1F4D0000, 4), "oil_power": (0x1F420000, 4), "gas_power": (0x1F430000, 4),
+         "wind_power": (0x1F450000, [2, 1])}
+G_POWER_PLANTS = 0xC8DBCCBA
+P_POWER_OUTPUT, P_POWER_TYPE = 0x27812852, 0x27812853       # MWh generated (coal 6000); plant type (coal 1, wind 9)
+
+
 def civic_building(name: str, kind: str, width: float = 10.0, depth: float = 10.0, height: float = 8.0,
-                   wall=(200, 200, 205), roof=(70, 70, 80), lot_cells: int = 0, description: str = "",
+                   wall=(200, 200, 205), roof=(70, 70, 80), lot_cells=0, description: str = "",
                    plop_cost: int | None = None, monthly_cost: int | None = None, ground: str = "concrete",
                    objects: list[dict] | None = None, model_path: str = "", model_scale: float = 1.0,
-                   **numbers) -> dict:
-    """A police, fire, clinic or school building that works as the game's own (its service copied from a Maxis
-    building) with SiMCP's model, name, costs and service numbers (radius_m, strength, capacity - see CIVIC)."""
-    if kind not in CIVIC:
-        raise ContentError("kind is %s" % ", ".join(CIVIC))
-    template, cells, knobs = CIVIC[kind]
+                   parts_model: dict | None = None, replace: bool = False, **numbers) -> dict:
+    """A police, fire, clinic or school building, or a power plant, that works as the game's own (its service
+    copied from a Maxis building) with SiMCP's model, name, costs and service numbers (radius_m, strength, capacity
+    - see CIVIC; output_mwh for a power plant, no more than the game's own plant of its kind: honest play)."""
+    if kind not in CIVIC and kind not in POWER:
+        raise ContentError("kind is %s" % ", ".join(list(CIVIC) + list(POWER)))
+    if kind in POWER:
+        (template, cells), group = POWER[kind], G_POWER_PLANTS
+        knobs = {"output_mwh": (P_POWER_OUTPUT, "power generated, MWh")}
+    else:
+        (template, cells, knobs), group = CIVIC[kind], 0x07BDDF1C
+    _, tpl = _find_exemplar(dbpf.T_EXEMPLAR, template, group)
+    if tpl is None:
+        raise ContentError("the game's %s building (0x%08X) is not in SimCity_1.dat" % (kind, template))
+    costs = {p.id: p.values for p in tpl.props}
     overrides = {}
     for k, v in numbers.items():
         if v is None:
             continue
         if k not in knobs:
             raise ContentError("a %s building takes %s" % (kind, ", ".join(knobs)))
-        if not 0 < float(v) <= (4096 if k == "radius_m" else 100000):
-            raise ContentError("%s is out of range" % k)
-        overrides[knobs[k][0]] = v
-    _, tpl = _find_exemplar(dbpf.T_EXEMPLAR, template, 0x07BDDF1C)
-    if tpl is None:
-        raise ContentError("the game's %s building (0x%08X) is not in SimCity_1.dat" % (kind, template))
-    costs = {p.id: p.values for p in tpl.props}
+        top = costs.get(P_POWER_OUTPUT, [0])[0] if k == "output_mwh" else (4096 if k == "radius_m" else 100000)
+        if not 0 < float(v) <= top:
+            raise ContentError("%s is 1..%d%s" % (k, top, " (the game's own plant of this kind: honest play)"
+                                                  if k == "output_mwh" else ""))
+        overrides[knobs[k][0]] = int(v) if k == "output_mwh" else v
     plop = plop_cost if plop_cost is not None else costs.get(P_PLOP, [500])[0]
     monthly = monthly_cost if monthly_cost is not None else (costs.get(P_MONTHLY) or [20])[0]
     return model_building(name, width, depth, height, wall, roof, True, lot_cells or cells, description, int(plop),
                           int(monthly), template_building=template, ground=ground, objects=objects,
                           model_path=model_path, model_scale=model_scale, overrides=overrides, kind=kind,
-                          template_group=0x07BDDF1C)
+                          template_group=group, parts_model=parts_model, replace=replace)
 
 
 # ---- rewards: a reward building with its own unlock condition (a reward advice, as adv_rewards.lua writes them)

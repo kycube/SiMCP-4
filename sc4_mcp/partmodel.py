@@ -56,10 +56,11 @@ Materials (one of):
 - {"facade": {...}} - an AUTHORED wall (facade.py): windows, doors, bands, friezes, railings, ornaments and
    shingle fields drawn at measured positions in clean colours; stretched over the whole face. The recommended way
    to use a photo: measure from it, draw the facade (crisp, lit consistently) rather than pasting its pixels.
-Options on any material: "glow": true or "#rrggbb" (it shines at night - lamps, lit signs, shop windows; facades
-light their windows themselves), "grain": 0.06 (weathering), "snow": 0..1 (snow on what faces up: winter trees and
-roofs), "wrap": 0..1 (light passing through: foliage), "tint": "#rrggbb" (multiplies), "brightness": 1.0 (photos of walls in shade usually need
-1.2 - 1.5: the renderer lights them again), "remove_color": "#rrggbb" + "tolerance" (photo texels near that colour,
+Options on any material: "glow": true or "#rrggbb" (it shines at night - lamps, lit signs, shop windows; on a
+*_window pattern only its panes shine; facades light their windows themselves), "grain": 0.06 (weathering),
+"snow": 0..1 (snow on what faces up: winter trees and roofs), "wrap": 0..1 (light passing through: foliage), "tint":
+"#rrggbb" (multiplies), "brightness": 1.0 (photos of walls in shade usually need 1.2 - 1.5: the renderer lights them
+again), "remove_color": "#rrggbb" + "tolerance" (photo texels near that colour,
 e.g. the sky beside a narrow turret, are filled from the surrounding wall).
 """
 
@@ -147,6 +148,22 @@ def _shade(c, k):
     return tuple(max(0, min(255, int(x * k))) for x in c)
 
 
+def _window_rect(px: int) -> tuple[int, int, int, int, int]:
+    """The glass of a *_window pattern's one window (x0, x1, y0, y1) and its frame width, in pixels."""
+    return int(px * 0.32), int(px * 0.68), int(px * 0.22), int(px * 0.82), max(2, px // 24)
+
+
+def window_light(color, alpha: int, px: int = 128) -> Image.Image:
+    """The night layer of a *_window pattern: its panes lit (the sash bar dark), the wall around them not."""
+    from PIL import ImageDraw
+    im = Image.new("RGBA", (px, px), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    x0, x1, y0, y1, f = _window_rect(px)
+    d.rectangle([x0, y0, x1, y1], fill=tuple(color[:3]) + (alpha,))
+    d.rectangle([x0, (y0 + y1) // 2 - f // 2, x1, (y0 + y1) // 2 + f // 2], fill=(0, 0, 0, 0))
+    return im
+
+
 def pattern_image(kind: str, color, color2=None, px: int = 64) -> Image.Image:
     if kind in ("clapboard_window", "wall_window"):
         px = 128
@@ -196,9 +213,7 @@ def pattern_image(kind: str, color, color2=None, px: int = 64) -> Image.Image:
                 d.rectangle([0, y0 + px // 8 - max(2, px // 40), px, y0 + px // 8 - 1], fill=_shade(c, 0.78))
         frame = parse_color(color2) if color2 else (214, 210, 196)
         glass = (44, 52, 64)
-        x0, x1 = int(px * 0.32), int(px * 0.68)
-        y0, y1 = int(px * 0.22), int(px * 0.82)
-        f = max(2, px // 24)
+        x0, x1, y0, y1, f = _window_rect(px)
         d.rectangle([x0 - f, y0 - f, x1 + f, y1 + f], fill=frame)
         d.rectangle([x0, y0, x1, y1], fill=glass)
         d.rectangle([x0, (y0 + y1) // 2 - f // 2, x1, (y0 + y1) // 2 + f // 2], fill=frame)
@@ -344,9 +359,14 @@ def make_material(name: str, spec: dict, rect_px_per_m: float = 48.0) -> Materia
     if spec.get("glow"):                     # it shines at night: a lamp globe, a lit sign, a shop window
         g = spec["glow"]
         c = parse_color("#ffd38a" if g is True else g)
-        im = Image.new("RGBA", (4, 4), tuple(c[:3]) + (int(255 * float(spec.get("glow_alpha", 0.95))),))
-        mat.glow = Material(name + " light", im, fit=True)
-        mat.lamp = True                      # a light source: lamp props get the game's light flare there
+        alpha = int(255 * float(spec.get("glow_alpha", 0.95)))
+        if spec.get("pattern") in ("clapboard_window", "wall_window"):    # lit windows: only the panes shine
+            # (sampled at the wall's own texture coordinates, so the light layer has the pattern's layout)
+            mat.glow = Material(name + " light", window_light(c, alpha), fit=True)
+        else:
+            im = Image.new("RGBA", (4, 4), tuple(c[:3]) + (alpha,))
+            mat.glow = Material(name + " light", im, fit=True)
+            mat.lamp = True                  # a light source: lamp props get the game's light flare there
     try:
         mat.wrap = float(spec.get("wrap", 0.0))         # foliage: light wraps past the shaded side (0..1)
         mat.snow = float(spec.get("snow", 0.0))         # snow on its upward faces (0..1): winter trees, roofs

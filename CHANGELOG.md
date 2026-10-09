@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.12.0
+
+The roadmap's last open items (all but U-Drive-It, left out at the user's request). 114 tools.
+
+- **Power plants as designs**: `design_civic_building(kind="coal_power" | "oil_power" | "gas_power" |
+  "wind_power")` copies the base game's plant (output 0x27812852, type, pollution, costs) under its own model;
+  `output_mwh` may lower the output, never raise it. Civic designs take `parts_model`, `lot_depth` and `replace`.
+  "MCP Gas Plant" (built from parts after combined-cycle plants) supplied its 3,000 MWh in MCP Village.
+- **Older designs brought up to date**: `upgrade_designs` gives designs with one model (drawn the same from every
+  side) a turned model per view under the same ids; shape and OBJ props are now made per view (a sign faces its
+  street). Animated props keep one model, as the game's own.
+- **The old simulator stall, prevented where it could start**: the bridge refuses calls to addresses that are not
+  code and to objects that are not live (status -4), counts them (`game_status` calls_refused) - the faults logged
+  after loading a city were such calls. Not reproduced since.
+- **Lots**: props take `"y"` (metres above the ground), as the game's plant lots raise their smoke to the stacks.
+- **Night**: "glow" on a window pattern lights only its panes.
+- Animated props confirmed moving in the game (the earlier snapshots were a whole loop apart).
+
 ## 0.11.0
 
 Phase 11, realism: new content drawn the way the game's own is made, and best practices learned from photographs

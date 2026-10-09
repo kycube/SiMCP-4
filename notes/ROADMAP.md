@@ -29,8 +29,8 @@ L = a day or more, XL = several days.
 ## Phase 8 - real buildings
 
 - [x] Agent-supplied geometry: OBJ + MTL + PNG / JPEG textures, roofs, several parts (M-L)
-- [ ] Night lights for designs (how the game lights a 3D model's windows at night is not found yet)
-- [x] Working civic designs: police, fire, clinic, school with their own coverage, strength / capacity and costs (M) - power plants not yet (their output property is not pinned down)
+- [x] Night lights for designs (Phase 11) - a night layer of DXT3 textures at instance + 0x8000 (lit windows, lamps, glowing materials; window patterns light only their panes); lamp props switch to the game's light flare at night
+- [x] Working civic designs: police, fire, clinic, school with their own coverage, strength / capacity and costs (M); power plants (coal, oil, gas, wind: output 0x27812852 up to the game's plant of that kind) - a gas plant from parts supplied its 3,000 MWh in MCP Village
 - [x] Custom ordinances and budget departments (the installed host DLLs) (M)
 - [x] Rewards with unlock conditions (M) - landmarks are plain ploppables already (design_model_building)
 - [x] New terrain brushes (M) - scaled copies of the game's god-mode brushes
@@ -38,11 +38,11 @@ L = a day or more, XL = several days.
 ## Phase 9 - harder
 
 - [x] God-mode fire torch (L)
-- [x] Animated content: seasonal trees, props by hours and dates (L) - animation frames are written as the game's animated props have them, but neither a Maxis animated prop nor ours was seen to move in snapshots
-- [ ] Sims and pedestrians as models (L) - format read (LIVE_FACTS); making new ones moved to Phase 11
+- [x] Animated content: seasonal trees, props by hours and dates (L); animated props (spin, sway) seen moving - the earlier snapshots were taken a whole loop apart
+- [x] Sims and pedestrians as models (L) - new walkers as sprite atlases (design_walker, Phase 11)
 - [x] Custom My Sim faces (L) - MySims.dat and 36 x 36 pictures in the MySim folder
 - [x] Terrain looks (global) (L) - recoloured ground / beach / cliff textures and a drier or wetter texture table, as one plugin
-- [ ] The old simulator stall (L, needs a reproduction) - not reproduced; the crash log now names the op behind every caught fault, and the faults seen so far are recorded in LIVE_FACTS
+- [x] The old simulator stall (L) - not reproduced; prevented where it could start: the bridge refuses calls to addresses that are not code and to objects that are not live (the faults logged after loading a city were such calls), counts them (game_status calls_refused), and the crash log names the op behind any caught fault
 
 ## Phase 10 - hardest
 
@@ -65,6 +65,7 @@ them.
 - [x] Props: rendered per view (bench, acorn lamp, statue, paths), scaled as the game's; lamps light up at night
 - [x] Vegetation: broadleaf, conifer, palm, shrub of rendered leaf clumps; seasonal trees rendered per season
 - [x] Pedestrians: new walkers rendered as sprite atlases (design_walker), direction order measured
-- [x] A written guide of what worked: guide topic "realism" (best practices 1 - 17)
+- [x] A written guide of what worked: guide topic "realism" (best practices 1 - 18)
+- [x] Older designs brought up to date: upgrade_designs gives single-model designs a turned model per view (the Sign now faces its street), old trees re-rendered; per-view models for shape and OBJ props
 
 U-Drive-It (drivable vehicles, missions) is left out for now, at the user's request.

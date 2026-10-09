@@ -165,6 +165,18 @@ def test_night_layer_for_lit_windows():
     assert all(b[24] == fsh.CODE_DXT3 for b in night.values())
 
 
+def test_window_pattern_lights_only_its_panes():
+    """A *_window pattern with glow lights its glass at night, not the wall around it (and is no lamp); a plain
+    glowing material lights all over and is a lamp."""
+    win = partmodel.make_material("w", {"pattern": "wall_window", "color": "#b0b0b0", "glow": True})
+    a = win.glow.tex[:, :, 3]
+    h, w = a.shape
+    assert a[0, 0] == 0 and a[h // 3, w // 2] > 0.9 and a[h // 2, w // 2] == 0      # wall, pane, sash bar
+    assert not getattr(win, "lamp", False)
+    lamp = partmodel.make_material("l", {"color": "#ffffff", "glow": "#ffe0a0"})
+    assert lamp.lamp and lamp.glow.tex[:, :, 3].min() > 0.9
+
+
 def test_shell_covers_the_picture():
     """A dense model (a tree) goes on a low-poly shell: few vertices, every seen pixel still covered."""
     import numpy as np

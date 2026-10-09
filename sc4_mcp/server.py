@@ -1720,8 +1720,9 @@ def design_park(name: str, objects: list[dict], lot_cells: int = 1, ground: str 
 
     Args:
         name: the park's name, shown in the menu.
-        objects: what stands on it: [{"prop": id or name, "x": m, "z": m, "rotation": 0-3},
-            {"tree": name or id, "x": m, "z": m}, {"seasonal_tree": name, "x": m, "z": m},
+        objects: what stands on it: [{"prop": id or name, "x": m, "z": m, "rotation": 0-3, "y": m above the ground
+            (optional: smoke at a chimney top, a prop on a roof)}, {"tree": name or id, "x": m, "z": m},
+            {"seasonal_tree": name, "x": m, "z": m},
             {"ground": texture name, "x": m, "z": m} (that cell's ground)].
         lot_cells: the lot's size in cells a side (1..6; a cell is 16 m).
         ground: the ground texture of every cell: paving, plaza, concrete, asphalt, grass, lawn, yard, meadow, gravel,
@@ -1736,28 +1737,32 @@ def design_park(name: str, objects: list[dict], lot_cells: int = 1, ground: str 
 @tool(mcp, "act")
 @guarded
 def design_civic_building(name: str, kind: str, radius_m: float | None = None, strength: int | None = None,
-                          capacity: int | None = None, width_m: float = 10.0, depth_m: float = 10.0,
-                          height_m: float = 8.0, wall_rgb: list[int] | None = None, roof_rgb: list[int] | None = None,
-                          lot_cells: int = 0, description: str = "", plop_cost: int | None = None,
-                          monthly_cost: int | None = None, ground: str = "concrete", objects: list[dict] | None = None,
-                          model_path: str = "", model_scale: float = 1.0):
-    """Design a working police station, fire station, clinic or school: it serves the city as the game's own does
-    (its service comes from the game's police kiosk, small fire station, urgent care clinic or K-8 school), with its
-    own model (a block, or your OBJ), name, costs and service numbers. It appears in its service's menu after the
-    game restarts.
+                          capacity: int | None = None, output_mwh: int | None = None, width_m: float = 10.0,
+                          depth_m: float = 10.0, height_m: float = 8.0, wall_rgb: list[int] | None = None,
+                          roof_rgb: list[int] | None = None, lot_cells: int = 0, description: str = "",
+                          plop_cost: int | None = None, monthly_cost: int | None = None, ground: str = "concrete",
+                          objects: list[dict] | None = None, model_path: str = "", model_scale: float = 1.0,
+                          parts_model: dict | None = None, lot_depth: int = 0, replace: bool = False):
+    """Design a working police station, fire station, clinic, school or power plant: it serves the city as the
+    game's own does (its service comes from the game's police kiosk, small fire station, urgent care clinic, K-8
+    school, or coal, oil, natural gas or wind plant - its output, pollution, ageing and costs), with its own model
+    (a block, your OBJ or a parts model), name, costs and service numbers. It appears in its service's menu after
+    the game restarts.
 
     Args:
         name: the building's name.
-        kind: police, fire, clinic or school.
+        kind: police, fire, clinic, school, coal_power, oil_power, gas_power or wind_power.
         radius_m: coverage radius in metres (a cell is 16 m; kiosk 192, fire station / clinic / school 384).
         strength: police or fire coverage strength (kiosk 100, fire station 200).
         capacity: clinic patients or school students at full funding (500 each in the game's buildings).
+        output_mwh: a power plant's output, up to its game plant's (coal 6000, oil 7000, gas 3000, wind 200 MWh).
         width_m: the block's west-east size (ignored with model_path).
         depth_m: the block's north-south size.
         height_m: the block's height.
         wall_rgb: the block's wall colour.
         roof_rgb: the block's roof colour.
-        lot_cells: lot size in cells a side (default: 1, a school 2).
+        lot_cells: lot size in cells a side (default: 1, a school 2, a plant 4, wind 2 x 1); with lot_depth, the
+            cells across the street.
         description: the menu description.
         plop_cost: the plop cost (default: the game building's).
         monthly_cost: the monthly cost (default: the game building's).
@@ -1765,10 +1770,16 @@ def design_civic_building(name: str, kind: str, radius_m: float | None = None, s
         objects: props, trees and grounds on the lot, as for design_park.
         model_path: your OBJ model instead of the block (see design_model_building).
         model_scale: metres per model unit.
+        parts_model: a model of parts rendered as the game's own buildings (guide topic "parts").
+        lot_depth: cells deep, when the lot is not square (lot_cells is then the cells across the street).
+        replace: rebuild the design of this name under its own ids (quit_game first): copies in saved cities show
+            the new model after game_launch (lot objects only on copies placed afterwards).
     """
+    cells = [lot_cells, lot_depth] if lot_cells and lot_depth else lot_cells
     r = _content(content.civic_building, name, kind, width_m, depth_m, height_m, tuple(wall_rgb or (200, 200, 205)),
-                 tuple(roof_rgb or (70, 70, 80)), lot_cells, description, plop_cost, monthly_cost, ground, objects,
-                 model_path, model_scale, radius_m=radius_m, strength=strength, capacity=capacity)
+                 tuple(roof_rgb or (70, 70, 80)), cells, description, plop_cost, monthly_cost, ground, objects,
+                 model_path, model_scale, parts_model, replace, radius_m=radius_m, strength=strength, capacity=capacity,
+                 output_mwh=output_mwh)
     return r
 
 
@@ -2348,6 +2359,20 @@ def disable_design(name: str) -> dict:
         name: the design's name.
     """
     return _content(content.disable, name)
+
+
+@tool(mcp, "act")
+@guarded
+def upgrade_designs(name: str = "") -> dict:
+    """Give designs made by older SiMCP versions a model for every view: they had one model, which the game draws
+    the same from every side (a building faced the camera, not its street; a sign never turned). Each gets a
+    turned copy per view, as new designs have, under its own ids - lots of it in saved cities show the upgrade
+    after a restart. Quit the game first. Animated props keep one model, as the game's own do.
+
+    Args:
+        name: one design (default: every active design that needs it).
+    """
+    return _content(content.upgrade_views, name)
 
 
 @tool(mcp, "destructive")

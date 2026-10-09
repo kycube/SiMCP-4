@@ -260,6 +260,28 @@ static float g_lastFloat;
 
 // floatRet: the function returns float / double in ST0 (popped into g_lastFloat); only for such functions, since
 // popping an empty x87 stack would leave the FPU in a fault state.
+// A call target must be code the game or a DLL loaded (committed, executable image memory), and a `this` pointer
+// readable memory: a stale object or a garbage vtable slot then fails cleanly instead of jumping into the game. (A
+// fault inside game code, even caught, can leave a simulator mid-update - the suspect behind the Phase 3 stall.)
+static bool CodeAddress(DWORD fn) {
+	MEMORY_BASIC_INFORMATION mbi;
+	if (!fn || !VirtualQuery((LPCVOID)(UINT_PTR)fn, &mbi, sizeof(mbi)))
+		return false;
+	const DWORD exec = PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY;
+	return mbi.State == MEM_COMMIT && mbi.Type == MEM_IMAGE && (mbi.Protect & exec) && !(mbi.Protect & PAGE_GUARD);
+}
+
+static bool ReadableAddress(DWORD p) {
+	MEMORY_BASIC_INFORMATION mbi;
+	if (p < 0x10000 || !VirtualQuery((LPCVOID)(UINT_PTR)p, &mbi, sizeof(mbi)))
+		return false;
+	const DWORD rd = PAGE_READONLY | PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE |
+	                 PAGE_EXECUTE_WRITECOPY;
+	return mbi.State == MEM_COMMIT && (mbi.Protect & rd) && !(mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS));
+}
+
+static int g_guardRefused = 0;
+
 static int __declspec(noinline) CallGeneric(DWORD fn, DWORD thisPtr, int nargs, const int *a, bool floatRet = false) {
 	int result, hi;
 	float fr = 0.0f;
@@ -310,7 +332,19 @@ static int CallSequence(int n) {
 			g_bridge.ret[0] = i;
 			return -2;
 		}
+		if ((d[i].nargs & (1 << 15)) && (!ReadableAddress(th) || !ReadableAddress(*(DWORD *)th))) {
+			Msg("call %d: this %08lX is not a live object", i, th);
+			g_bridge.ret[0] = i;
+			g_guardRefused++;
+			return -4;
+		}
 		DWORD fn = (d[i].nargs & (1 << 15)) ? (*(DWORD **)th)[d[i].fn] : d[i].fn;
+		if (!CodeAddress(fn) || (th && !ReadableAddress(th))) {
+			Msg("call %d: %08lX is not code (this %08lX)", i, fn, th);
+			g_bridge.ret[0] = i;
+			g_guardRefused++;
+			return -4;
+		}
 		int args[6];
 		for (int j = 0; j < 6; j++)
 			args[j] = ((ind >> j) & 1) ? *(int *)d[i].args[j] : d[i].args[j];
@@ -331,8 +365,14 @@ static int Execute(DWORD op) {
 		r[0] = BRIDGE_VERSION;
 		r[1] = (int)GetCurrentThreadId();
 		r[2] = (int)(UINT_PTR)g_hModule;
+		r[3] = g_guardRefused;           // calls refused by the address guard since the bridge loaded
 		return 0;
 	case OP_CALL:
+		if (!CodeAddress((DWORD)a[0]) || ((a[1] & 1) && !ReadableAddress((DWORD)a[3]))) {
+			Msg("refused: %08lX is not code, or this %08lX is not a live object", (DWORD)a[0], (DWORD)a[3]);
+			g_guardRefused++;
+			return -4;
+		}
 		r[0] = CallGeneric((DWORD)a[0], (DWORD)a[3], a[2] < 0 ? 0 : (a[2] > 12 ? 12 : a[2]), &a[4], (a[1] & 2) != 0);
 		r[1] = g_lastEdx;
 		r[2] = *(int *)&g_lastFloat;   // with conv bit 1: the float result
@@ -343,6 +383,11 @@ static int Execute(DWORD op) {
 		if (g_bridge.state.deferDone != g_bridge.state.deferPosted) {
 			Msg("a deferred call is still running");
 			return -3;
+		}
+		if (!CodeAddress((DWORD)a[0]) || ((a[1] & 1) && !ReadableAddress((DWORD)a[3]))) {
+			Msg("refused: %08lX is not code, or this %08lX is not a live object", (DWORD)a[0], (DWORD)a[3]);
+			g_guardRefused++;
+			return -4;
 		}
 		g_defer.kind = 0;
 		g_defer.fn = (DWORD)a[0];

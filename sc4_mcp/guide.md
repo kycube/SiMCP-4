@@ -218,8 +218,13 @@ there is demand.
   the imported model; its size times model_scale (metres) must fit the lot.
 - `design_civic_building(name, kind, radius_m, strength, capacity, ...)` makes a working police station, fire
   station, clinic or school: it serves the city as the game's own (its service is copied from the game's
-  building) with its own model (block or OBJ), name, costs, coverage radius and strength or capacity, and
-  appears in its service's menu. Fund it like any other (set_building_funding).
+  building) with its own model (block, OBJ or `parts_model`), name, costs, coverage radius and strength or
+  capacity, and appears in its service's menu. Fund it like any other (set_building_funding). Power plants too:
+  kind `coal_power`, `oil_power`, `gas_power` or `wind_power` copies the base game's plant of that kind (output,
+  pollution, ageing, costs; lot 4 x 4, wind 2 x 1) - `output_mwh` can lower its output, never raise it above the
+  game's own (honest play); solar, nuclear and hydrogen are left out because the game unlocks them by its own
+  conditions. Raise its smoke to the stacks as the game's plant lots do: objects
+  `{"prop": "0x2A94B0DB", "x": m, "z": m, "y": stack height}` (gas smoke; 0x005B0000 is the oil plants' smoke).
 - `design_reward(name, condition, requirement, ...)` makes a reward the city earns: locked (greyed, with your
   requirement text) until `condition` - a read-only expression like an advice trigger, e.g.
   `game.g_city_r_population > 5000 and game.g_mayor_rating > 60` - is true, then available in the Rewards menu,
@@ -243,14 +248,18 @@ there is demand.
   mid-season shows that tree from the next season change on. `design_prop(..., hours=[19, 6])` shows a prop
   only at those hours of the game's day (at night here; the game's day / night cycle must run - forced day or
   night freezes it), `dates={"start": [12, 1], "days": 31}` only on those dates every year, and
-  `animation="spin"` / `"sway"` gives it animation frames like the game's animated props. Flora planted with
-  plant_trees never changes: the game runs no growth or succession for trees.
+  `animation="spin"` / `"sway"` gives it animation frames like the game's animated props (it moves on the
+  game's draw clock, paused or not; a loop is 2 s, so snapshots a whole number of loops apart look the same).
+  Flora planted with plant_trees never changes: the game runs no growth or succession for trees.
+- Lot objects take `"y"`: metres above the ground for a prop (smoke at a chimney top, a prop on a roof).
 - `design_advice(name, advisor, title, message, trigger)` writes advice or a news headline for the advisors (a
   Lua package like the game's own): it appears when its trigger - a read-only expression such as
   `game.g_city_r_population > 1000` - is true. #city# in the text becomes the city's name.
 - Designs are plugin files in SiMCP's own Plugins folder (`content_designs()`); the game loads them at start-up, so
   `quit_game()` and `game_launch()` before they appear in `build_menu()`. `disable_design(name)` (with the game
-  closed) moves a design's file aside.
+  closed) moves a design's file aside. `upgrade_designs()` (game closed) brings designs made by older SiMCP
+  versions up to date: a single model, which the game draws the same from every side, becomes a turned model per
+  view, under the same ids (lots in saved cities show it after a restart).
 
 ## Buildings from parts (photo to building)
 
@@ -320,7 +329,9 @@ Colour and material
 Night
 9. Lit windows make a building belong at night: facades light a share of their windows ("night": {"lit":
    0.65}) and lamps ({"type": "lamp", ...}); the game lays this light over the building a few seconds after
-   dusk. A building without lights sits dark among lit neighbours.
+   dusk. A building without lights sits dark among lit neighbours. "glow" on a wall_window / clapboard_window
+   pattern lights only its panes (a plain glowing material lights all over: keep that for lamps, signs and
+   warning lights - a red ring at a stack's top reads at night).
 
 The lot
 10. Dress lots as Maxis does: the natural lawn ground "yard" (the striped "lawn" is a sports field), shrubs along
@@ -362,6 +373,13 @@ Pedestrians
 17. design_walker draws a person as the game's walkers are: about life size at the two closest zooms, 8
     directions x 8 walk frames, a short shadow. Clothes in everyday colours (navy, grey, denim, a few warm
     tops) read as a crowd; one bright colour on everyone looks like a uniform.
+
+Industry
+18. Industrial buildings beside the game's own look grimy, not new: greyed colours (cladding about #b3b5b1,
+    roofs #75797a), weathering 0.1 - 0.12, roof clutter (vents, ducts, a pipe rack) and the game's own smoke
+    props raised to the stack tops (lot objects with "y"). A plant's parts: a long hall with a band of high
+    windows, boxy process units, tall stacks with a dark band and a red ring at the top, tanks, cooling cells
+    with fan shrouds, a transformer yard toward the street.
 
 ## Cheats
 

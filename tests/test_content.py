@@ -194,6 +194,30 @@ def test_lot_rows_and_props(tmp_path, monkeypatch):
     lrows = [pr.values for pr in lot.props if content.LOT_ROW0 <= pr.id <= 0x88EDCDFF]
     assert [x[0] for x in lrows] == [0, 2, 1] and lrows[2][12] == int(p["prop"], 16)
     assert r["kind"] == "park"
+    # a shape prop has a turned model per view (RKT1); one written before that (RKT0, one model) is upgraded in place
+    base = int(p["model"], 16)
+    d = dbpf.DBPF(p["file"])
+    recs = [(e.type, e.group, e.instance, d.read(e)) for e in d if e.type != dbpf.T_DIR]
+    assert sorted(i - base for t, g, i, _ in recs if t == dbpf.T_S3D) == [z * 0x100 + v * 0x10 for z in range(5)
+                                                                         for v in range(4)]
+    old = []
+    for t, g, i, data in recs:
+        if t == dbpf.T_EXEMPLAR:
+            ex = dbpf.parse_exemplar(data)
+            for pr in ex.props:
+                if pr.id == content.P_RKT1:
+                    pr.id = content.P_RKT0
+            data = dbpf.build_exemplar(ex.props, ex.parent)
+        if t != dbpf.T_S3D or i == base + 0x20:          # the camera-facing copy stands for the old single model
+            old.append((t, g, base if t == dbpf.T_S3D else i, data))
+    dbpf.write_dbpf(p["file"], old)
+    u = content.upgrade_views("Test Post")
+    assert u["upgraded"] == ["Test Post"]
+    d = dbpf.DBPF(p["file"])
+    ex = [dbpf.parse_exemplar(d.read(e)) for e in d if e.type == dbpf.T_EXEMPLAR][0]
+    assert ex.get(content.P_RKT1) and not ex.get(content.P_RKT0)
+    assert len([e for e in d if e.type == dbpf.T_S3D]) == 20
+    assert content.upgrade_views("Test Post")["upgraded"] == []                 # already per view
 
 
 def test_obj_import(tmp_path):
@@ -237,6 +261,16 @@ def test_civic_design(tmp_path, monkeypatch):
         content.civic_building("Bad", "fire", capacity=10)         # fire has no capacity knob
     with pytest.raises(content.ContentError):
         content.civic_building("Bad", "bakery")
+    # a power plant: the game's coal plant's output, type, pollution and price, less output if asked, never more
+    r = content.civic_building("Test Plant", "coal_power", 30, 30, 24, output_mwh=4500)
+    d = dbpf.DBPF(r["file"])
+    ex = [dbpf.parse_exemplar(d.read(e)) for e in d if e.type == dbpf.T_EXEMPLAR and e.group == content.G_SIMCP_BUILDINGS][0]
+    assert ex.get(content.P_POWER_OUTPUT) == 4500 and ex.get(content.P_POWER_TYPE) == 1
+    assert ex.get(content.P_PLOP) == 10000 and r["lot_cells"] == 4 and ex.get(content.P_RKT1)
+    with pytest.raises(content.ContentError):
+        content.civic_building("Bad", "coal_power", output_mwh=6001)    # more than the game's own coal plant
+    w = content.civic_building("Test Wind", "wind_power", 6, 6, 30)
+    assert w["lot_cells"] == [2, 1]
 
 
 def test_reward_design(tmp_path, monkeypatch):

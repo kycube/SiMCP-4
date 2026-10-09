@@ -99,8 +99,44 @@ def _lot(p, lot: int) -> dict:
             "building_id": "0x%08X" % biid if biid else None, "_iid": biid}
 
 
+# developer types (residents or jobs by purpose and wealth); lot slot 53 GetPopulation(type), slot 50
+# GetCapacity(type, force) (Windows order; verified on a house 5/5, a factory 4/5 jobs, shops 31/32 jobs)
+DEV_TYPES = {0x1010: "R$", 0x1020: "R$$", 0x1030: "R$$$", 0x3110: "CS$", 0x3120: "CS$$", 0x3130: "CS$$$",
+             0x3320: "CO$$", 0x3330: "CO$$$", 0x4100: "IR", 0x4200: "ID", 0x4300: "IM", 0x4400: "IHT"}
+LOT_POPULATION, LOT_CAPACITY = 53, 50
+_ZONE_DEVS = {"residential": (0x1010, 0x1020, 0x1030), "commercial": (0x3110, 0x3120, 0x3130, 0x3320, 0x3330),
+              "industrial": (0x4200, 0x4300, 0x4400), "agriculture": (0x4100,)}
+
+
+def _devs(zone) -> tuple:
+    z = str(zone)
+    return next((v for k, v in _ZONE_DEVS.items() if z.startswith(k)), ())
+
+
+def occupancy_many(g, items: list[tuple[int, str]]) -> list[dict]:
+    """[(lot pointer, zone name)] -> [{group: {"occupied": n, "capacity": m}}] in batched calls."""
+    b = g.bridge
+    calls, keys = [], []
+    for i, (lot, zone) in enumerate(items):
+        for dt in _devs(zone):
+            calls.append((LOT_POPULATION, lot, [dt], 1 << 15))
+            calls.append((LOT_CAPACITY, lot, [dt, 0], 1 << 15))
+            keys.append((i, dt))
+    out = [dict() for _ in items]
+    for c in range(0, len(calls), 16):          # a call sequence reports 16 results
+        r = b.call_sequence(calls[c:c + 16])
+        if not r.ok:
+            break
+        for j in range(0, min(16, len(calls) - c), 2):
+            i, dt = keys[(c + j) // 2]
+            pop, cap = r.ret[j] & 0xFFFF, r.ret[j + 1] & 0xFFFF
+            if pop or cap:
+                out[i][DEV_TYPES[dt]] = {"occupied": pop, "capacity": cap}
+    return out
+
+
 def lots(g, zone: str | None = None, x0: int = 0, z0: int = 0, x1: int = 1 << 30, z1: int = 1 << 30,
-         names: bool = True, limit: int = 2000) -> dict:
+         names: bool = True, limit: int = 2000, occupancy: bool = False) -> dict:
     p = g.proc
     LM = p.u32(memory.G_LOT_MANAGER)
     sent = p.u32(LM + 0x5C)
@@ -115,13 +151,20 @@ def lots(g, zone: str | None = None, x0: int = 0, z0: int = 0, x1: int = 1 << 30
         if d["rect"][2] < x0 or d["rect"][0] > x1 or d["rect"][3] < z0 or d["rect"][1] > z1:
             continue
         if len(out) < limit:
+            d["_lot"] = lot
             out.append(d)
     if names:
         for d in out:
             if d["_iid"]:
                 d["building"] = building_name(g, d["_iid"])
+    if occupancy:
+        occ = occupancy_many(g, [(d["_lot"], d["zone"]) for d in out])
+        for d, o in zip(out, occ):
+            if o:
+                d["occupancy"] = o
     for d in out:
         d.pop("_iid", None)
+        d.pop("_lot", None)
     return {"count": p.u32(LM + 0x64), "listed": len(out), "lots": out}
 
 
@@ -133,6 +176,9 @@ def lot_info(g, x: int, z: int) -> dict | None:
     if d["_iid"]:
         d["building"] = building_name(g, d["_iid"])
     d.pop("_iid", None)
+    o = occupancy_many(g, [(lot, d["zone"])])[0]
+    if o:
+        d["occupancy"] = o
     return d
 
 

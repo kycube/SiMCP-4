@@ -742,9 +742,11 @@ def demand() -> dict:
 
 @tool(mcp, "read")
 @guarded
-def lots(zone: str = "", x0: int = 0, z0: int = 0, x1: int = -1, z1: int = -1, limit: int = 500) -> dict:
+def lots(zone: str = "", x0: int = 0, z0: int = 0, x1: int = -1, z1: int = -1, limit: int = 500,
+         occupancy: bool = False) -> dict:
     """The lots of the open city with their building: position, size, facing, zone, wealth, state (occupied,
-    abandoned, under construction...), historical, power, and the building's name and exemplar id.
+    abandoned, under construction...), historical, power, the building's name and exemplar id, and optionally how
+    full each one is (residents or jobs against capacity, per wealth group).
 
     Args:
         zone: only lots of this zone (e.g. "residential_low", "industrial_high", "plopped"); "" = all.
@@ -753,10 +755,11 @@ def lots(zone: str = "", x0: int = 0, z0: int = 0, x1: int = -1, z1: int = -1, l
         x1: east edge (inclusive; -1 = the city's edge).
         z1: south edge (inclusive; -1 = the city's edge).
         limit: at most this many lots in the answer (count always gives the total).
+        occupancy: add residents / jobs and capacity per lot (a few game calls per lot).
     """
     g = _city()
     return city.lots(g, zone or None, x0, z0, x1 if x1 >= 0 else 1 << 30, z1 if z1 >= 0 else 1 << 30,
-                     limit=limit)
+                     limit=limit, occupancy=occupancy)
 
 
 @tool(mcp, "act")

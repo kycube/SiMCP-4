@@ -406,3 +406,8 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   "Building". One game exit (pid 43732) left no trace in the event log; the bridge now writes faults raised in the
   game's own code to `<SiMCP home>\crash.log` (vectored handler; pid, address, registers, return addresses), and
   game_status reports them - none since.
+- **Occupancy per lot**: lot slot 53 GetPopulation(developer type) and slot 50 GetCapacity(type, force) (Windows
+  order: 50 / 52 are the (type, bool) overloads, 51 the wealth one): White Modular House R$ 5 / 5, "Burner" ID 4 / 5
+  jobs, Small Shops CS$ 31 / 32 jobs; types R$ 0x1010 .. R$$$ 0x1030, CS$ 0x3110 .. CS$$$ 0x3130, CO$$ 0x3320,
+  CO$$$ 0x3330, IR 0x4100, ID 0x4200, IM 0x4300, IHT 0x4400. lots(occupancy=true) reads 190 lots in 3.5 s (a call
+  sequence reports at most 16 results, so 8 lots-and-types per frame).

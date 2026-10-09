@@ -62,7 +62,7 @@ All tools have openWorldHint false (they act on the local game only).
 | [`loans`](#loans) | read | The city's loans (principal, monthly payment, what is left to pay, when they end) and the bank's limits. |
 | [`take_loan`](#take_loan) | act | Take a loan from the bank, as the Loans window does: 5,000 to 100,000 in steps of 5,000, within the game's limits (number of loans and total borrowing). |
 | [`demand`](#demand) | read | Residential, commercial and industrial demand per wealth group, as the game's demand graph shows it, with the share blocked by caps, plus the number of residents. |
-| [`lots`](#lots) | read | The lots of the open city with their building: position, size, facing, zone, wealth, state (occupied, abandoned, under construction...), historical, power, and the building's name and exemplar id. |
+| [`lots`](#lots) | read | The lots of the open city with their building: position, size, facing, zone, wealth, state (occupied, abandoned, under construction...), historical, power, the building's name and exemplar id, and optionally how full each one is (residents or jobs against capacity, per wealth group). |
 | [`make_historical`](#make_historical) | act | Make a zoned building historical (or not), as the "Make Historical" button of its query window does: the game will not redevelop or replace it (it can still be abandoned or bulldozed). |
 | [`advisors`](#advisors) | read | What the city's advisors say now: each advisor's mood and current messages (title, mood, priority, text) - the same advice the game shows in its advisor panel, popups and news ticker. |
 | [`build_menu`](#build_menu) | read | What the player can plop now, from the game's build menus (with plugins): each item's name, lot and building ids, menus, size in cells, plop cost, monthly cost, and whether the menu offers it (available=false: greyed - a locked reward, a population or era requirement, an exclusion). |
@@ -547,7 +547,7 @@ No parameters.
 
 *read*
 
-The lots of the open city with their building: position, size, facing, zone, wealth, state (occupied, abandoned, under construction...), historical, power, and the building's name and exemplar id.
+The lots of the open city with their building: position, size, facing, zone, wealth, state (occupied, abandoned, under construction...), historical, power, the building's name and exemplar id, and optionally how full each one is (residents or jobs against capacity, per wealth group).
 
 | parameter | type | default | description |
 |---|---|---|---|
@@ -557,6 +557,7 @@ The lots of the open city with their building: position, size, facing, zone, wea
 | `x1` | integer | `-1` | east edge (inclusive; -1 = the city's edge). |
 | `z1` | integer | `-1` | south edge (inclusive; -1 = the city's edge). |
 | `limit` | integer | `500` | at most this many lots in the answer (count always gives the total). |
+| `occupancy` | boolean | `false` | add residents / jobs and capacity per lot (a few game calls per lot). |
 
 ## make_historical
 

@@ -58,7 +58,8 @@ Everything is read from the game's memory, never from screenshots:
   8 south) and the connections to neighbour cities; `traffic=true` adds the busiest cells with their trips by
   travel type, and `map_data("traffic_volume")` gives the trips through every cell. `find_route(x0, z0, x1, z1)` gives the cells a car (or one
   network) follows between two places - an error means they are not connected.
-- `lots(zone, area)` - lots and their buildings (name, zone, wealth, state such as abandoned or under construction).
+- `lots(zone, area, occupancy=true)` - lots and their buildings (name, zone, wealth, state such as abandoned or under
+  construction) and how full each is (residents or jobs against capacity); `tile_info` shows it for one lot.
 - `advisors()` - what each advisor says now, with mood and priority; read it every few months.
 
 - `graphs()` - the game's Graphs window: every graph's lines with their latest value; `graph_data(series)` - the

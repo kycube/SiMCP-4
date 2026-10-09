@@ -103,8 +103,71 @@ def _check_cells(g, points):
     return c
 
 
+T_BRIDGES, BRIDGE_ENTRY, BRIDGE_NAME = 0x358, 0x178, 0x15C   # tool -> bridge table (+0x30 entries, after Init)
+
+
+def bridge_names(k: _Caller, t: int) -> dict[int, str]:
+    """The tool's bridge table: bridge id -> the name the bridge chooser shows (GetBridgeName, slot 35, reads it
+    from entry +0x15C of the 0x178-byte entries at [[tool + 0x358] + 0x30])."""
+    p = k.p
+    obj = p.u32(t + T_BRIDGES)
+    if not obj:
+        return {}
+    base, end = p.u32(obj + 0x30), p.u32(obj + 0x34)
+    out = {}
+    if base and 0 < end - base <= BRIDGE_ENTRY * 512:
+        for i in range((end - base) // BRIDGE_ENTRY):
+            ptr = p.u32(base + i * BRIDGE_ENTRY + BRIDGE_NAME)
+            out[i] = p.read(ptr, 96).split(b"\0")[0].decode("latin-1").strip() if ptr else ""
+    return out
+
+
+T_STEPS, T_CELLS = 0x54, 0x60        # the drag's steps {?, cell index, type} and cells {x, z} (NAM DLL stubs)
+STEP_BRIDGE, STEP_PORTAL, STEP_UNDER = 1, 2, 3
+
+
+def spans(k: _Caller, t: int) -> dict:
+    """Bridges and tunnels the tool's solver put on the drag: each step's type (0 ground, 1 bridge, 2 tunnel
+    portal, 3 under ground) with its cell."""
+    p = k.p
+    sb, se = struct.unpack("<II", p.read(t + T_STEPS, 8))
+    cb, ce = struct.unpack("<II", p.read(t + T_CELLS, 8))
+    if not (sb and cb and 0 <= se - sb <= 12 * 4096 and 0 <= ce - cb <= 8 * 4096):
+        return {}
+    raw_s, raw_c = p.read(sb, se - sb), p.read(cb, ce - cb)
+    cells = [struct.unpack_from("<ii", raw_c, i) for i in range(0, len(raw_c), 8)]
+    out: dict = {}
+    run, kind = [], None
+    for i in range(0, len(raw_s), 12):
+        _, ci, typ = struct.unpack_from("<III", raw_s, i)
+        cell = list(cells[ci]) if ci < len(cells) else None
+        k_ = "bridge" if typ == STEP_BRIDGE else "tunnel" if typ in (STEP_PORTAL, STEP_UNDER) else None
+        if k_ != kind and run:
+            out.setdefault(kind + "s", []).append({"from": run[0], "to": run[-1], "cells": len(run)})
+            run = []
+        kind = k_
+        if k_ and cell:
+            run.append(cell)
+    if run and kind:
+        out.setdefault(kind + "s", []).append({"from": run[0], "to": run[-1], "cells": len(run)})
+    return out
+
+
+def _pick_bridge(choices: list[int], names: dict[int, str], bridge) -> int:
+    """bridge: a choice number, or (part of) a bridge's name; -1 / "" = the first choice."""
+    if isinstance(bridge, str) and bridge.strip() and not bridge.strip().lstrip("-").isdigit():
+        want = bridge.strip().lower()
+        hits = [i for i, c in enumerate(choices) if names.get(c, "").lower() == want] or \
+               [i for i, c in enumerate(choices) if want in names.get(c, "").lower()]
+        if not hits:
+            raise BuildError("no bridge %r here" % bridge, "build_it=false lists the bridges offered")
+        return hits[0]
+    n = int(bridge) if str(bridge).strip() else -1
+    return n if 0 <= n < len(choices) else 0
+
+
 def _leg(k: _Caller, t: int, typ: int, a: tuple[int, int], b: tuple[int, int], width: int, build: bool,
-         connect_neighbor: bool, bridge: int) -> dict:
+         connect_neighbor: bool, bridge) -> dict:
     """One drag from cell a to cell b, as the network tool's UI does it (preview 0x645640, commit 0x645370)."""
     p, s = k.p, k.s
     (x0, z0), (x1, z1) = a, b
@@ -141,6 +204,10 @@ def _leg(k: _Caller, t: int, typ: int, a: tuple[int, int], b: tuple[int, int], w
     place(0, 0)
     cost = k.v(t, NT_COST)
     out["cost"] = cost
+    try:
+        out.update(spans(k, t))
+    except Exception:  # noqa: BLE001 - a report only
+        pass
     if k.v(t, NT_FAILED) & 0xFF:
         out.update(possible=False, reason=k.text_out(t, NT_FAILURE_TEXT) or "the game refuses this route")
         return out
@@ -150,8 +217,10 @@ def _leg(k: _Caller, t: int, typ: int, a: tuple[int, int], b: tuple[int, int], w
         b0, b1 = struct.unpack("<II", p.read(s + S_BRIDGES, 8))
         choices = list(struct.unpack("<%di" % ((b1 - b0) // 4), p.read(b0, b1 - b0))) if 0 < b1 - b0 < 256 else []
         if choices:
-            pick = bridge if 0 <= bridge < len(choices) else 0
-            out.update(bridge_choices=len(choices), bridge=pick)
+            names = bridge_names(k, t)
+            pick = _pick_bridge(choices, names, bridge)
+            out.update(bridge_choices=[names.get(c) or "bridge %d" % c for c in choices], bridge=pick,
+                       bridge_name=names.get(choices[pick], ""))
             preferred = choices[pick]
             prepare(preferred)
             place(0, 0)
@@ -179,7 +248,7 @@ def _leg(k: _Caller, t: int, typ: int, a: tuple[int, int], b: tuple[int, int], w
 
 
 def network(g, kind: str, points: list[tuple[int, int]], build: bool = True, connect_neighbor: bool = False,
-            bridge: int = -1) -> dict:
+            bridge=-1) -> dict:
     """Drag a network from cell to cell through `points`, one drag per leg, as the player does with the game's
     network tool: the game's path solver lays each leg (the end may be clipped), its cost is charged to the city's
     funds (WithdrawFunds; a leg the city cannot pay is not built) and it is built with the usual construction.

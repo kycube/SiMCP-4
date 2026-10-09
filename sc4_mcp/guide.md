@@ -158,6 +158,11 @@ there is demand.
   `place_puzzle_piece(hid, x, z)` places it with its handle on that cell, charged like the player's tool.
   Check first with build=false: the result's cells are where it lands (NAM's FLEX pieces sit a cell off their
   handle). auto_fit tries neighbouring cells and other rotations, as the tool does under the pointer.
+- Bridges and tunnels come with build_network: over water the leg lists `bridge_choices` (names, as the
+  bridge chooser shows them) and `bridge="Stone Arch"` picks one; a drag into a steep hill becomes a tunnel
+  where the game's solver makes one. Each leg reports its `bridges` and `tunnels` (from, to, cells).
+  `bridges(query)` lists every bridge the game loads; `design_bridge(name, base, height_m)` copies one under a
+  new name with its deck higher or lower (after a restart it is in the choices).
 - New puzzle pieces: lay ground networks (roads, streets, avenues, one-way, dirt, rail...) in an empty corner
   with build_network, then `design_puzzle_piece(name, x0, z0, x1, z1)` makes them a piece: the cells keep the
   tiles they show and their traffic paths, and the cells whose networks leave the rectangle stay ordinary

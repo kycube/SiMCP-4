@@ -11,7 +11,7 @@ import os
 from mcp.server.fastmcp import FastMCP, Image
 
 from . import game as gamemod
-from . import brushdesign, build, catalog, cheats, city, content, disasters, economy, heightmap, history, launch, layers, lotdesign, luaquery, netdesign, orddesign, housekeeping, memory, mysim, neighbors, networks, options, pointer, puzzle, regions, services, terrain, terrainlook, trees, udi, vehicles, view
+from . import bridgedesign, brushdesign, build, catalog, cheats, city, content, disasters, economy, heightmap, history, launch, layers, lotdesign, luaquery, netdesign, orddesign, housekeeping, memory, mysim, neighbors, networks, options, pointer, puzzle, regions, services, terrain, terrainlook, trees, udi, vehicles, view
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -983,7 +983,7 @@ def plop(building: str, x: int, z: int, facing: str = "north") -> dict:
 @tool(mcp, "act")
 @guarded
 def build_network(network: str, points: list[list[int]], build_it: bool = True, connect_neighbor: bool = False,
-                  bridge: int = -1) -> dict:
+                  bridge: str = "") -> dict:
     """Build a road, rail, pipe, power line or other network through cells, as the player drags it: one drag per
     leg between consecutive points, laid by the game's own path solver (diagonals and curves as the game makes
     them), each leg's cost charged to the funds (a leg the city cannot pay is not built).
@@ -995,7 +995,8 @@ def build_network(network: str, points: list[list[int]], build_it: bool = True, 
             an existing road, start or end ON one of its cells (a drag beside it does not connect).
         build_it: false = only report each leg's cost and whether the game allows it.
         connect_neighbor: at the city edge, accept the game's offer to connect to the neighbour city.
-        bridge: over water, which of the game's bridge choices to build (index; -1 = the game's default).
+        bridge: over water, which bridge to build: a name from the leg's bridge_choices (or part of it, e.g.
+            "Stone Arch") or its number; "" = the first. build_it=false lists the bridges offered.
     """
     out = _build(build.network, network, [tuple(q) for q in points], build_it, connect_neighbor, bridge)
     if build_it and isinstance(out, dict) and out.get("built"):
@@ -1876,6 +1877,44 @@ def design_puzzle_piece(name: str, x0: int, z0: int, x1: int, z1: int, cost: int
     d.pop("rul0", None)
     d.pop("ring", None)
     return d
+
+
+@tool(mcp, "read")
+@guarded
+def bridges(query: str = "") -> dict:
+    """The bridges the game loads (its own, NAM's and other plugins'), with the name the bridge chooser shows. Which
+    of them a drag can use depends on the network and the crossing: build_network(..., build_it=false) lists the
+    ones offered there.
+
+    Args:
+        query: words in the name.
+    """
+    try:
+        every = bridgedesign.bridges()
+    except bridgedesign.BridgeError as e:
+        return {"error": str(e), "hint": e.hint}
+    q = query.strip().lower()
+    out = [{k: v for k, v in b.items() if not k.startswith("_") and k != "file"} for b in every
+           if not q or q in b["name"].lower() or q in b["exemplar"].lower()]
+    return {"count": len(out), "bridges": out[:200]}
+
+
+@tool(mcp, "act")
+@guarded
+def design_bridge(name: str, base: str, height_m: float = -1.0) -> dict:
+    """A new bridge: a copy of one the game offers (its pieces and look) under a new name, optionally with its deck
+    at another height above the water. It joins the game's bridge lists when SiMCP next starts the game
+    (quit_game, game_launch); then build_network(..., bridge=name) builds it wherever its base would fit.
+
+    Args:
+        name: the bridge's name, as the bridge chooser will show it.
+        base: the bridge it copies (a name from bridges() or a drag's bridge_choices, e.g. "Stone Arch").
+        height_m: the deck's height above the water in metres (0-200; -1 keeps the base's).
+    """
+    try:
+        return bridgedesign.design_bridge(name, base, None if height_m < 0 else height_m)
+    except (bridgedesign.BridgeError, content.ContentError) as e:
+        return {"error": str(e), "hint": e.hint}
 
 
 @tool(mcp, "act")

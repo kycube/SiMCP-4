@@ -127,6 +127,11 @@ class Game:
             self.rul0 = netdesign.merge_rul0()
         except Exception as e:                 # never stops the game from starting
             self.rul0 = {"error": str(e)}
+        from . import bridgedesign
+        try:                                   # and SiMCP's bridges the network INI's bridge lists
+            self.rul0.update(bridgedesign.merge_network_ini())
+        except Exception as e:
+            self.rul0["network_ini_error"] = str(e)
         t0 = time.time()
         # Another SimCity 4 (the player's own, possibly elevated) may be open: run beside it.
         self.popen = launch.launch(windowed=windowed, resolution=(width, height), intro=intro,
@@ -139,7 +144,8 @@ class Game:
         # The region view registers its commands (LoadRegion, LoadCity...) when it is up: wait for it.
         self._wait_state(1, max(5.0, timeout - (time.time() - t0)))
         out = {"launched": True, "seconds": round(time.time() - t0, 1), **self.status()}
-        if self.rul0.get("pieces") or self.rul0.get("error"):
+        if self.rul0.get("pieces") or self.rul0.get("error") or self.rul0.get("bridges") or \
+                self.rul0.get("network_ini_error"):
             out["puzzle_pieces"] = self.rul0          # SiMCP's pieces joined the game's RUL0 (or why not)
         return out
 

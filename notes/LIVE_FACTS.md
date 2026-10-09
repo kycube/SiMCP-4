@@ -781,3 +781,26 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   cars a month crossed its copied T tile and 4 its copied straight - the turned paths carry traffic.
 - **save_city right after a capture** once failed with SendMessageTimeout (error 5) while its "City Saved" notice
   was open; the save itself had finished.
+- **Bridges**: over water the network tool offers bridge ids (GetPossibleBridges); each is an index into the tool's
+  bridge table: [[tool + 0x358] + 0x30] (0x358 points at the network type info 0xB452C8 + type * 0x114, set in
+  Init), entries of 0x178 bytes with the shown name at +0x15C (GetBridgeName, slot 35) and the icon key at +0x148
+  (slot 40). Road here: 41 (the game's 9, NAM's and the user's bridge plugins: Pont Neuf, Tower Bridge...); rail 39,
+  avenue 38. The table is read once from the network INI (type 0, group 0x8A5971C5, instance 0x8A5993B9 - NAM's
+  controller overrides the game's) by 0x6253D0: [RoadBridgeExemplars], [AvenueBridgeExemplars]... lines "n =
+  0x6534284a, 0xa82ca30f, instance, comment". Bridges are type 7 exemplars in group 0xA82CA30F (name text
+  0x482CD466, icon 0x482CB46F, deck height 0x482CB441, pieces 0x482CB443 / 445 / 449). Live: SiMCP's island tile
+  with a canyon cut by the god-mode canyon brush took two 1,400 bridges; "MCP River" (a one-tile region imported
+  with a 230 m river band in 280 m land) took a Stone Arch picked by name (19 cells, 2,020). A bridge exemplar
+  alone is not offered: "MCP Granite Arch" (Stone Arch copied, deck 30 m) appeared - id 41, 42 road bridges -
+  only once SiMCP's merged network INI (zzz_SiMCP\\SiMCP_NetworkINI.dat, rebuilt at game_launch) listed it; built,
+  it stood on taller piers than the Stone Arch beside it. Bridge cost barely depends on the type here: Level Road,
+  Stone Arch both 2,020 for that crossing; doubling the copy's 0x8A2602B9 (320 to 640) added 7.
+- **Tunnels**: the network tool's solver makes them on its own (no dialog) when a drag meets a steep hill: in "MCP
+  Tunnel" (one tile imported with a ridge rising 280 to 360 m over 8 cells) road, rail and avenue drags went under
+  it. The drag's steps (tool +0x54: {?, cell index, type}; cells at +0x60, {x, z}) carry the type: 0 ground,
+  1 bridge, 2 tunnel portal, 3 under ground; the built road had portal pieces (piece id 0) at both ends and no
+  occupants between. build_network reports bridges and tunnels per leg from these steps.
+- **Terrain brushes in god mode are strong**: canyon along five cells for 3 s cut a 9-cell channel 200 m deep;
+  mountain_steep_hills for 3 s raised 800 m over a third of the tile; valley_steep 0.4 s sank most of it below the
+  sea. The mayor's raise brush adds about 10 m per application. For controlled test terrain, import a height grid
+  (new_region, set_region_layout(1, 1), import_region_terrain).

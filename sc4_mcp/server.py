@@ -10,7 +10,7 @@ import os
 from mcp.server.fastmcp import FastMCP, Image
 
 from . import game as gamemod
-from . import build, catalog, cheats, city, content, disasters, economy, heightmap, history, launch, layers, luaquery, housekeeping, memory, mysim, neighbors, networks, options, pointer, regions, services, terrain, trees, udi, vehicles, view
+from . import build, catalog, cheats, city, content, disasters, economy, heightmap, history, launch, layers, lotdesign, luaquery, housekeeping, memory, mysim, neighbors, networks, options, pointer, regions, services, terrain, trees, udi, vehicles, view
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -1420,7 +1420,8 @@ def design_building(name: str, template: str, description: str = "", plop_cost: 
 @guarded
 def design_model_building(name: str, width_m: float, depth_m: float, height_m: float, wall_rgb: list[int],
                           roof_rgb: list[int], windows: bool = True, lot_cells: int = 1, description: str = "",
-                          plop_cost: int = 500, monthly_cost: int = 20) -> dict:
+                          plop_cost: int = 500, monthly_cost: int = 20, ground: str = "plaza",
+                          objects: list[dict] | None = None) -> dict:
     """Design a new building with its own 3D model and textures (a block with a window grid and a flat roof) on
     its own paved lot, for the Parks menu; written as a plugin into SiMCP's own Plugins folder. The game loads
     plugins at start-up: quit_game and game_launch, then it is in build_menu like any other.
@@ -1437,11 +1438,15 @@ def design_model_building(name: str, width_m: float, depth_m: float, height_m: f
         description: the menu description.
         plop_cost: the plop cost.
         monthly_cost: the monthly cost.
+        ground: the lot's ground texture: paving, plaza, concrete, asphalt, grass, lawn, meadow, gravel, garden,
+            sand or parking.
+        objects: things on the lot around the building, as for design_park: [{"prop": id or name, "x": m, "z": m,
+            "rotation": 0-3}, {"tree": name, "x": m, "z": m}, {"ground": name, "x": m, "z": m}].
     """
     if len(wall_rgb) != 3 or len(roof_rgb) != 3 or not all(0 <= c <= 255 for c in list(wall_rgb) + list(roof_rgb)):
         return {"error": "colours are [r, g, b] with values 0..255"}
     return _content(content.model_building, name, width_m, depth_m, height_m, tuple(wall_rgb), tuple(roof_rgb),
-                    windows, lot_cells, description, plop_cost, monthly_cost)
+                    windows, lot_cells, description, plop_cost, monthly_cost, ground=ground, objects=objects)
 
 
 @tool(mcp, "act")
@@ -1494,6 +1499,69 @@ def design_car(name: str, kind: str = "sedan", body_rgb: list[int] | None = None
         return {"error": str(e), "hint": e.hint}
     png = d.pop("texture_png")
     return [json.dumps(d), Image(data=png, format="png")]
+
+
+@tool(mcp, "read")
+@guarded
+def game_props(query: str = "", limit: int = 40) -> dict:
+    """The props that can stand on a lot (benches, fountains, signs, lamps, statues... the game's 1,544 and SiMCP's
+    own prop designs), found by name - for design_park and design_model_building objects.
+
+    Args:
+        query: part of the name ("bench", "fountain", "lamp"); "" lists the first ones.
+        limit: how many to return.
+    """
+    try:
+        return {"props": lotdesign.game_props(query, limit)}
+    except content.ContentError as e:
+        return {"error": str(e), "hint": e.hint}
+
+
+@tool(mcp, "act")
+@guarded
+def design_prop(name: str, shape: str = "box", width_m: float = 2.0, depth_m: float = 2.0, height_m: float = 2.0,
+                rgb: list[int] | None = None, image_path: str = ""):
+    """Design a new prop - a box, cylinder, cone or sign (a board on a post; image_path puts a picture on its
+    street side) in one colour - to place on lots with design_park or design_model_building. Written as a plugin;
+    the game loads it at start-up. Returns the design and its texture.
+
+    Args:
+        name: the prop's name.
+        shape: box, cylinder, cone or sign.
+        width_m: west-east size in metres (0.2..32).
+        depth_m: north-south size in metres (0.2..32; a sign's board is 0.3 m thick).
+        height_m: height in metres (0.2..60).
+        rgb: the colour [r, g, b] (default grey).
+        image_path: a picture for the sign's face (any common format).
+    """
+    try:
+        d = lotdesign.design_prop(name, shape, width_m, depth_m, height_m, tuple(rgb or (150, 150, 150)), image_path)
+    except content.ContentError as e:
+        return {"error": str(e), "hint": e.hint}
+    png = d.pop("texture_png")
+    return [json.dumps(d), Image(data=png, format="png")]
+
+
+@tool(mcp, "act")
+@guarded
+def design_park(name: str, objects: list[dict], lot_cells: int = 1, ground: str = "grass", description: str = "",
+                plop_cost: int = 200, monthly_cost: int = 10) -> dict:
+    """Design a park (or plaza, garden, sculpture court...) for the Parks menu: a lot laid out with the game's props,
+    SiMCP's prop designs, trees and ground textures. Positions are metres from the lot's north-west corner; the
+    street runs along the lot's south (+z) edge. Written as a plugin; the game loads it at start-up.
+
+    Args:
+        name: the park's name, shown in the menu.
+        objects: what stands on it: [{"prop": id or name, "x": m, "z": m, "rotation": 0-3},
+            {"tree": name or id, "x": m, "z": m}, {"ground": texture name, "x": m, "z": m} (that cell's ground)].
+        lot_cells: the lot's size in cells a side (1..6; a cell is 16 m).
+        ground: the ground texture of every cell: paving, plaza, concrete, asphalt, grass, lawn, meadow, gravel,
+            garden, sand or parking.
+        description: the menu description.
+        plop_cost: the plop cost.
+        monthly_cost: the monthly cost.
+    """
+    return _content(lotdesign.park, name, lot_cells, ground, objects, description, plop_cost, monthly_cost)
 
 
 @tool(mcp, "act")

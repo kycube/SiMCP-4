@@ -158,3 +158,37 @@ def test_car_design(tmp_path, monkeypatch):
     assert ex.get(vehicles.P_MODEL_DAY)[2] == int(r["model"], 16) and ex.get(vehicles.P_QUERY_NAME) == "Test Coupe"
     with pytest.raises(content.ContentError):
         vehicles.design_car("Odd", "tank")
+
+
+def test_lot_rows_and_props(tmp_path, monkeypatch):
+    """Lot rows: ground on every cell (one cell overridden), a game prop, a tree; props face out; a park design."""
+    import pytest
+    from sc4_mcp import dbpf, gamedata, lotdesign
+    for shape in lotdesign.SHAPES:
+        m = lotdesign.prop_mesh(shape, 2, 1, 3, 0x1234)
+        tris = [tuple(t) for t in __import__("struct").iter_unpack("<3H", m.indices[0].data)]
+        assert tris and not {(a, c, b) for a, b, c in tris} & set(tris)          # single-sided
+    if gamedata._main_dat() is None:
+        pytest.skip("the game's data files are not installed")
+    monkeypatch.setattr(content, "FOLDER", str(tmp_path))
+    monkeypatch.setattr(content, "MANIFEST", str(tmp_path / "content.json"))
+    rows, placed = lotdesign.rows(2, None, "grass", [{"prop": "0x29010000", "x": 16, "z": 20, "rotation": 1},
+                                                    {"tree": "Maple Tree", "x": 4, "z": 4},
+                                                    {"ground": "plaza", "x": 20, "z": 20}])
+    grounds = [r for r in rows if r[0] == lotdesign.ROW_TEXTURE]
+    assert len(grounds) == 4 and grounds[3][12] == lotdesign.GROUNDS["plaza"]
+    prop = [r for r in rows if r[0] == lotdesign.ROW_PROP][0]
+    assert prop[2] == 1 and prop[3] == 16 << 16 and prop[12] == 0x29010000
+    assert prop[8] - prop[6] == 1 << 16                                         # the 3 x 1 bench turned
+    assert len({r[11] for r in rows}) == len(rows)                               # object ids unique in the lot
+    with pytest.raises(content.ContentError):
+        lotdesign.rows(1, None, "grass", [{"prop": "0x29010000", "x": 40, "z": 2}])    # off the lot
+    with pytest.raises(content.ContentError):
+        lotdesign.rows(1, None, "grass", [{"prop": "bench", "x": 8, "z": 8}])           # several benches
+    p = lotdesign.design_prop("Test Post", "cylinder", 0.5, 0.5, 3, (200, 200, 200))
+    r = lotdesign.park("Test Park", 1, "lawn", [{"prop": "Test Post", "x": 8, "z": 8}])
+    d = dbpf.DBPF(r["file"])
+    lot = [dbpf.parse_exemplar(d.read(e)) for e in d if e.type == dbpf.T_EXEMPLAR and e.group == content.G_LOTS][0]
+    lrows = [pr.values for pr in lot.props if content.LOT_ROW0 <= pr.id <= 0x88EDCDFF]
+    assert [x[0] for x in lrows] == [0, 2, 1] and lrows[2][12] == int(p["prop"], 16)
+    assert r["kind"] == "park"

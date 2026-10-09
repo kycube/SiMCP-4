@@ -578,3 +578,22 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   and with the Maxis texture settings were all black too). The Maxis sedan has 48 single-sided triangles whose
   (b - a) x (c - a) points outward; written that way the cars show their paint, glass and lights. Weight 6000 in
   0xEBFC5FBA did not make the sedan more common, so design_car keeps the sedan's 720 and offers no weight.
+
+## Session 2026-10-08 (Phase 7: props and lots)
+
+- **Props in the game's data**: 1,544 exemplars of type 0x1E in group 0xC977C536 (stone bench 0x29010000: size
+  0x27812810 [3, 2, 1] = width, height, depth; RKT1 sprites; name key into the locale's group 0x6A554AFD). Several
+  share a shown name ("Bench" x5, "Fountain" x6), so a lot object names a prop by id when the name is ambiguous.
+- **Lot rows as Maxis writes them** (CS$$$3_2x2, R$2_1x1): props [1, detail, rotation, x, 0, z, bounds from the
+  prop's size, 0, object id, prop or family 0xA000xxxx]; trees [4, ..., x +- 1 m, flora id]; ground textures one
+  per 16 m cell [2, ..., cell +0.04 .. +16.04 m, texture]; detail 0x20 / 0x10 on decorations (high / medium detail
+  only); object ids are arbitrary but unique in the lot. The most used ground textures (FSH 0x0986135E, +4 = the
+  closest zoom): light paving 0x258F2000, grass 0x25D60000, plaza tiles 0x258E3000, concrete 0x258D1000, asphalt
+  0x258C2000, lawn 0x252B3000, gravel 0x25FB1000, parking 0x25A32000, garden beds 0x26213000.
+- **design_prop / design_park**: "MCP Totem" (red cylinder 1.2 x 5 m), "MCP Cone" (orange 1 x 2 m), "MCP Sign" (a
+  4 x 3 m board on a post with a "SiMCP" picture on its street side), and "MCP Sculpture Park" (2 x 2 cells, grass
+  with plaza paving on the two street-side cells; the game's fountain 0x1CEA0000 and two stone benches, two totems,
+  two cones, the sign at the street, two MCP Maples and two Maxis maples). The park's building is a 1 m quad with
+  a fully transparent texture (alpha test drops it). After a restart build_menu lists it under parks (2 x 2, 300);
+  plopped at (40, 28) facing south onto the road (charged 300) and seen at zoom 5 laid out as designed (the Maxis
+  maples are saplings; a small bin by the street the game added). Props are written single-sided, facing out.

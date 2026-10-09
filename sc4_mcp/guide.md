@@ -174,6 +174,13 @@ there is demand.
 - `design_car(name, kind, body_rgb, wealth)` adds a car to the city's traffic: a sedan, van or pickup body with
   its own paint, head and tail lights, the game's shadow and night lights, driven by the commuters of one wealth
   class (cheap, middle, rich). It shares the road with the game's own cars of that class.
+- Lots: `design_park(name, objects, lot_cells, ground)` lays out a park, plaza or garden for the Parks menu from
+  the game's props (`game_props("bench")` finds them by name; use the id when several share a name), SiMCP's
+  props, trees and ground textures (paving, plaza, concrete, asphalt, grass, lawn, meadow, gravel, garden, sand,
+  parking). Objects are {"prop" | "tree" | "ground": name or id, "x": m, "z": m, "rotation": 0-3}, metres
+  from the lot's north-west corner, the street along the south (+z) edge. `design_model_building` takes the same
+  `ground` and `objects`. `design_prop(name, shape, ...)` makes a box, cylinder, cone or sign (with a picture on
+  its street side) to place on lots.
 - `design_advice(name, advisor, title, message, trigger)` writes advice or a news headline for the advisors (a
   Lua package like the game's own): it appears when its trigger - a read-only expression such as
   `game.g_city_r_population > 1000` - is true. #city# in the text becomes the city's name.

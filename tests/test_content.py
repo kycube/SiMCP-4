@@ -100,7 +100,7 @@ def test_advice_design(tmp_path, monkeypatch):
 
 
 def test_tree_design(tmp_path, monkeypatch):
-    """A tree design: flora exemplar, crossed-plane model, texture with transparency, icon, names."""
+    """A tree design: flora exemplar, a model per view (rendered leaf clumps), textures, icon, names."""
     import pytest
     from PIL import Image
     from sc4_mcp import dbpf, gamedata, s3d, trees
@@ -120,7 +120,8 @@ def test_tree_design(tmp_path, monkeypatch):
     ex = [dbpf.parse_exemplar(d.read(e)) for e in d if e.type == dbpf.T_EXEMPLAR][0]
     fid = int(r["flora"], 16)
     assert ex.get(0x10) == 0x0F and ex.get(content.P_PLOP) == 7 and ex.get(trees.P_RKT5) is None
-    assert ex.get(content.P_RKT0)[2] == int(r["model"], 16)
+    assert ex.get(content.P_RKT1)[2] == int(r["model"], 16) and ex.get(content.P_RKT0) is None   # rendered per view
+    assert sum(1 for e in d if e.type == dbpf.T_S3D) == 20
     assert ex.get(content.P_NAME_KEY) == [dbpf.T_LTEXT, content.G_SIMCP_NAMES, fid]
     assert [t["name"] for t in trees.designed()] == ["Test Birch"]
     Image.open(__import__("io").BytesIO(r["texture_png"]))

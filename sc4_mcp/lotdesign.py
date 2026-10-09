@@ -289,21 +289,41 @@ def prop_mesh(shape: str, w: float, d: float, h: float, texture: int):
 def design_prop(name: str, shape: str = "box", width: float = 2.0, depth: float = 2.0, height: float = 2.0,
                 rgb=(150, 150, 150), image_path: str = "", taken: set[int] | None = None, model_path: str = "",
                 model_scale: float = 1.0, animation: str = "", hours: list | None = None,
-                dates: dict | None = None) -> dict:
+                dates: dict | None = None, parts_model: dict | None = None) -> dict:
     """Write a new prop as a plugin; place it on a lot with design_park / design_model_building objects.
     animation: spin or sway (model frames, as the game's animated props); hours: [from, to] when it shows (the
-    game's 24-hour clock, may wrap midnight); dates: {"start": [month, day], "days": n, "every": 365}."""
+    game's 24-hour clock, may wrap midnight); dates: {"start": [month, day], "days": n, "every": 365}.
+    parts_model: a prop made of parts (partmodel), rendered per view as the game's own props are (batrender, RKT1):
+    x 0..width, y 0..depth (its +y side its front: toward the street at rotation 0), z up; its size the model's."""
     from . import fsh, meshimport, s3d
     content._check_name(name)
     timing = timing_props(animation, hours, dates)
     mesh = meshimport.load(model_path, model_scale) if model_path else None
-    if mesh:
-        width, height, depth = mesh["size_m"]
-        shape = "model"
-    if not mesh and shape not in SHAPES:
+    built = None
+    if parts_model is not None:
+        if animation:
+            raise LotError("a parts prop cannot be animated (yet)")
+        from . import partmodel
+        import math as _m
+        try:
+            P0 = partmodel.Builder(dict(parts_model, lot=6)).build()[0].arrays()[0]
+            if not len(P0):
+                raise LotError("parts model: no parts")
+            ext = max(float(P0[:, :, 0].max()), float(P0[:, :, 1].max()), 1.0)
+            built = partmodel.Builder(dict(parts_model, lot=min(6, max(1, _m.ceil(ext / 16))))).build()
+        except partmodel.GameError as e:
+            raise LotError("parts model: %s" % e, getattr(e, "hint", ""))
+        P = built[0].arrays()[0]
+        x0, x1, y0, y1 = (float(P[:, :, 0].min()), float(P[:, :, 0].max()), float(P[:, :, 1].min()),
+                          float(P[:, :, 1].max()))
+        origin = parts_model.get("origin") or [(x0 + x1) / 2, (y0 + y1) / 2]     # the prop's centre on its lot
+        width, depth = x1 - x0, y1 - y0
+        height = float(P[:, :, 2].max())
+        shape = "parts"
+    if not mesh and not built and shape not in SHAPES:
         raise LotError("shape is %s" % ", ".join(SHAPES))
-    if not (0.2 <= width <= 32 and 0.2 <= depth <= 32 and 0.2 <= height <= 60):
-        raise LotError("a prop is 0.2..32 m wide and deep and 0.2..60 m tall")
+    if not (0.2 <= width <= 32 and 0.2 <= depth <= 32 and (0.02 if built else 0.2) <= height <= 60):
+        raise LotError("a prop is 0.2..32 m wide and deep and 0.2..60 m tall (a parts prop may be flat: 0.02)")
     if len(rgb) != 3 or not all(0 <= v <= 255 for v in rgb):
         raise LotError("colours are [r, g, b] with values 0..255")
     if not mesh and shape == "sign" and depth > 1:
@@ -316,8 +336,15 @@ def design_prop(name: str, shape: str = "box", width: float = 2.0, depth: float 
     taken = taken or set()
     prop_iid = content._new_ids(taken, 1)[0]
     model_iid = content._free(dbpf.T_S3D, content.G_MODELS, 0xFFFF0000, taken)
-    tex_iid = content._free(dbpf.T_FSH, content.G_TEXTURES, 0xFFFFFF00, taken)
-    if mesh:
+    tex_iid = content._free(dbpf.T_FSH, content.G_TEXTURES, 0xFFFF0000 if built else 0xFFFFFF00, taken)
+    baked = None
+    if built:                               # a picture per view, as the game's props (batrender)
+        from . import batrender
+        scene = batrender.Scene(built[0], built[1], 1, origin=tuple(origin))
+        baked, textures = batrender.bake(scene, model_iid, tex_iid)
+        model = None
+        tex = scene.picture(4, 2).convert("RGB")
+    elif mesh:
         mobj, textures = meshimport.model(mesh, tex_iid)
         model = s3d.write(mobj)
         tex = meshimport.preview(mesh, 256)
@@ -334,15 +361,18 @@ def design_prop(name: str, shape: str = "box", width: float = 2.0, depth: float 
                           P_DATE_START, P_DATE_DAYS, P_DATE_EVERY, P_HOURS)
     content._set(props, content.P_NAME, dbpf.PT_STRING, "SiMCP_prop_" + content._slug(name))
     content._set(props, content.P_SIZE, dbpf.PT_FLOAT32, [float(width), float(height), float(depth)], multi=True)
-    for pr in model_key_props(model_iid, hours is not None or dates is not None):
+    for pr in model_key_props(model_iid, hours is not None or dates is not None, views=baked is not None):
         content._set(props, pr.id, pr.ptype, pr.values, pr.multi)
     content._set(props, content.P_NAME_KEY, dbpf.PT_UINT32, [dbpf.T_LTEXT, content.G_SIMCP_NAMES, prop_iid], multi=True)
     for pr in timing:
         content._set(props, pr.id, pr.ptype, pr.values, pr.multi)
     records = [(dbpf.T_EXEMPLAR, G_PROPS, prop_iid, dbpf.build_exemplar(props, tpl.parent)),
-               (dbpf.T_S3D, content.G_MODELS, model_iid, model),
                (dbpf.T_LTEXT, content.G_SIMCP_NAMES, prop_iid, dbpf.build_ltext(name))] + \
               [(dbpf.T_FSH, content.G_TEXTURES, inst, data) for inst, data in textures]
+    if baked:
+        records += [(dbpf.T_S3D, content.G_MODELS, inst, data) for inst, data in baked]
+    else:
+        records.append((dbpf.T_S3D, content.G_MODELS, model_iid, model))
     os.makedirs(content.FOLDER, exist_ok=True)
     path = content._design_path("SiMCP_prop_", name)
     dbpf.write_dbpf(path, records)
@@ -366,14 +396,16 @@ ANIMATIONS = ("spin", "sway")
 SEASONS = {"spring": ([3, 1], 92), "summer": ([6, 1], 92), "autumn": ([9, 1], 91), "winter": ([12, 1], 90)}
 
 
-def model_key_props(model_iid: int, timed: bool) -> list:
-    """The prop's model key: RKT0 for an ordinary prop; a timed prop (hours / dates) needs RKT4 with two states as
-    the game's timed props have - state 0 the model, state 1 an RKT0 with instance 0 (no model): the game hides a
-    timed prop by switching it to state 1, so a prop with only RKT0 stays shown."""
+def model_key_props(model_iid: int, timed: bool, views: bool = False) -> list:
+    """The prop's model key: RKT0 for an ordinary prop (RKT1 for one with a model per view: base + zoom * 0x100 +
+    view * 0x10); a timed prop (hours / dates) needs RKT4 with two states as the game's timed props have - state 0
+    the model, state 1 an RKT0 with instance 0 (no model): the game hides a timed prop by switching it to state 1,
+    so a prop with only RKT0 stays shown."""
+    key = content.P_RKT1 if views else content.P_RKT0
     if not timed:
-        return [dbpf.Property(content.P_RKT0, dbpf.PT_UINT32, [dbpf.T_S3D, content.G_MODELS, model_iid], True)]
+        return [dbpf.Property(key, dbpf.PT_UINT32, [dbpf.T_S3D, content.G_MODELS, model_iid], True)]
     return [dbpf.Property(P_RKT4, dbpf.PT_UINT32,
-                          [0, 0, 0, 0, content.P_RKT0, dbpf.T_S3D, content.G_MODELS, model_iid,
+                          [0, 0, 0, 0, key, dbpf.T_S3D, content.G_MODELS, model_iid,
                            1, 0, 0, 0, content.P_RKT0, dbpf.T_S3D, content.G_MODELS, 0], True)]
 
 

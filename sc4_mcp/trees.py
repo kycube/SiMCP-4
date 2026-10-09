@@ -2,11 +2,11 @@
 
 A tree is a flora exemplar (type 0x0F, group 0xE83E0437) like the game's five menu trees: SiMCP copies the
 properties of the Maxis "decisious1" tree (0x16600000: growth tuning, menu flags) and gives the copy its own name
-(LTEXT), price (0x49CAC341), menu icon (PNG 0x6A386D26) and model. The game's menu trees are pre-rendered sprites (one
-S3D per zoom and rotation, RKT5); SiMCP's tree is one true 3D model (RKT0 0x27812820, as the game's Burnt Tree):
-three vertical quads crossing at the trunk, drawn from both sides, with an RGBA texture whose transparent pixels the
-game's default material cuts out (flags 0xA3: alpha test at 0.5, as Maxis trees use). The texture is painted here
-(broadleaf, conifer or palm, in the colours asked for) or taken from a picture the agent supplies.
+(LTEXT), price (0x49CAC341), menu icon (PNG 0x6A386D26) and model. The game's menu trees are pre-rendered pictures
+(one S3D per zoom and rotation, RKT5 with growth stages). SiMCP's broadleaf, conifer, palm and shrub are made the
+same way: a 3D tree of leaf clumps (vegetation.py) rendered per view with the game's camera and light (batrender, RKT1:
+full-grown at once). A picture the agent supplies goes on three vertical quads crossing at the trunk instead (one
+true 3D model, RKT0 0x27812820, as the game's Burnt Tree; its transparent pixels cut out by the alpha test).
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ G_FLORA = 0xE83E0437
 G_SIMCP_DESCS = 0x5C4D0F02              # SiMCP's LTEXT descriptions (instance = the item)
 TEMPLATE = 0x16600000                   # the game's "decisious1" menu tree
 P_RKT5, P_ICON_ID, P_EXEMPLAR_ID = 0x27812825, 0x8A2602BB, 0x21
-SHAPES = ("broadleaf", "conifer", "palm")
+SHAPES = ("broadleaf", "conifer", "palm", "shrub")
 TEX_W, TEX_H = 128, 256
 
 
@@ -183,11 +183,19 @@ def icon(im) -> bytes:
 
 
 def design_tree(name: str, shape: str = "broadleaf", height: float = 12.0, width: float = 8.0,
-                leaf=(70, 125, 55), trunk=(95, 70, 45), cost: int = 3, description: str = "",
-                image_path: str = "", taken: set[int] | None = None) -> dict:
-    """Write a new tree type as a plugin (see the module notes)."""
+                leaf=None, trunk=None, cost: int = 3, description: str = "",
+                image_path: str = "", taken: set[int] | None = None, replace: bool = False) -> dict:
+    """Write a new tree type as a plugin (see the module notes). replace: rebuild the tree design of that name
+    under its own ids (trees of it already planted show the new one after a restart)."""
     from . import fsh, s3d
-    content._check_name(name)
+    prior = None
+    if replace:
+        hit = [d for d in content._manifest() if d.get("kind") == "tree" and not d.get("disabled")
+               and d["name"].lower() == name.lower()]
+        if not hit:
+            raise content.ContentError("no tree design named %r to replace" % name)
+        prior = hit[0]
+    content._check_name(name, existing=prior is not None)
     content._check_tokens(description, "description")
     if shape not in SHAPES and not image_path:
         raise content.ContentError("shape is broadleaf, conifer or palm (or give image_path)")
@@ -196,25 +204,44 @@ def design_tree(name: str, shape: str = "broadleaf", height: float = 12.0, width
     if not 0 <= cost <= 10000:
         raise content.ContentError("the price per tree is 0..10000")
     for c in (leaf, trunk):
-        if len(c) != 3 or not all(0 <= v <= 255 for v in c):
+        if c is not None and (len(c) != 3 or not all(0 <= v <= 255 for v in c)):
             raise content.ContentError("colours are [r, g, b] with values 0..255")
     _, tpl = content._find_exemplar(dbpf.T_EXEMPLAR, TEMPLATE, G_FLORA)
     if tpl is None:
         raise content.ContentError("the game's template tree (0x16600000) is not in SimCity_1.dat")
     taken = taken or set()
-    flora_iid = content._new_ids(taken, 1)[0]
-    model_iid = content._free(dbpf.T_S3D, content.G_MODELS, 0xFFFF0000, taken)
+    if prior:
+        flora_iid, model_iid = int(prior["flora"], 16), int(prior["model"], 16)
+    else:
+        flora_iid = content._new_ids(taken, 1)[0]
+        model_iid = content._free(dbpf.T_S3D, content.G_MODELS, 0xFFFF0000, taken)
     tex_iid = content._free(dbpf.T_FSH, content.G_TEXTURES, 0xFFFFFF00, taken)
     icon_iid = content._free(dbpf.T_PNG, content.G_ICONS, 0xFFFFFFFF, taken)
-    im = picture(image_path) if image_path else paint(shape, tuple(leaf), tuple(trunk), zlib.crc32(name.encode()))
-    texture = fsh.write_argb(TEX_W, TEX_H, im.tobytes())
-    model = s3d.write(crossed_planes(width, height, tex_iid))
+    seed = zlib.crc32(name.encode()) & 0xFFFF
+    if image_path:                       # the agent's picture on three crossed planes (one model, RKT0)
+        im = picture(image_path)
+        texture = fsh.write_argb(TEX_W, TEX_H, im.tobytes())
+        model = s3d.write(crossed_planes(width, height, tex_iid))
+        baked, textures, icon_png = None, [(tex_iid, texture)], icon(im)
+    else:                                # rendered per view as the game's own trees are (vegetation, batrender)
+        from . import batrender, partmodel, vegetation
+        import math as _m
+        tex_iid = content._free(dbpf.T_FSH, content.G_TEXTURES, 0xFFFF0000, taken)
+        pm = vegetation.model(shape, height, width, leaf, trunk, seed)
+        pm["lot"] = max(1, min(6, _m.ceil((width * 1.3 + 2) / 16)))
+        mesh, mats = partmodel.Builder(pm).build()
+        scene = batrender.Scene(mesh, mats, 1, origin=(width / 2, width / 2))
+        baked, textures = batrender.bake(scene, model_iid, tex_iid)
+        im = scene.picture(4, 2)
+        icon_png = batrender.icon(scene)
+        model = None
     props = content._drop([dbpf.Property(p.id, p.ptype, list(p.values) if isinstance(p.values, list) else p.values,
                                          p.multi) for p in tpl.props],
                           P_RKT5, content.P_NAME_KEY, content.P_DESC_KEY)
     content._set(props, content.P_NAME, dbpf.PT_STRING, "SiMCP_tree_" + content._slug(name))
     content._set(props, P_EXEMPLAR_ID, dbpf.PT_UINT32, [flora_iid])
-    content._set(props, content.P_RKT0, dbpf.PT_UINT32, [dbpf.T_S3D, content.G_MODELS, model_iid], multi=True)
+    content._set(props, content.P_RKT1 if baked else content.P_RKT0, dbpf.PT_UINT32,
+                 [dbpf.T_S3D, content.G_MODELS, model_iid], multi=True)
     content._set(props, content.P_ICON, dbpf.PT_UINT32, [icon_iid])
     content._set(props, P_ICON_ID, dbpf.PT_UINT32, [flora_iid])
     old = [p for p in tpl.props if p.id == content.P_PLOP]
@@ -224,19 +251,28 @@ def design_tree(name: str, shape: str = "broadleaf", height: float = 12.0, width
     content._set(props, content.P_NAME_KEY, dbpf.PT_UINT32, [dbpf.T_LTEXT, content.G_SIMCP_NAMES, flora_iid], multi=True)
     content._set(props, content.P_DESC_KEY, dbpf.PT_UINT32, [dbpf.T_LTEXT, G_SIMCP_DESCS, flora_iid], multi=True)
     records = [(dbpf.T_EXEMPLAR, G_FLORA, flora_iid, dbpf.build_exemplar(props, tpl.parent)),
-               (dbpf.T_S3D, content.G_MODELS, model_iid, model),
-               (dbpf.T_FSH, content.G_TEXTURES, tex_iid, texture),
-               (dbpf.T_PNG, content.G_ICONS, icon_iid, icon(im)),
+               (dbpf.T_PNG, content.G_ICONS, icon_iid, icon_png),
                (dbpf.T_LTEXT, content.G_SIMCP_NAMES, flora_iid, dbpf.build_ltext(name)),
                (dbpf.T_LTEXT, G_SIMCP_DESCS, flora_iid, dbpf.build_ltext(description or name))]
+    records += [(dbpf.T_FSH, content.G_TEXTURES, i, b) for i, b in textures]
+    if baked:
+        records += [(dbpf.T_S3D, content.G_MODELS, i, b) for i, b in baked]
+    else:
+        records.append((dbpf.T_S3D, content.G_MODELS, model_iid, model))
     os.makedirs(content.FOLDER, exist_ok=True)
-    path = content._design_path("SiMCP_tree_", name)
+    path = prior["file"] if prior else content._design_path("SiMCP_tree_", name)
     dbpf.write_dbpf(path, records)
     entry = {"name": name, "kind": "tree", "file": path, "flora": "0x%08X" % flora_iid,
              "model": "0x%08X" % model_iid, "texture": "0x%08X" % tex_iid, "shape": "picture" if image_path else shape,
              "size_m": [width, height], "cost": cost, "created": time.strftime("%Y-%m-%d %H:%M:%S")}
     items = content._manifest()
-    items.append(entry)
+    if prior:
+        entry["created"] = prior.get("created", entry["created"])
+        entry["replaced"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        items = [entry if (d.get("kind") == "tree" and d["name"] == prior["name"] and not d.get("disabled")) else d
+                 for d in items]
+    else:
+        items.append(entry)
     content._save_manifest(items)
     buf = io.BytesIO()
     im.save(buf, "PNG")

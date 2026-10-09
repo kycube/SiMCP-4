@@ -104,10 +104,10 @@ All tools have openWorldHint false (they act on the local game only).
 | [`content_designs`](#content_designs) | read | The buildings SiMCP designed (its plugin files in SiMCP's own Plugins folder): name, ids, file, state. |
 | [`design_building`](#design_building) | act | Design a new building for the build menus from one of the game's own menu items (its models, props and textures) under a new name, description and costs; it is written as a plugin file into SiMCP's own Plugins folder. |
 | [`design_model_building`](#design_model_building) | act | Design a new building with its own 3D model and textures on its own lot, for the Parks menu: a block with a window grid and a flat roof, your OBJ model, or a building made of parts (parts_model - walls, roofs, towers, trim, authored facades; guide topic "parts"). |
-| [`design_tree`](#design_tree) | act | Design a new tree type for the game's tree menu (planted with plant_trees or the player's tree tool): its own 3D model (three crossed planes) with a painted texture - broadleaf, conifer or palm in the colours given - or a picture you supply. |
+| [`design_tree`](#design_tree) | act | Design a new tree type for the game's tree menu (planted with plant_trees or the player's tree tool): a broadleaf, conifer, palm or shrub built of leaf clumps and rendered per view as the game's own trees are (lit crown, inner shade, ragged edge), or a picture you supply on crossed planes. |
 | [`design_car`](#design_car) | act | Design a new car for the city's traffic: its own 3D model (a sedan, van or pickup body with a painted texture, head and tail lights, the game's shadow and night lights), driven by the commuters of one wealth class. |
 | [`game_props`](#game_props) | read | The props that can stand on a lot (benches, fountains, signs, lamps, statues... |
-| [`design_prop`](#design_prop) | act | Design a new prop - a box, cylinder, cone or sign (a board on a post; image_path puts a picture on its street side) in one colour - to place on lots with design_park or design_model_building. |
+| [`design_prop`](#design_prop) | act | Design a new prop - a box, cylinder, cone or sign (a board on a post; image_path puts a picture on its street side) in one colour, or a realistic one made of parts (parts_model: benches, lamps, statues, planters, rendered per view as the game's own) - to place on lots with design_park or design_model_building. |
 | [`design_seasonal_tree`](#design_seasonal_tree) | act | Design a tree that follows the seasons, for lots (design_park / design_model_building objects {"seasonal_tree": name, ...}): spring blossom from 1 March, summer from 1 June, autumn colours from 1 September, bare branches (a broadleaf) or snow (a conifer) from 1 December. |
 | [`design_park`](#design_park) | act | Design a park (or plaza, garden, sculpture court...) for the Parks menu: a lot laid out with the game's props, SiMCP's prop designs, trees and ground textures. |
 | [`design_civic_building`](#design_civic_building) | act | Design a working police station, fire station, clinic or school: it serves the city as the game's own does (its service comes from the game's police kiosk, small fire station, urgent care clinic or K-8 school), with its own model (a block, or your OBJ), name, costs and service numbers. |
@@ -1080,19 +1080,20 @@ Design a new building with its own 3D model and textures on its own lot, for the
 
 *act*
 
-Design a new tree type for the game's tree menu (planted with plant_trees or the player's tree tool): its own 3D model (three crossed planes) with a painted texture - broadleaf, conifer or palm in the colours given - or a picture you supply. Written as a plugin into SiMCP's own Plugins folder; the game loads it at start-up (quit_game, game_launch). Returns the design and its texture.
+Design a new tree type for the game's tree menu (planted with plant_trees or the player's tree tool): a broadleaf, conifer, palm or shrub built of leaf clumps and rendered per view as the game's own trees are (lit crown, inner shade, ragged edge), or a picture you supply on crossed planes. Written as a plugin into SiMCP's own Plugins folder; the game loads it at start-up (quit_game, game_launch). Takes up to a minute. Returns the design and its picture.
 
 | parameter | type | default | description |
 |---|---|---|---|
 | `name` | string | required | the tree's name, shown in the menu. |
-| `shape` | string | `'broadleaf'` | broadleaf, conifer or palm (ignored with image_path). |
+| `shape` | string | `'broadleaf'` | broadleaf, conifer, palm or shrub (ignored with image_path). |
 | `height_m` | number | `12.0` | height in metres (2..40). |
 | `width_m` | number | `8.0` | crown width in metres (1..16; a cell is 16 m). |
-| `leaf_rgb` | array of integer or null | `null` | the foliage colour [r, g, b] (default green). |
-| `trunk_rgb` | array of integer or null | `null` | the trunk colour [r, g, b] (default brown). |
+| `leaf_rgb` | array of integer or null | `null` | the foliage colour [r, g, b] (default: the kind's own, an olive green as the game's trees). |
+| `trunk_rgb` | array of integer or null | `null` | the trunk colour [r, g, b] (default: the kind's own). |
 | `cost` | integer | `3` | the price of each tree planted (0..10000; the game's trees cost 3). |
 | `description` | string | `''` | the menu description. |
 | `image_path` | string | `''` | a PNG of the tree on a transparent background, used as the texture instead of painting one. |
+| `replace` | boolean | `false` | rebuild an existing tree design of this name under its own ids (quit_game first): trees of it already planted show the new one after game_launch. |
 
 ## design_car
 
@@ -1122,7 +1123,7 @@ The props that can stand on a lot (benches, fountains, signs, lamps, statues... 
 
 *act*
 
-Design a new prop - a box, cylinder, cone or sign (a board on a post; image_path puts a picture on its street side) in one colour - to place on lots with design_park or design_model_building. Written as a plugin; the game loads it at start-up. Returns the design and its texture.
+Design a new prop - a box, cylinder, cone or sign (a board on a post; image_path puts a picture on its street side) in one colour, or a realistic one made of parts (parts_model: benches, lamps, statues, planters, rendered per view as the game's own) - to place on lots with design_park or design_model_building. Written as a plugin; the game loads it at start-up. Returns the design and its picture.
 
 | parameter | type | default | description |
 |---|---|---|---|
@@ -1138,6 +1139,7 @@ Design a new prop - a box, cylinder, cone or sign (a board on a post; image_path
 | `animation` | string | `''` | spin (turns about its vertical axis) or sway (rocks gently), as the game's animated props. |
 | `hours` | array of number or null | `null` | [from, to]: shown only at these hours of the game's day (may wrap midnight: [19, 6] = at night). |
 | `dates` | object or null | `null` | {"start": [month, day], "days": n, "every": 365}: shown only then (holiday decorations...). |
+| `parts_model` | object or null | `null` | a prop made of parts, as design_model_building's (guide topic "parts"): x 0..width, y 0..depth in metres from its corner, its +y side its front (toward the street at rotation 0), z up; its size replaces width, depth and height. Lamps on a facade ({"type": "lamp"}) light up at night. |
 
 ## design_seasonal_tree
 

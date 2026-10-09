@@ -163,3 +163,19 @@ def test_night_layer_for_lit_windows():
     night = {i: b for i, b in textures if i & batrender.NIGHT}
     assert night and {i - batrender.NIGHT for i in night} <= day
     assert all(b[24] == fsh.CODE_DXT3 for b in night.values())
+
+
+def test_shell_covers_the_picture():
+    """A dense model (a tree) goes on a low-poly shell: few vertices, every seen pixel still covered."""
+    import numpy as np
+    from sc4_mcp import batrender, vegetation
+    pm = vegetation.model("conifer", 10, 5, seed=2)
+    pm["lot"] = 1
+    mesh, mats = partmodel.Builder(pm).build()
+    scene = batrender.Scene(mesh, mats, 1, origin=(2.5, 2.5))
+    mb, tx = batrender.bake_view(scene, 4, 2, 0x50000000, lod="shell")
+    m = s3d.parse(mb)
+    assert sum(v.count for v in m.verts) < 400
+    right, down, view, k = batrender.camera(4)
+    S = batrender.shell(np.asarray(mesh.arrays()[0], float).reshape(-1, 3, 3)[:, :, [0, 2, 1]] * [-1, 1, 1])
+    assert len(S) == 5 * 22

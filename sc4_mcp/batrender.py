@@ -106,13 +106,15 @@ def _pow2(v: int, lo: int = 8) -> int:
 class Scene:
     """A built parts model (partmodel.Builder) ready to render: triangles in the game's model frame."""
 
-    def __init__(self, mesh, mats, lot, night: bool = False):
-        """lot: cells a side, or [across the street, deep]: the model's origin is the lot's centre."""
+    def __init__(self, mesh, mats, lot, night: bool = False, origin=None):
+        """lot: cells a side, or [across the street, deep]: the model's origin is the lot's centre - or origin
+        (x, y in the model's metres; a prop's centre)."""
         P, N, UV, M, E = mesh.arrays()
         if not len(P):
             raise ValueError("the model has no faces")
         lw, ld = (lot[0], lot[1]) if isinstance(lot, (list, tuple)) else (lot, lot)
-        cx, cy = lw * TILE_M / 2.0, ld * TILE_M / 2.0
+        cx, cy = (float(origin[0]), float(origin[1])) if origin is not None else (lw * TILE_M / 2.0,
+                                                                                  ld * TILE_M / 2.0)
         self.P0 = np.stack([-(P[..., 0] - cx), P[..., 2], P[..., 1] - cy], -1).astype(np.float64)
         self.N0 = np.stack([-N[..., 0], N[..., 2], N[..., 1]], -1).astype(np.float64)
         self.UV, self.M, self.E, self.mats = UV, M, E, mats
@@ -231,7 +233,10 @@ class Scene:
             if light:
                 if r not in self._sun:
                     self._sun[r] = self._depth_map(P, SUN, SHADOW_RES)
-                sun = np.maximum(0.0, nrm @ SUN).astype(np.float32)
+                cosl = (nrm @ SUN).astype(np.float32)
+                wrap = np.array([getattr(self.mats[int(m)], "wrap", 0.0) for m in range(len(self.mats))],
+                                np.float32)[mi]
+                sun = np.clip((cosl + wrap) / (1 + wrap), 0, 1)     # wrap: light through leaves
                 lit = sun > 0
                 if lit.any():
                     sun[lit] *= self._sun[r](pos[lit] + nrm[lit] * 0.04)
@@ -313,9 +318,60 @@ def tex_instance(base: int, z: int, r: int, n: int) -> int:
     return base + (n >> 4) * 0x1000 + z * 0x100 + r * 0x10 + (n & 15)
 
 
-def bake_view(scene: Scene, z: int, r: int, tex_base: int, name: bytes = b"SiMCP"):
-    """One view's model and textures: (S3D bytes, [(FSH instance, FSH bytes)])."""
+SHELL_TRIANGLES = 900                       # more seen triangles than this: the picture goes on a shell
+
+
+def _octagon(pts2: np.ndarray, margin: float) -> np.ndarray:
+    """The octagon (8 x 2) around points in the horizontal plane: the tightest one with sides at 45 degrees."""
+    angs = np.radians(np.arange(8) * 45.0)
+    dirs = np.stack([np.cos(angs), np.sin(angs)], 1)
+    h = (pts2 @ dirs.T).max(0) + margin
+    out = []
+    for i in range(8):
+        j = (i + 1) % 8
+        A = np.array([dirs[i], dirs[j]])
+        out.append(np.linalg.solve(A, [h[i], h[j]]))
+    return np.array(out)
+
+
+def shell(P: np.ndarray, bands: int = 5, margin: float = 0.15) -> np.ndarray:
+    """A low-poly shell around a dense model (the Building Architect's LOD): stacked octagonal bands that follow its
+    silhouette, as triangles (n x 3 x 3) in the model's frame (y up). The picture is projected onto it, so any shape
+    covering every seen pixel draws the same; the game also casts the model's shadow from it."""
+    V = P.reshape(-1, 3)
+    y0, y1 = float(V[:, 1].min()), float(V[:, 1].max())
+    edges = np.linspace(y0, y1, bands + 1)
+    step = (y1 - y0) / bands
+    tris = []
+    for b in range(bands):                       # a prism per band: the octagon around the points in it
+        sel = V[(V[:, 1] >= edges[b] - step * 0.5) & (V[:, 1] <= edges[b + 1] + step * 0.5)]
+        o = _octagon((sel if len(sel) else V)[:, [0, 2]], margin)
+        lo_y = edges[b] - (margin if b == 0 else 0)
+        hi_y = edges[b + 1] + (margin if b == bands - 1 else 0)
+        lo = [np.array([x, lo_y, zz]) for x, zz in o]
+        hi = [np.array([x, hi_y, zz]) for x, zz in o]
+        centre = np.array([o[:, 0].mean(), (lo_y + hi_y) / 2, o[:, 1].mean()])
+        band = []
+        for i in range(8):
+            j = (i + 1) % 8
+            band += [(lo[i], lo[j], hi[j]), (lo[i], hi[j], hi[i])]
+        for i in range(1, 7):                    # its top (a ledge where the band above is narrower)
+            band.append((hi[0], hi[i], hi[i + 1]))
+        for a, b_, c in band:                    # every triangle wound to face outwards
+            n = np.cross(b_ - a, c - a)
+            tris.append((a, b_, c) if np.dot(n, (a + b_ + c) / 3 - centre) >= 0 else (a, c, b_))
+    return np.array(tris)
+
+
+def bake_view(scene: Scene, z: int, r: int, tex_base: int, name: bytes = b"SiMCP", lod: str = "auto"):
+    """One view's model and textures: (S3D bytes, [(FSH instance, FSH bytes)]). lod: "mesh" lays the picture on
+    the model's own triangles that are seen, "shell" on a low-poly shell around it (trees, dense props: the game
+    does not draw flora models with thousands of vertices), "auto" a shell above SHELL_TRIANGLES seen triangles."""
     img, (ox, oy), P, seen = scene.render(z, r)
+    shelled = lod == "shell" or (lod == "auto" and len(seen) > SHELL_TRIANGLES)
+    if shelled:
+        P = shell(P)
+        seen = np.arange(len(P))
     night = scene.night_img
     H, W = img.shape[:2]
     right, down, view, k = camera(z)
@@ -334,6 +390,8 @@ def bake_view(scene: Scene, z: int, r: int, tex_base: int, name: bytes = b"SiMCP
         a_, b_, c_ = tri
         nrm = np.cross(b_ - a_, c_ - a_)
         if np.dot(nrm, -view) < 0:              # wound to face the camera (the game culls the other side)
+            if shelled:
+                continue                         # a shell's back faces are hidden behind its front
             tri = tri[[0, 2, 1]]
         poly0 = [(float(q @ right * k - ox), float(q @ down * k - oy), float(q[0]), float(q[1]), float(q[2]))
                  for q in tri]
@@ -388,13 +446,13 @@ def bake_view(scene: Scene, z: int, r: int, tex_base: int, name: bytes = b"SiMCP
     return s3d.write(m), textures
 
 
-def bake(scene: Scene, model_base: int, tex_base: int, name: bytes = b"SiMCP"):
+def bake(scene: Scene, model_base: int, tex_base: int, name: bytes = b"SiMCP", lod: str = "auto"):
     """Every view: ([(model instance, S3D bytes)] for RKT1 at model_base + z * 0x100 + r * 0x10,
     [(FSH instance, FSH bytes)])."""
     models, textures = [], []
     for z in range(5):
         for r in range(4):
-            mb, tx = bake_view(scene, z, r, tex_base, name)
+            mb, tx = bake_view(scene, z, r, tex_base, name, lod)
             models.append((model_base + z * 0x100 + r * 0x10, mb))
             textures += tx
     return models, textures

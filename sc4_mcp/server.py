@@ -1538,26 +1538,30 @@ def design_model_building(name: str, width_m: float, depth_m: float, height_m: f
 @guarded
 def design_tree(name: str, shape: str = "broadleaf", height_m: float = 12.0, width_m: float = 8.0,
                 leaf_rgb: list[int] | None = None, trunk_rgb: list[int] | None = None, cost: int = 3,
-                description: str = "", image_path: str = ""):
-    """Design a new tree type for the game's tree menu (planted with plant_trees or the player's tree tool): its own
-    3D model (three crossed planes) with a painted texture - broadleaf, conifer or palm in the colours given - or a
-    picture you supply. Written as a plugin into SiMCP's own Plugins folder; the game loads it at start-up
-    (quit_game, game_launch). Returns the design and its texture.
+                description: str = "", image_path: str = "", replace: bool = False):
+    """Design a new tree type for the game's tree menu (planted with plant_trees or the player's tree tool): a
+    broadleaf, conifer, palm or shrub built of leaf clumps and rendered per view as the game's own trees are (lit
+    crown, inner shade, ragged edge), or a picture you supply on crossed planes. Written as a plugin into SiMCP's
+    own Plugins folder; the game loads it at start-up (quit_game, game_launch). Takes up to a minute. Returns the
+    design and its picture.
 
     Args:
         name: the tree's name, shown in the menu.
-        shape: broadleaf, conifer or palm (ignored with image_path).
+        shape: broadleaf, conifer, palm or shrub (ignored with image_path).
         height_m: height in metres (2..40).
         width_m: crown width in metres (1..16; a cell is 16 m).
-        leaf_rgb: the foliage colour [r, g, b] (default green).
-        trunk_rgb: the trunk colour [r, g, b] (default brown).
+        leaf_rgb: the foliage colour [r, g, b] (default: the kind's own, an olive green as the game's trees).
+        trunk_rgb: the trunk colour [r, g, b] (default: the kind's own).
         cost: the price of each tree planted (0..10000; the game's trees cost 3).
         description: the menu description.
         image_path: a PNG of the tree on a transparent background, used as the texture instead of painting one.
+        replace: rebuild an existing tree design of this name under its own ids (quit_game first): trees of it
+            already planted show the new one after game_launch.
     """
     try:
-        d = trees.design_tree(name, shape, height_m, width_m, tuple(leaf_rgb or (70, 125, 55)),
-                              tuple(trunk_rgb or (95, 70, 45)), cost, description, image_path)
+        d = trees.design_tree(name, shape, height_m, width_m, tuple(leaf_rgb) if leaf_rgb else None,
+                              tuple(trunk_rgb) if trunk_rgb else None, cost, description, image_path,
+                              replace=replace)
     except content.ContentError as e:
         return {"error": str(e), "hint": e.hint}
     png = d.pop("texture_png")
@@ -1606,10 +1610,12 @@ def game_props(query: str = "", limit: int = 40) -> dict:
 @guarded
 def design_prop(name: str, shape: str = "box", width_m: float = 2.0, depth_m: float = 2.0, height_m: float = 2.0,
                 rgb: list[int] | None = None, image_path: str = "", model_path: str = "", model_scale: float = 1.0,
-                animation: str = "", hours: list[float] | None = None, dates: dict | None = None):
+                animation: str = "", hours: list[float] | None = None, dates: dict | None = None,
+                parts_model: dict | None = None):
     """Design a new prop - a box, cylinder, cone or sign (a board on a post; image_path puts a picture on its
-    street side) in one colour - to place on lots with design_park or design_model_building. Written as a plugin;
-    the game loads it at start-up. Returns the design and its texture.
+    street side) in one colour, or a realistic one made of parts (parts_model: benches, lamps, statues, planters,
+    rendered per view as the game's own) - to place on lots with design_park or design_model_building. Written as
+    a plugin; the game loads it at start-up. Returns the design and its picture.
 
     Args:
         name: the prop's name.
@@ -1625,11 +1631,14 @@ def design_prop(name: str, shape: str = "box", width_m: float = 2.0, depth_m: fl
         animation: spin (turns about its vertical axis) or sway (rocks gently), as the game's animated props.
         hours: [from, to]: shown only at these hours of the game's day (may wrap midnight: [19, 6] = at night).
         dates: {"start": [month, day], "days": n, "every": 365}: shown only then (holiday decorations...).
+        parts_model: a prop made of parts, as design_model_building's (guide topic "parts"): x 0..width, y
+            0..depth in metres from its corner, its +y side its front (toward the street at rotation 0), z up; its
+            size replaces width, depth and height. Lamps on a facade ({"type": "lamp"}) light up at night.
     """
     try:
         d = lotdesign.design_prop(name, shape, width_m, depth_m, height_m, tuple(rgb or (150, 150, 150)), image_path,
                                   model_path=model_path, model_scale=model_scale, animation=animation, hours=hours,
-                                  dates=dates)
+                                  dates=dates, parts_model=parts_model)
     except content.ContentError as e:
         return {"error": str(e), "hint": e.hint}
     png = d.pop("texture_png")

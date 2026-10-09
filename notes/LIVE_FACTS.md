@@ -885,3 +885,16 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   Maxis shrubs, flowers and maples): beside Maxis houses in MCP Town at (15, 37) / (15, 38) it took the same
   light and shade; the porch read only once it had its own front gable (an integral porch under the main roof is
   hidden from the game's 45-degree camera), and a box top under a shallow roof showed through as a bright patch.
+- **Props follow the buildings' rule**: "MCP Prop Probe" (a prop whose per-view models show their index) on a lot
+  facing south with rotations 0..3 showed indices 2, 3, 0, 1 at camera 0 and 1, 2, 3, 0 at camera 1: index = (lot
+  facing + prop rotation - camera rotation) mod 4, so SiMCP's per-view props are turned as its buildings. Props at
+  life size read poorly: the game's benches are 3 - 4 m long, its lamp posts 7 - 8 m with heavy heads; SiMCP's park
+  props are drawn 1.5 - 1.7 times life size ("scale"). "MCP Pocket Park" (paths, a bronze statue, four benches,
+  four acorn lamps, Maxis deciduous tree props 0x2A10xxxx - full-size, unlike lot flora) stood at (40, 8).
+- **Prop lights**: the game's lamp posts carry their light as extra night models in RKT4 (a "lightflare" disc and a
+  "lightcone", material flags 0x3B, blend 8 / 1); in MCP Town at night neither those nor SiMCP's lamp globes'
+  night layer showed (open).
+- **Flora with dense models is not drawn**: SiMCP's first rendered trees (about 4,200 vertices a view) showed only
+  their shadows; a 330-vertex palm drew. With the picture on a low-poly shell (stacked octagonal bands, about 220
+  vertices: batrender.shell, as the BAT's LOD) "MCP Oak", "MCP Spruce" and "MCP Palm" drew, with tree-shaped
+  shadows, among the game's trees at (43..48, 6..7).

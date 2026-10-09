@@ -9,7 +9,8 @@ available: SimCity 4 props go on the lot (design_model_building's objects).
 Model (all lengths in metres; the lot is lot * 16 m square, x and y from 0, z up; in the game's default view the +x
 side is on the left, +y on the right):
 
-    {"name": "...", "lot": 2, "architect": "...", "description": "...", "lighting": "game" | "architect",
+    {"name": "...", "lot": 2, "scale": 1.0 (enlarges the whole model: props read at game size only when made 1.5 -
+     2 times life size, as the game's own), "lighting": "game" | "architect",
      "materials": {"siding": {"pattern": "clapboard", "color": "#71806e", "size_m": [1, 1]},
                    "front": {"photo": "haas", "quad": [[x, y], [x, y], [x, y], [x, y]], "fit": true}, ...},
      "parts": [{"type": "box", "x": 6, "y": 4, "z": 0, "w": 15, "d": 18, "h": 11,
@@ -55,7 +56,8 @@ Materials (one of):
 - {"facade": {...}} - an AUTHORED wall (facade.py): windows, doors, bands, friezes, railings, ornaments and
    shingle fields drawn at measured positions in clean colours; stretched over the whole face. The recommended way
    to use a photo: measure from it, draw the facade (crisp, lit consistently) rather than pasting its pixels.
-Options on any material: "tint": "#rrggbb" (multiplies), "brightness": 1.0 (photos of walls in shade usually need
+Options on any material: "glow": true or "#rrggbb" (it shines at night - lamps, lit signs, shop windows; facades
+light their windows themselves), "grain": 0.06 (weathering), "tint": "#rrggbb" (multiplies), "brightness": 1.0 (photos of walls in shade usually need
 1.2 - 1.5: the renderer lights them again), "remove_color": "#rrggbb" + "tolerance" (photo texels near that colour,
 e.g. the sky beside a narrow turret, are filled from the surrounding wall).
 """
@@ -215,6 +217,51 @@ def pattern_image(kind: str, color, color2=None, px: int = 64) -> Image.Image:
     return im
 
 
+def foliage_image(kind: str, color, color2=None, density: float = 0.75, seed: int = 1, px: int = 96):
+    """A see-through foliage texture (RGBA): leaves (small broad leaves at random angles), needles (short strokes)
+    or fronds (a feather of leaflets along a midrib, for palm fronds); colours vary around color, a share of darker
+    color2. Transparent texels are cut away by the renderer (and in its shadows)."""
+    from PIL import ImageDraw
+    rnd = np.random.default_rng(seed)
+    c = np.array(parse_color(color), float)
+    c2 = np.array(parse_color(color2), float) if color2 else c * 0.62
+    im = Image.new("RGBA", (px, px), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+
+    def col():
+        k = rnd.uniform(0.78, 1.18)
+        base = c2 if rnd.random() < 0.3 else c
+        jit = rnd.normal(0, 8, 3)
+        return tuple(int(v) for v in np.clip(base * k + jit, 0, 255)) + (255,)
+    if kind == "fronds":
+        mid = px // 2
+        d.line([(mid, 0), (mid, px)], fill=col(), width=max(2, px // 32))
+        for y in range(-px // 8, px, max(2, px // 32)):
+            L = px * 0.47
+            for s in (-1, 1):
+                d.line([(mid, y), (mid + s * L, y + px * 0.16)], fill=col(), width=max(2, px // 24))
+        return im
+    n = int(px * px * density / (14 if kind == "leaves" else 9))
+    for _ in range(n):
+        x, y = rnd.uniform(-4, px + 4, 2)
+        a = rnd.uniform(0, np.pi)
+        if kind == "needles":
+            L = rnd.uniform(3, 6)
+            for dx in (-px, 0, px):
+                for dy in (-px, 0, px):
+                    d.line([(x + dx - L * np.cos(a), y + dy - L * np.sin(a)),
+                            (x + dx + L * np.cos(a), y + dy + L * np.sin(a))], fill=col(), width=2)
+            continue
+        L, W = rnd.uniform(2.5, 5.0), rnd.uniform(1.6, 3.0)
+        pts = [(L * np.cos(t) * np.cos(a) - W * np.sin(t) * np.sin(a),
+                L * np.cos(t) * np.sin(a) + W * np.sin(t) * np.cos(a)) for t in np.linspace(0, 2 * np.pi, 8)]
+        f = col()
+        for dx in (-px, 0, px):                      # wrap around: the texture repeats
+            for dy in (-px, 0, px):
+                d.polygon([(x + dx + u, y + dy + v) for u, v in pts], fill=f)
+    return im
+
+
 def library_texture(name: str) -> Image.Image | None:
     """A picture file used as a texture (SimCity 4 has no Building Architect paint library)."""
     for cand in (name, name + ".png", name + ".tga", name + ".bmp"):
@@ -293,7 +340,13 @@ def make_material(name: str, spec: dict, rect_px_per_m: float = 48.0) -> Materia
     if not isinstance(spec, dict):
         raise GameError(f"material {name!r}: an object such as {{\"color\": \"#8a8a8a\"}}")
     mat = _make_material(name, spec, rect_px_per_m)
+    if spec.get("glow"):                     # it shines at night: a lamp globe, a lit sign, a shop window
+        g = spec["glow"]
+        c = parse_color("#ffd38a" if g is True else g)
+        im = Image.new("RGBA", (4, 4), tuple(c[:3]) + (int(255 * float(spec.get("glow_alpha", 0.95))),))
+        mat.glow = Material(name + " light", im, fit=True)
     try:
+        mat.wrap = float(spec.get("wrap", 0.0))         # foliage: light wraps past the shaded side (0..1)
         mat.grain = float(spec.get("grain", GRAIN))
     except (TypeError, ValueError):
         raise GameError(f"material {name!r}: grain is a number (0 = clean, 0.06 default, 0.2 strong)")
@@ -319,7 +372,11 @@ def _make_material(name: str, spec: dict, rect_px_per_m: float = 48.0) -> Materi
     if "color" in spec and "pattern" not in spec:
         c = _shade(parse_color(spec["color"]), bright)
         return Material(name, color=c)
-    if "pattern" in spec:
+    if spec.get("pattern") in ("leaves", "fronds", "needles"):     # foliage: see-through, cut out by alpha
+        im = foliage_image(spec["pattern"], spec.get("color", "#5f7a3a"), spec.get("color2"),
+                           float(spec.get("density", 0.75)), int(spec.get("seed", 1)))
+        mat = Material(name, im, size_m=size or (1.4, 1.4))
+    elif "pattern" in spec:
         im = pattern_image(spec["pattern"], spec.get("color", "#9a9a9a"), spec.get("color2"))
         mat = Material(name, im, size_m=size or (1.0, 1.0))
     elif "texture" in spec:
@@ -701,6 +758,79 @@ class Builder:
         LX, LY = self.LX, self.LY
         self.face([(0, 0, 0), (0, LY, 0), (LX, LY, 0), (LX, 0, 0)], (0, 0, 1), self.face_mat(p, "top"))
 
+    def blob(self, p):
+        """A leaf clump or any rounded mass: an ellipsoid at cx, cy, z (its centre) with radii rx, ry, rz (or r),
+        its surface roughened by "jitter" (0..0.4), normals pointing out from the centre (soft, round shading)."""
+        cx, cy, cz = float(p["cx"]), float(p["cy"]), float(p.get("z", 0))
+        r = float(p.get("r", 1.0))
+        rx, ry, rz = float(p.get("rx", r)), float(p.get("ry", r)), float(p.get("rz", r))
+        jitter = float(p.get("jitter", 0.15))
+        level = int(p.get("detail", 2))
+        seed = int(p.get("seed", 0))
+        mat = self.face_mat(p, "sides")
+        verts = [np.array(v, float) for v in ((1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1))]
+        tris = [(0, 2, 4), (2, 1, 4), (1, 3, 4), (3, 0, 4), (2, 0, 5), (1, 2, 5), (3, 1, 5), (0, 3, 5)]
+        for _ in range(max(0, min(3, level))):
+            cache, new = {}, []
+
+            def mid(a, b):
+                k = (min(a, b), max(a, b))
+                if k not in cache:
+                    m = verts[a] + verts[b]
+                    verts.append(m / np.linalg.norm(m))
+                    cache[k] = len(verts) - 1
+                return cache[k]
+            for a, b, c in tris:
+                ab, bc, ca = mid(a, b), mid(b, c), mid(c, a)
+                new += [(a, ab, ca), (b, bc, ab), (c, ca, bc), (ab, bc, ca)]
+            tris = new
+        V = np.array(verts)
+        h = np.sin(V @ np.array([12.9898, 78.233, 37.719]) * 7.13 + seed * 1.618) * 43758.5453
+        k = 1 + jitter * ((h - np.floor(h)) * 2 - 1)
+        P = np.stack([cx + V[:, 0] * rx * k, cy + V[:, 1] * ry * k, cz + V[:, 2] * rz * k], 1)
+        Nrm = np.stack([V[:, 0] / rx, V[:, 1] / ry, V[:, 2] / rz], 1)
+        Nrm /= np.linalg.norm(Nrm, axis=1, keepdims=True)
+        crown = p.get("crown")              # shade as part of a larger mass (a tree's crown): its normals mixed in
+        if crown:
+            cc = np.array(crown["c"], float)
+            cr = np.array(crown["r"], float)
+            mix = float(crown.get("mix", 0.7))
+            Cn = (P - cc) / (cr * cr)
+            Cn /= np.maximum(np.linalg.norm(Cn, axis=1, keepdims=True), 1e-9)
+            Nrm = (1 - mix) * Nrm + mix * Cn
+            Nrm /= np.maximum(np.linalg.norm(Nrm, axis=1, keepdims=True), 1e-9)
+        for a, b, c in tris:
+            pa, pb, pc = P[a], P[b], P[c]
+            fn = np.cross(pb - pa, pc - pa)
+            if np.linalg.norm(fn) < 1e-12:
+                continue
+            if np.dot(fn, Nrm[a] + Nrm[b] + Nrm[c]) < 0:
+                pb, pc, b, c = pc, pb, c, b
+                fn = -fn
+            n = fn / np.linalg.norm(fn)
+            right = np.cross(UP, n)
+            right = right / np.linalg.norm(right) if np.linalg.norm(right) > 1e-6 else np.array([0, 1.0, 0])
+            down = np.cross(n, right)
+            uv = [(float(np.dot(q, right)), float(np.dot(q, down))) for q in (pa, pb, pc)]
+            self.mesh.tri((tuple(pa), tuple(pb), tuple(pc)), (Nrm[a], Nrm[b], Nrm[c]), uv, mat, (1.0, 1.0))
+
+    def quad(self, p):
+        """A free sheet through four points [[x, y, z] x 4] in order (palm fronds, awnings, signs at an angle),
+        seen from both sides."""
+        pts = [np.array(q, float) for q in p["points"]]
+        if len(pts) != 4:
+            raise GameError("quad: four points [[x, y, z], ...]")
+        n = np.cross(pts[1] - pts[0], pts[2] - pts[0])
+        if np.linalg.norm(n) < 1e-9:
+            raise GameError("quad: the points are on a line")
+        mat = self.face_mat(p, "sides")
+        w = float(np.linalg.norm(pts[1] - pts[0]))
+        h = float(np.linalg.norm(pts[3] - pts[0]))
+        uv = [(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)]
+        n = n / np.linalg.norm(n)
+        self.mesh.tri(tuple(map(tuple, (pts[0], pts[1], pts[2]))), (n, n, n), (uv[0], uv[1], uv[2]), mat, (w, h))
+        self.mesh.tri(tuple(map(tuple, (pts[0], pts[2], pts[3]))), (n, n, n), (uv[0], uv[2], uv[3]), mat, (w, h))
+
     def patch(self, p):
         x, y, w, d = float(p["x"]), float(p["y"]), float(p["w"]), float(p["d"])
         z = float(p.get("z", 0.02))
@@ -713,7 +843,7 @@ class Builder:
     def build(self) -> tuple[Mesh, list[Material]]:
         kinds = {"box": self.box, "beam": self.beam, "panel": self.panel, "extrude": self.extrude, "prism": self.prism, "cylinder": self.prism,
                  "cone": self.cone, "pyramid": self.cone, "roof": self.roof, "ground": self.ground,
-                 "patch": self.patch, "prop": self.prop}
+                 "patch": self.patch, "prop": self.prop, "blob": self.blob, "quad": self.quad}
         for i, part in enumerate(self.model.get("parts", [])):
             k = part.get("type")
             if k not in kinds:
@@ -722,6 +852,18 @@ class Builder:
                 kinds[k](part)
             except KeyError as e:
                 raise GameError(f"part {i} ({k}): missing {e.args[0]!r}")
+        sc = self.model.get("scale", 1.0)
+        try:
+            sc = float(sc)
+        except (TypeError, ValueError):
+            raise GameError("scale: a number (e.g. 1.6 to enlarge a prop as the game's own are)")
+        if not 0.1 <= sc <= 10:
+            raise GameError("scale: 0.1 .. 10")
+        if sc != 1.0:                        # the whole model, textures with it (they are laid in metres)
+            m = self.mesh
+            m.p = [tuple(tuple(c * sc for c in v) for v in t) for t in m.p]
+            m.uv = [tuple(tuple(c * sc for c in v) for v in t) for t in m.uv]
+            m.ext = [tuple(c * sc for c in e) for e in m.ext]
         return self.mesh, self.mats
 
 

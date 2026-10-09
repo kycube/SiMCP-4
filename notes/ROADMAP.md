@@ -48,7 +48,7 @@ L = a day or more, XL = several days.
 
 - [x] New network pieces (XL) - placing the game's and NAM's puzzle pieces (puzzle_pieces, place_puzzle_piece) and new ones captured from ground networks laid in a city (design_puzzle_piece; 3D tiles - bridges, elevated pieces - not yet)
 - [x] Bridges and tunnels (XL) - bridges by name and tunnels reported on each drag (build_network); new bridges copied from the game's under a new name and deck height (design_bridge); recoloured bridge models: Phase 11
-- [ ] Transit-enabled lots (XL)
+- [x] Transit-enabled lots (XL) - new stations on copies of the game's station lots, network tiles and transit properties kept (design_transit_station); ridership of a new station not measured yet
 - [ ] Lot Editor parity (L-XL)
 - [ ] Release packaging (M-L)
 

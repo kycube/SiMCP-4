@@ -335,3 +335,22 @@ def test_timed_animated_and_seasonal_props(tmp_path, monkeypatch):
     assert all(x.get(lotdesign.P_RKT4) and x.get(content.P_RKT0) is None for x in exs)
     rows, _ = lotdesign.rows(1, None, "lawn", [{"seasonal_tree": "Test Birch", "x": 8, "z": 8}])
     assert len([r_ for r_ in rows if r_[0] == lotdesign.ROW_PROP]) == 4
+
+
+def test_transit_station_copies_the_lot(tmp_path, monkeypatch):
+    """A station's lot is the game's, its building row SiMCP's (skipped without the game's data)."""
+    import pytest
+    from sc4_mcp import dbpf, gamedata
+    if gamedata._main_dat() is None:
+        pytest.skip("the game's data files are not installed")
+    monkeypatch.setattr(content, "FOLDER", str(tmp_path))
+    monkeypatch.setattr(content, "MANIFEST", str(tmp_path / "content.json"))
+    r = content.transit_station("Test Light Rail", "light_rail", 12, 10, 7)
+    d = dbpf.DBPF(r["file"])
+    lot = dbpf.parse_exemplar(d.read([e for e in d if e.group == content.G_LOTS][0]))
+    rows = [p.values for p in lot.props if content.LOT_ROW0 <= p.id <= content.LOT_ROW0 + 0x4FF]
+    assert sorted(r_[0] for r_ in rows).count(7) == 3                    # the station's light rail tiles
+    assert [r_[12] for r_ in rows if r_[0] == 0] == [int(r["building"], 16)]
+    assert r["lot_cells"] == [3, 1] and r["kind"] == "transit_light_rail"
+    with pytest.raises(content.ContentError):
+        content.transit_station("Test Nothing", "zeppelin")

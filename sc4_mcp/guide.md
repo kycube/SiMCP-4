@@ -163,6 +163,11 @@ there is demand.
   where the game's solver makes one. Each leg reports its `bridges` and `tunnels` (from, to, cells).
   `bridges(query)` lists every bridge the game loads; `design_bridge(name, base, height_m)` copies one under a
   new name with its deck higher or lower (after a restart it is in the choices).
+- Transit stations: `design_transit_station(name, kind)` (bus, subway, light_rail, monorail, passenger_rail,
+  freight_rail, ferries, parking, toll_booth...) copies the game's station lot - its size and, for transit-
+  enabled lots, its network tiles - and the station's transit properties, with SiMCP's building (a block or an
+  OBJ model). Elevated stations draw their track as part of the building: give such a station a model with the
+  platform, or the track on its lot is invisible.
 - New puzzle pieces: lay ground networks (roads, streets, avenues, one-way, dirt, rail...) in an empty corner
   with build_network, then `design_puzzle_piece(name, x0, z0, x1, z1)` makes them a piece: the cells keep the
   tiles they show and their traffic paths, and the cells whose networks leave the rectangle stay ordinary

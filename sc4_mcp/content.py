@@ -354,27 +354,38 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
                    ground="plaza", objects: list[dict] | None = None, invisible: bool = False,
                    model_path: str = "", model_scale: float = 1.0, overrides: dict | None = None,
                    kind: str = "", template_group: int | None = None, extra=None,
-                   department: dict | None = None) -> dict:
+                   department: dict | None = None, lot_template: int | None = None) -> dict:
     """A new building with its own model and texture on its own lot (Parks / landmarks properties of the template
     building), written as a plugin into SiMCP's Plugins folder. `ground` covers every cell of the lot (a name from
     lotdesign.GROUNDS or a lot texture id) and `objects` adds props, trees and grounds (lotdesign.rows). invisible:
     the building is a transparent 1 m quad (lotdesign.park). model_path: an OBJ model (meshimport) instead of the
-    generated block; its size (after model_scale) replaces width / depth / height."""
+    generated block; its size (after model_scale) replaces width / depth / height. lot_template: a game lot whose
+    size, properties and rows (network tiles of transit-enabled lots, props, textures) the new lot copies, with
+    SiMCP's building on the template's building row (ground and objects are then not used)."""
     from . import fsh, lotdesign, meshimport, s3d
     mesh = meshimport.load(model_path, model_scale) if model_path else None
+    lt = None
+    lot_w = lot_d = lot_cells
+    if lot_template is not None:
+        _, lt = _find_exemplar(dbpf.T_EXEMPLAR, lot_template, G_LOTS)
+        if lt is None:
+            raise ContentError("the template lot 0x%08X is not in the game's own data" % lot_template)
+        size = [p.values for p in lt.props if p.id == 0x88EDC790]
+        lot_w, lot_d = (size[0][0], size[0][1]) if size else (1, 1)
     if mesh:
         width, height, depth = mesh["size_m"]
-        if not (0.5 <= width <= 16 * lot_cells - 0.5 and 0.5 <= depth <= 16 * lot_cells - 0.5 and height <= 400):
-            raise ContentError("the model is %g x %g m (x %g m tall): it must fit a %d-cell lot (%d m) - scale it or "
-                               "use a bigger lot" % (width, depth, height, lot_cells, 16 * lot_cells))
+        if not (0.5 <= width <= 16 * lot_w - 0.5 and 0.5 <= depth <= 16 * lot_d - 0.5 and height <= 400):
+            raise ContentError("the model is %g x %g m (x %g m tall): it must fit a %d x %d-cell lot (%d x %d m) - "
+                               "scale it or use a bigger lot" % (width, depth, height, lot_w, lot_d, 16 * lot_w,
+                                                                 16 * lot_d))
     _check_name(name)
     _check_tokens(description, "description")
     if plop_cost < 0 or monthly_cost < 0:
         raise ContentError("costs are 0 or more")
-    if not invisible and not mesh and not (2 <= width <= 16 * lot_cells - 1 and 2 <= depth <= 16 * lot_cells - 1
+    if not invisible and not mesh and not (2 <= width <= 16 * lot_w - 1 and 2 <= depth <= 16 * lot_d - 1
                               and 2 <= height <= 400):
-        raise ContentError("the building must fit its lot: width and depth 2..%d m, height 2..400 m"
-                           % (16 * lot_cells - 1))
+        raise ContentError("the building must fit its lot: width 2..%d m, depth 2..%d m, height 2..400 m"
+                           % (16 * lot_w - 1, 16 * lot_d - 1))
     if not 1 <= lot_cells <= 6:
         raise ContentError("lots are 1 to 6 cells a side here")
     be, bld = _find_exemplar(dbpf.T_EXEMPLAR, template_building, template_group, not_group=G_LOTS)
@@ -403,8 +414,23 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
     cx = cz = side / 2
     building_row = [0, 0, 0, _fx(cx), 0, _fx(cz), _fx(cx - width / 2), _fx(cz - depth / 2), _fx(cx + width / 2),
                     _fx(cz + depth / 2), 0, 1, bld_iid]
-    rows, placed = lotdesign.rows(lot_cells, building_row, ground, objects)
-    lprops = [dbpf.Property(0x10, dbpf.PT_UINT32, [0x10]), dbpf.Property(P_NAME, dbpf.PT_STRING, "SiMCP_" + _slug(name)),
+    if lt is not None:                   # the template lot's rows, SiMCP's building on its building row
+        rows, placed = [], []
+        for pr in sorted((p for p in lt.props if LOT_ROW0 <= p.id <= LOT_ROW0 + 0x4FF), key=lambda p: p.id):
+            r = list(pr.values)
+            if r[0] == 0:
+                hw, hd = (depth, width) if r[2] % 2 else (width, depth)
+                cx_, cz_ = r[3] / 65536.0, r[5] / 65536.0
+                r[6:10] = [_fx(cx_ - hw / 2), _fx(cz_ - hd / 2), _fx(cx_ + hw / 2), _fx(cz_ + hd / 2)]
+                r[12:] = [bld_iid]
+            rows.append(r)
+        lprops = [dbpf.Property(p.id, p.ptype, list(p.values) if isinstance(p.values, list) else p.values, p.multi)
+                  for p in lt.props if not (LOT_ROW0 <= p.id <= LOT_ROW0 + 0x4FF) and p.id != P_NAME]
+        lprops.insert(1, dbpf.Property(P_NAME, dbpf.PT_STRING, "SiMCP_" + _slug(name)))
+    else:
+        rows, placed = lotdesign.rows(lot_cells, building_row, ground, objects)
+        lprops = []
+    lprops = lprops or [dbpf.Property(0x10, dbpf.PT_UINT32, [0x10]), dbpf.Property(P_NAME, dbpf.PT_STRING, "SiMCP_" + _slug(name)),
               dbpf.Property(0x27812837, dbpf.PT_UINT8, [1], True), dbpf.Property(0x4A4A88F0, dbpf.PT_UINT8, [8], True),
               dbpf.Property(0x88EDC789, dbpf.PT_UINT8, [2], True),
               dbpf.Property(0x88EDC790, dbpf.PT_UINT8, [lot_cells, lot_cells], True),
@@ -439,7 +465,8 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
         dprops, dept_records, dept_entry = orddesign.department_props(**department)
         bprops = _drop(bprops, *[pr.id for pr in dprops]) + dprops
     records = [(dbpf.T_EXEMPLAR, G_SIMCP_BUILDINGS, bld_iid, dbpf.build_exemplar(bprops, bld.parent)),
-               (dbpf.T_EXEMPLAR, G_LOTS, lot_iid, dbpf.build_exemplar(lprops, LOT_COHORT)),
+               (dbpf.T_EXEMPLAR, G_LOTS, lot_iid, dbpf.build_exemplar(lprops, lt.parent if lt is not None
+                                                                      else LOT_COHORT)),
                (dbpf.T_S3D, G_MODELS, model_iid, model),
                (dbpf.T_PNG, G_ICONS, icon_iid, icon_png)] + \
               [(dbpf.T_FSH, G_TEXTURES, inst, data) for inst, data in textures]
@@ -454,7 +481,10 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
     dbpf.write_dbpf(path, records)
     entry = {"name": name, "file": path, "lot": "0x%08X" % lot_iid, "building": "0x%08X" % bld_iid,
              "model": "0x%08X" % model_iid, "texture": "0x%08X" % tex_iid, "size_m": [width, depth, height],
-             "lot_cells": lot_cells, "ground": ground, "objects": placed, "created": time.strftime("%Y-%m-%d %H:%M:%S")}
+             "lot_cells": lot_cells if lt is None else [lot_w, lot_d], "ground": ground if lt is None else None,
+             "objects": placed, "created": time.strftime("%Y-%m-%d %H:%M:%S")}
+    if lt is not None:
+        entry["lot_template"] = "0x%08X" % lot_template
     if kind:
         entry["kind"] = kind
         entry["service"] = {"0x%08X" % k: v for k, v in (overrides or {}).items()}
@@ -780,6 +810,35 @@ REWARDS = {"statue": 0x03730000, "mayors_house": 0x031F0000}    # templates in g
 G_REWARDS = 0x8A3858D8
 P_CONDITIONAL, P_EXCLUSION = 0xEA3209F8, 0xEA2E078B
 MENU_REWARDS = 0x150B
+
+
+TRANSIT = {   # kind -> (the game's lot (group 0xA8FBD372), its building (group 0xC8DBCCBA))
+    "bus": (0x05000001, 0x035A0000), "subway": (0x05000002, 0x03590000),
+    "light_rail": (0x4BAFBA9F, 0x03830000), "light_rail_subway": (0xCBF3412D, 0x0ADE0000),
+    "monorail": (0xEBFB01D2, 0x038D0000), "passenger_rail": (0x6A8A358F, 0x035B0000),
+    "freight_rail": (0x6A3855D4, 0x035C0000), "car_ferry": (0x0B96AE64, 0x03820000),
+    "passenger_ferry": (0x8BD88057, 0x038B0000), "parking": (0xEC0C4BD1, 0x2C9B0000),
+    "toll_booth": (0xEBF9A440, 0x038F0000),
+}
+
+
+def transit_station(name: str, kind: str, width: float = 10.0, depth: float = 10.0, height: float = 6.0,
+                    wall=(190, 185, 175), roof=(80, 80, 85), description: str = "", plop_cost: int | None = None,
+                    monthly_cost: int | None = None, model_path: str = "", model_scale: float = 1.0) -> dict:
+    """A transit station that works as the game's own: its lot copied from the game's station (size, network tiles
+    of transit-enabled lots, props, ground) and its building's transit properties, with SiMCP's model and name."""
+    if kind not in TRANSIT:
+        raise ContentError("kind is %s" % ", ".join(TRANSIT))
+    lot, bld = TRANSIT[kind]
+    _, tpl = _find_exemplar(dbpf.T_EXEMPLAR, bld, 0xC8DBCCBA)
+    if tpl is None:
+        raise ContentError("the game's %s station (0x%08X) is not in SimCity_1.dat" % (kind, bld))
+    costs = {p.id: p.values for p in tpl.props}
+    plop = plop_cost if plop_cost is not None else (costs.get(P_PLOP) or [500])[0]
+    monthly = monthly_cost if monthly_cost is not None else (costs.get(P_MONTHLY) or [20])[0]
+    return model_building(name, width, depth, height, wall, roof, True, 1, description, int(plop), int(monthly),
+                          template_building=bld, model_path=model_path, model_scale=model_scale,
+                          kind="transit_" + kind, template_group=0xC8DBCCBA, lot_template=lot)
 
 
 def reward_building(name: str, condition: str, requirement: str = "", title: str = "", message: str = "",

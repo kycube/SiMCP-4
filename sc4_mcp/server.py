@@ -1919,6 +1919,42 @@ def design_bridge(name: str, base: str, height_m: float = -1.0) -> dict:
 
 @tool(mcp, "act")
 @guarded
+def design_transit_station(name: str, kind: str, width_m: float = 10.0, depth_m: float = 10.0,
+                           height_m: float = 6.0, wall_rgb: list[int] | None = None,
+                           roof_rgb: list[int] | None = None, description: str = "", plop_cost: int = -1,
+                           monthly_cost: int = -1, model_path: str = "", model_scale: float = 1.0) -> dict:
+    """A new transit station that works as the game's own of that kind: its lot is a copy of the game's station
+    lot (its size, the network tiles of transit-enabled lots - light rail, monorail, toll booths, ferries -, its
+    props and ground) and its building keeps the station's transit properties; SiMCP gives it its own model (a
+    generated block, or an OBJ model) and name. It shows in the transit menu after a restart (quit_game,
+    game_launch); plop places it.
+
+    Args:
+        name: the station's name in the menu.
+        kind: bus, subway, light_rail, light_rail_subway, monorail, passenger_rail, freight_rail, car_ferry,
+            passenger_ferry, parking or toll_booth.
+        width_m: the generated building's width (it must fit the station's lot).
+        depth_m: its depth.
+        height_m: its height.
+        wall_rgb: its wall colour.
+        roof_rgb: its roof colour.
+        description: the menu text.
+        plop_cost: what placing it costs (-1: the game's station's).
+        monthly_cost: its monthly cost (-1: the game's station's).
+        model_path: an OBJ model to use instead of the block (its size replaces width / depth / height).
+        model_scale: metres per OBJ unit.
+    """
+    try:
+        return content.transit_station(name, kind, width_m, depth_m, height_m, tuple(wall_rgb or (190, 185, 175)),
+                                       tuple(roof_rgb or (80, 80, 85)), description,
+                                       None if plop_cost < 0 else plop_cost, None if monthly_cost < 0 else monthly_cost,
+                                       model_path, model_scale)
+    except content.ContentError as e:
+        return {"error": str(e), "hint": e.hint}
+
+
+@tool(mcp, "act")
+@guarded
 def terrain_look(look: str = "", moisture_shift: int | None = None, saturation: float | None = None,
                  brightness: float | None = None, tint_rgb: list[int] | None = None,
                  tint_strength: float | None = None, snow: float | None = None, autumn: float | None = None):

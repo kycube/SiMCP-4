@@ -804,3 +804,11 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   mountain_steep_hills for 3 s raised 800 m over a third of the tile; valley_steep 0.4 s sank most of it below the
   sea. The mayor's raise brush adds about 10 m per application. For controlled test terrain, import a height grid
   (new_region, set_region_layout(1, 1), import_region_terrain).
+- **Transit stations**: the game's station lots (group 0xA8FBD372; buildings in 0xC8DBCCBA): bus stop 0x05000001
+  and subway 0x05000002 are 1 x 1 with building, prop and texture rows only (the transit function is the
+  building's); elevated light rail 0x4BAFBA9F, monorail 0xEBFB01D2, light rail subway 0xCBF3412D (3 x 1), toll
+  booths and ferries also carry network rows (type 7: [7, 0, rotation, x, y, z, bounds, 0, id, network type, 0,
+  edges]). A lot copied whole with SiMCP's building on the template's building row ("MCP Light Rail Stop") plopped
+  at (52, 37) in MCP Town and laid the same light rail tiles as the Maxis station plopped beside it (0x08000500 end
+  pieces, 0x08031500 between, the same edges); its middle track is not drawn - the Maxis station's model carries
+  the platform. "MCP Bus Stop" showed in the transit menu next to Maxis' and plopped for 150.

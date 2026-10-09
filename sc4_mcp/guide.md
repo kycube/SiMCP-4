@@ -166,6 +166,11 @@ there is demand.
   carries every building style). Zone 2-cell-deep strips: 1-deep lots rarely develop. It competes with the game's
   own buildings, so expect a share of the new lots, not all. A saved city whose lots hold a design needs that
   design: bulldoze those buildings before disabling it.
+- `design_tree(name, shape, height_m, width_m, leaf_rgb, trunk_rgb, cost)` adds a tree type to the game's tree
+  menu (plant it with `plant_trees`): a painted broadleaf, conifer or palm on three crossed planes, or your own
+  picture with `image_path` (a PNG with a transparent background - the better-looking option). The trees cast
+  shadows of their outline; plant them a cell or two apart. The game's own trees start as saplings and grow,
+  a designed tree is full-size at once.
 - `design_advice(name, advisor, title, message, trigger)` writes advice or a news headline for the advisors (a
   Lua package like the game's own): it appears when its trigger - a read-only expression such as
   `game.g_city_r_population > 1000` - is true. #city# in the text becomes the city's name.

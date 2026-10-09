@@ -391,7 +391,8 @@ P_ICON = 0x8A2602B8
 
 
 def tree_types() -> list[dict]:
-    """The trees of the game's flora menu (flora exemplars with a menu icon), from the game's data."""
+    """The trees of the game's flora menu (flora exemplars with a menu icon), from the game's data, and the
+    trees SiMCP designed (design_tree)."""
     from . import gamedata
     out = []
     for inst, ex in gamedata.exemplars(GROUP_FLORA):
@@ -400,7 +401,8 @@ def tree_types() -> list[dict]:
         key = ex.get(0x8A416A99)
         name = gamedata.locale_text(key[2], key[1]) if isinstance(key, list) and len(key) == 3 else None
         out.append({"id": "0x%08X" % inst, "name": name or ex.get(0x20), "exemplar": ex.get(0x20)})
-    return out
+    from . import trees
+    return out + trees.designed()           # SiMCP's own tree designs (loaded at the game's start)
 
 
 def _altitude(p, x: float, z: float) -> float:

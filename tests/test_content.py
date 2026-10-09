@@ -97,3 +97,36 @@ def test_advice_design(tmp_path, monkeypatch):
             content.advice_design("Bad", "news", "t", bad)
     with pytest.raises(content.ContentError):                          # triggers are read-only expressions
         content.advice_design("Bad2", "news", "t", "m", "game.deposit_funds(100)")
+
+
+def test_tree_design(tmp_path, monkeypatch):
+    """A tree design: flora exemplar, crossed-plane model, texture with transparency, icon, names."""
+    import pytest
+    from PIL import Image
+    from sc4_mcp import dbpf, gamedata, s3d, trees
+    for shape in trees.SHAPES:                                   # every painted shape has a cut-out background
+        im = trees.paint(shape, (60, 120, 50), (90, 60, 40), 7)
+        assert im.size == (trees.TEX_W, trees.TEX_H) and im.getextrema()[3] == (0, 255)
+    m = trees.crossed_planes(8, 12, 0x1234)
+    assert len(m.verts[0].data) // 20 == 12 and m.mats[0].textures[0].wrap == (3, 3)
+    if gamedata._main_dat() is None:
+        pytest.skip("the game's data files are not installed")
+    monkeypatch.setattr(content, "FOLDER", str(tmp_path))
+    monkeypatch.setattr(content, "MANIFEST", str(tmp_path / "content.json"))
+    r = trees.design_tree("Test Birch", "broadleaf", 10, 6, (90, 150, 60), (220, 220, 210), 7, "A pale birch")
+    d = dbpf.DBPF(r["file"])
+    types = {e.type for e in d}
+    assert {dbpf.T_EXEMPLAR, dbpf.T_S3D, dbpf.T_FSH, dbpf.T_PNG, dbpf.T_LTEXT} <= types
+    ex = [dbpf.parse_exemplar(d.read(e)) for e in d if e.type == dbpf.T_EXEMPLAR][0]
+    fid = int(r["flora"], 16)
+    assert ex.get(0x10) == 0x0F and ex.get(content.P_PLOP) == 7 and ex.get(trees.P_RKT5) is None
+    assert ex.get(content.P_RKT0)[2] == int(r["model"], 16)
+    assert ex.get(content.P_NAME_KEY) == [dbpf.T_LTEXT, content.G_SIMCP_NAMES, fid]
+    assert [t["name"] for t in trees.designed()] == ["Test Birch"]
+    Image.open(__import__("io").BytesIO(r["texture_png"]))
+    with pytest.raises(content.ContentError):
+        trees.design_tree("Test Birch", "broadleaf")              # the name is taken
+    with pytest.raises(content.ContentError):
+        trees.design_tree("Too Tall", "conifer", height=80)
+    with pytest.raises(content.ContentError):
+        trees.design_tree("Odd", "cactus")

@@ -536,3 +536,21 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   365 days each) through slots 29 / 25 / 27 (dates). There is no accept step, so no deal waits as "offered": the
   player's way to start a deal is to open the panel (all possible deals start) and cancel the unwanted ones, which
   is what open_neighbor_deals / cancel_neighbor_deal do. The unused start_deal (deal slot 35) was removed.
+
+## Session 2026-10-08 (Phase 6: new trees)
+
+- **Tree designs** (design_tree): "MCP Maple" (red broadleaf, 12 x 9 m, price 5) and "MCP Pine" (conifer, 18 x 7 m,
+  price 4) as flora exemplars in group 0xE83E0437 copied from the Maxis "decisious1" menu tree (0x16600000), RKT5
+  replaced by RKT0 (one 3D model: three crossed quads, both sides, 128x256 ARGB texture clamped (wrap 3), default
+  material 0xA3 = alpha test at 0.5), PNG icon (group 0x6A386D26), LTEXT name 0x5C4D0F01 / description 0x5C4D0F02.
+  After a game restart: FloraSim static data for both types gives our prices (5, 4); plant_trees planted 9 of 16
+  maples and 9 of 12 pines next to the road z = 30 (the road cells refuse trees; 6 of 8 Maxis maples likewise),
+  charged 4 a pine; both trees are first in the game's tree menu (Landscape -> trees, button 0x4A22EA06 under
+  0x49923239) with their icons. Seen in a zoom-5 snapshot: the alpha cut-out works and the shadow pass honours it
+  (tree-shaped shadows), but the solid planes cast long dark shadows that merge when planted every cell.
+- **Planted trees grow**: a flora occupant (type 0x74758926, vtable 0xA88580) keeps its flora type at +0x34,
+  position at +0x3C/+0x40/+0x44 (x, altitude, z in metres), a stage byte at +0x2E (1 when planted, 3 on grown
+  trees) and its planting day at +0x48. Maxis menu trees use RKT5 models per state (instances +0x10000 per state,
+  9 states, each with 5 zooms x 4 rotations), so a freshly planted Maxis maple is a sapling a few pixels big; a
+  designed tree (RKT0) shows its one model at every stage. The earlier "9 Noble Fir trees" check counted
+  occupants only.

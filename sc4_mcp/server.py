@@ -10,7 +10,7 @@ import os
 from mcp.server.fastmcp import FastMCP, Image
 
 from . import game as gamemod
-from . import build, catalog, cheats, city, content, disasters, economy, heightmap, history, launch, layers, luaquery, housekeeping, memory, mysim, neighbors, networks, options, pointer, regions, services, terrain, udi, view
+from . import build, catalog, cheats, city, content, disasters, economy, heightmap, history, launch, layers, luaquery, housekeeping, memory, mysim, neighbors, networks, options, pointer, regions, services, terrain, trees, udi, view
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -1442,6 +1442,36 @@ def design_model_building(name: str, width_m: float, depth_m: float, height_m: f
         return {"error": "colours are [r, g, b] with values 0..255"}
     return _content(content.model_building, name, width_m, depth_m, height_m, tuple(wall_rgb), tuple(roof_rgb),
                     windows, lot_cells, description, plop_cost, monthly_cost)
+
+
+@tool(mcp, "act")
+@guarded
+def design_tree(name: str, shape: str = "broadleaf", height_m: float = 12.0, width_m: float = 8.0,
+                leaf_rgb: list[int] | None = None, trunk_rgb: list[int] | None = None, cost: int = 3,
+                description: str = "", image_path: str = ""):
+    """Design a new tree type for the game's tree menu (planted with plant_trees or the player's tree tool): its own
+    3D model (three crossed planes) with a painted texture - broadleaf, conifer or palm in the colours given - or a
+    picture you supply. Written as a plugin into SiMCP's own Plugins folder; the game loads it at start-up
+    (quit_game, game_launch). Returns the design and its texture.
+
+    Args:
+        name: the tree's name, shown in the menu.
+        shape: broadleaf, conifer or palm (ignored with image_path).
+        height_m: height in metres (2..40).
+        width_m: crown width in metres (1..16; a cell is 16 m).
+        leaf_rgb: the foliage colour [r, g, b] (default green).
+        trunk_rgb: the trunk colour [r, g, b] (default brown).
+        cost: the price of each tree planted (0..10000; the game's trees cost 3).
+        description: the menu description.
+        image_path: a PNG of the tree on a transparent background, used as the texture instead of painting one.
+    """
+    try:
+        d = trees.design_tree(name, shape, height_m, width_m, tuple(leaf_rgb or (70, 125, 55)),
+                              tuple(trunk_rgb or (95, 70, 45)), cost, description, image_path)
+    except content.ContentError as e:
+        return {"error": str(e), "hint": e.hint}
+    png = d.pop("texture_png")
+    return [json.dumps(d), Image(data=png, format="png")]
 
 
 @tool(mcp, "act")

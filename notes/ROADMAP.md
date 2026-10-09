@@ -19,7 +19,7 @@ L = a day or more, XL = several days.
 ## Phase 6 - new trees and vehicles
 
 - [x] New tree types: flora exemplars with generated crossed-plane models (M) - painted placeholders or an agent's picture; better-looking trees come with Phase 8's meshes
-- [ ] New cars and trucks: automata exemplars with generated models, in the game's traffic (M)
+- [x] New cars and trucks: automata exemplars with generated models, in the game's traffic (M) - sedan, van, pickup bodies as placeholders; trucks and better models come with Phase 8's meshes
 
 ## Phase 7 - props and lots
 

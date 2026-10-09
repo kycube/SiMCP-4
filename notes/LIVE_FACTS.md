@@ -554,3 +554,27 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   9 states, each with 5 zooms x 4 rotations), so a freshly planted Maxis maple is a sapling a few pixels big; a
   designed tree (RKT0) shows its one model at every stage. The earlier "9 Noble Fir trees" check counted
   occupants only.
+
+## Session 2026-10-08 (Phase 6: new cars)
+
+- **Cars in the game's data**: vehicles are exemplars of type 0x16 in group 0x096E6739 under cohorts that give the
+  class: CheapCarCohort 0xCA47E67E (groups 0x4000, 0x4002, 0x420E cheap, 0x420B civilian cars), SoccerMomCohort
+  0x6A511FE1 (0x420A), RichCarCohort 0x2A47E655 (0x420D); vehicles.lua (Lua group 0x4A5E8F3F, 0xFF71C15F) defines
+  those groups. A car names its day model 0x09C80416, night model 0x09C80417 (head / tail light quads drawn over it,
+  the cheap sedan's is 0x10E42000), query name 0x4B733E12 and automata id 0xEBFC5E5E. The cheap sedan 0x10E40000 is a
+  3D model (2.1 x 1.87 x 5.5 m, +z forward, wheels on y = 0) of three meshes - body, undercarriage (a quad at
+  0.594 m facing down, FSH 0xABA645E7) and shadow (a blended quad at 0.129 m facing up, FSH 0x10660002) - 100
+  identical frames at 30 fps; its texture is a 128 x 128 FSH in 0x1ABE787D (SimCity_2.dat), the 42 x 42 PNG in
+  0x4C06F888 is its picture.
+- **The vehicle manager** `[0xB43D44]` (vtable 0xA9D1E0): +0xA18 a vector of 0x6C-byte vehicle type records keyed by
+  the model's resource key at +0x10 (182 here, groups from +0x3C), +0x44 a list of live vehicles (node +8; 6 to 25
+  in MCP Village); a live vehicle keeps its model key at +0x11C (group) / +0x120 (instance) and its position at
+  +0x40 / +0x44 / +0x48 (x, altitude, z). Vehicles are not occupants.
+- **design_car** "MCP Blue Sedan" (cheap) and "MCP Red Van": after a restart both are in the type table with their
+  cohort's groups and drive in the traffic (the sedan 4 of 152 vehicles seen in a minute, the Maxis sedan 6).
+  Caught by pausing the game the moment the vehicle list held one and centring the camera on it. **They first drew
+  black**: SiMCP had written every face both ways round, as its buildings are; vehicles are lit per face, so the
+  unlit back face drew over the front (test cars with the Maxis sedan's own texture, with material flags 0xA3,
+  and with the Maxis texture settings were all black too). The Maxis sedan has 48 single-sided triangles whose
+  (b - a) x (c - a) points outward; written that way the cars show their paint, glass and lights. Weight 6000 in
+  0xEBFC5FBA did not make the sedan more common, so design_car keeps the sedan's 720 and offers no weight.

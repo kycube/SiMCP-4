@@ -171,6 +171,9 @@ there is demand.
   picture with `image_path` (a PNG with a transparent background - the better-looking option). The trees cast
   shadows of their outline; plant them a cell or two apart. The game's own trees start as saplings and grow,
   a designed tree is full-size at once.
+- `design_car(name, kind, body_rgb, wealth)` adds a car to the city's traffic: a sedan, van or pickup body with
+  its own paint, head and tail lights, the game's shadow and night lights, driven by the commuters of one wealth
+  class (cheap, middle, rich). It shares the road with the game's own cars of that class.
 - `design_advice(name, advisor, title, message, trigger)` writes advice or a news headline for the advisors (a
   Lua package like the game's own): it appears when its trigger - a read-only expression such as
   `game.g_city_r_population > 1000` - is true. #city# in the text becomes the city's name.

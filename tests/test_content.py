@@ -130,3 +130,31 @@ def test_tree_design(tmp_path, monkeypatch):
         trees.design_tree("Too Tall", "conifer", height=80)
     with pytest.raises(content.ContentError):
         trees.design_tree("Odd", "cactus")
+
+
+def test_car_design(tmp_path, monkeypatch):
+    """A car: every body face written once and facing out (a face written both ways round draws the car black)."""
+    import pytest
+    from sc4_mcp import dbpf, gamedata, vehicles
+    for kind in vehicles.KINDS:
+        verts, tris = vehicles.body_mesh(kind)
+        assert not {(a, c, b) for a, b, c in tris} & set(tris)
+        top = [t for t in tris if all(abs(verts[i][1] - vehicles.KINDS[kind][2]) < 1e-6 for i in t)]
+        for a, b, c in top:                                     # the roof faces up
+            p, q, r = verts[a], verts[b], verts[c]
+            e1, e2 = [q[i] - p[i] for i in range(3)], [r[i] - p[i] for i in range(3)]
+            assert e1[2] * e2[0] - e1[0] * e2[2] > 0
+    m = vehicles.car_model("van", 0x1234)
+    assert [len(i.data) // 6 for i in m.indices][1:] == [2, 2]
+    if gamedata._main_dat() is None:
+        pytest.skip("the game's data files are not installed")
+    monkeypatch.setattr(content, "FOLDER", str(tmp_path))
+    monkeypatch.setattr(content, "MANIFEST", str(tmp_path / "content.json"))
+    r = vehicles.design_car("Test Coupe", "sedan", (200, 30, 30), "rich")
+    d = dbpf.DBPF(r["file"])
+    ex = [dbpf.parse_exemplar(d.read(e)) for e in d if e.type == dbpf.T_EXEMPLAR][0]
+    assert ex.parent == (dbpf.T_COHORT, vehicles.G_AUTOMATA, vehicles.COHORTS["rich"])
+    assert ex.get(0xAA1DD396) is None                            # the class comes from the cohort
+    assert ex.get(vehicles.P_MODEL_DAY)[2] == int(r["model"], 16) and ex.get(vehicles.P_QUERY_NAME) == "Test Coupe"
+    with pytest.raises(content.ContentError):
+        vehicles.design_car("Odd", "tank")

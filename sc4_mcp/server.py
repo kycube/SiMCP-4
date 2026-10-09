@@ -10,7 +10,7 @@ import os
 from mcp.server.fastmcp import FastMCP, Image
 
 from . import game as gamemod
-from . import build, catalog, cheats, city, content, disasters, economy, heightmap, history, launch, layers, luaquery, housekeeping, memory, mysim, neighbors, networks, options, pointer, regions, services, terrain, trees, udi, view
+from . import build, catalog, cheats, city, content, disasters, economy, heightmap, history, launch, layers, luaquery, housekeeping, memory, mysim, neighbors, networks, options, pointer, regions, services, terrain, trees, udi, vehicles, view
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -1468,6 +1468,28 @@ def design_tree(name: str, shape: str = "broadleaf", height_m: float = 12.0, wid
     try:
         d = trees.design_tree(name, shape, height_m, width_m, tuple(leaf_rgb or (70, 125, 55)),
                               tuple(trunk_rgb or (95, 70, 45)), cost, description, image_path)
+    except content.ContentError as e:
+        return {"error": str(e), "hint": e.hint}
+    png = d.pop("texture_png")
+    return [json.dumps(d), Image(data=png, format="png")]
+
+
+@tool(mcp, "act")
+@guarded
+def design_car(name: str, kind: str = "sedan", body_rgb: list[int] | None = None, wealth: str = "cheap"):
+    """Design a new car for the city's traffic: its own 3D model (a sedan, van or pickup body with a painted texture,
+    head and tail lights, the game's shadow and night lights), driven by the commuters of one wealth class. Written
+    as a plugin into SiMCP's own Plugins folder; the game loads it at start-up (quit_game, game_launch). Returns the
+    design and its texture.
+
+    Args:
+        name: the car's name (shown when a car is queried).
+        kind: sedan, van or pickup.
+        body_rgb: the paint colour [r, g, b] (default blue).
+        wealth: who drives it: cheap, middle or rich (the game's three commuter car classes).
+    """
+    try:
+        d = vehicles.design_car(name, kind, tuple(body_rgb or (40, 90, 170)), wealth)
     except content.ContentError as e:
         return {"error": str(e), "hint": e.hint}
     png = d.pop("texture_png")

@@ -10,7 +10,7 @@ import os
 from mcp.server.fastmcp import FastMCP, Image
 
 from . import game as gamemod
-from . import build, catalog, cheats, city, content, disasters, economy, history, launch, layers, luaquery, memory, mysim, networks, pointer, regions, services, terrain, udi, view
+from . import build, catalog, cheats, city, content, disasters, economy, history, launch, layers, luaquery, memory, mysim, neighbors, networks, options, pointer, regions, services, terrain, udi, view
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -221,6 +221,37 @@ def set_paused(paused: bool) -> dict:
     return G.set_paused(paused)
 
 
+def _opt(fn, *a):
+    try:
+        G.attach(10.0)
+        return fn(G, *a)
+    except options.OptionsError as e:
+        return {"error": str(e), "hint": e.hint}
+
+
+@tool(mcp, "read")
+@guarded
+def game_options() -> dict:
+    """The game's options: the Play Options dialog's switches (auto go to disaster, edge scrolling, expanded
+    tooltips, urgent advice dialogs, auto edge reconciliation), sound and music, graphics settings and resolution,
+    pause on focus loss. Read from the game's preferences."""
+    return _opt(options.options)
+
+
+@tool(mcp, "set")
+@guarded
+def set_play_option(option: str, on: bool) -> dict:
+    """Switch one of the Play Options, as the dialog's Accept does (the game is told and saves its preferences in
+    SiMCP's own user folder).
+
+    Args:
+        option: auto_go_to_disaster, edge_scrolling, expanded_tooltips, urgent_advice_dialogs or
+            auto_edge_reconciliation.
+        on: true to switch it on.
+    """
+    return _opt(options.set_play_option, option, on)
+
+
 @tool(mcp, "destructive")
 @guarded
 def save_city(allow_shipped: bool = False) -> dict:
@@ -328,6 +359,20 @@ def _city():
     return G
 
 
+TRAFFIC_MEANING = ("trips through each cell per commute (morning + evening, all travel types: walk, car, bus, "
+                   "trains, freight, subway, monorail) - the Traffic Volume data view; network_map(traffic=true) "
+                   "splits it by travel type")
+
+
+def _traffic_grid(g) -> dict:
+    nx, nz = networks._city_size(g.proc)
+    rows = [[0] * nx for _ in range(nz)]
+    for (x, z), by in networks.traffic(g).items():
+        if x < nx and z < nz:
+            rows[z][x] = sum(by.values())
+    return {"type": "I", "tract_size": 1, "nx": nx, "nz": nz, "rows": rows, "meaning": TRAFFIC_MEANING}
+
+
 @tool(mcp, "read")
 @guarded
 def map_data(layer: str = "", x0: int = 0, z0: int = 0, x1: int = -1, z1: int = -1) -> dict:
@@ -337,17 +382,21 @@ def map_data(layer: str = "", x0: int = 0, z0: int = 0, x1: int = -1, z1: int = 
 
     Args:
         layer: a layer name ("zones", "land_value", "crime", "police_coverage", "fire_coverage", "air_pollution",
-            "water_pollution", "garbage", "power", "water", "traffic_congestion", "mayor_rating", ...); "" lists them.
+            "water_pollution", "garbage", "power", "water", "traffic_congestion", "traffic_volume", "mayor_rating",
+            ...); "" lists them.
         x0: first cell column of the area to return (0 = west edge).
         z0: first cell row of the area to return.
         x1: last cell column (inclusive; -1 = the city's edge).
         z1: last cell row (inclusive; -1 = the city's edge).
     """
     if not layer:
-        return {"layers": {k: v[2] for k, v in layers.LAYERS.items()},
+        return {"layers": {**{k: v[2] for k, v in layers.LAYERS.items()}, "traffic_volume": TRAFFIC_MEANING},
                 "also": "tile_info(x, z) gives every layer at one cell, with terrain, water and the lot"}
     g = _city()
-    d = layers.layer_grid(g.proc, layer)
+    if layer == "traffic_volume":
+        d = _traffic_grid(g)
+    else:
+        d = layers.layer_grid(g.proc, layer)
     ts = d["tract_size"]
     tx0, tz0 = max(0, x0 // ts), max(0, z0 // ts)
     tx1 = d["nx"] - 1 if x1 < 0 else min(d["nx"] - 1, x1 // ts)
@@ -391,7 +440,8 @@ def tile_info(x: int, z: int) -> dict:
 
 @tool(mcp, "read")
 @guarded
-def network_map(network: str = "", x0: int = 0, z0: int = 0, x1: int = -1, z1: int = -1) -> dict:
+def network_map(network: str = "", x0: int = 0, z0: int = 0, x1: int = -1, z1: int = -1,
+                traffic: bool = False) -> dict:
     """Where the roads, rails, highways, streets, power lines, pipes and subways are: a character map of the area
     (one string per cell row, rows[z - z0][x - x0]) with each cell's connected sides, read from the game's network
     pieces. Also lists pieces that connect to a neighbour city across the map edge, and - for areas of at most 400
@@ -405,16 +455,59 @@ def network_map(network: str = "", x0: int = 0, z0: int = 0, x1: int = -1, z1: i
         z0: first cell row (0 = north edge).
         x1: last cell column (inclusive; -1 = the city's edge).
         z1: last cell row (inclusive; -1 = the city's edge).
+        traffic: also list the busiest cells of the area with their trips per travel type.
     """
     g = _city()
     try:
         out = networks.network_map(g, network, x0, z0, x1, z1)
         ax0, az0, ax1, az1 = out["area"]
+        if traffic:
+            t = {c: v for c, v in networks.traffic(g).items() if ax0 <= c[0] <= ax1 and az0 <= c[1] <= az1}
+            top = sorted(t.items(), key=lambda kv: -sum(kv[1].values()))[:30]
+            out["busiest"] = [{"x": c[0], "z": c[1], "trips": sum(v.values()), "by_travel_type": v} for c, v in top]
         if (ax1 - ax0 + 1) * (az1 - az0 + 1) <= 400:
             out["pieces"] = networks.pieces(g, ax0, az0, ax1, az1)
         return out
     except networks.NetworkError as e:
         return {"error": str(e), "hint": "network_map() with no arguments maps the whole city"}
+
+
+def _nb(fn, *a):
+    try:
+        return fn(_city(), *a)
+    except neighbors.NeighborError as e:
+        return {"error": str(e), "hint": e.hint}
+
+
+@tool(mcp, "read")
+@guarded
+def neighbor_deals() -> dict:
+    """The city's deals with neighbour cities (selling or buying power and water, exporting or importing garbage):
+    partner tile, amount per month, the month's income or expense, state, dates; the month's deal totals; and the
+    connections to neighbours (power lines, pipes, roads, rails... reaching the map edge)."""
+    return _nb(neighbors.deals)
+
+
+@tool(mcp, "act")
+@guarded
+def open_neighbor_deals() -> dict:
+    """Open the Budget window's Neighbor Deals panel, as the player does after the advisor reports a possible deal:
+    the game proposes every deal the connections and both cities' surplus and need allow, and those deals start
+    at once (the panel has no accept step). A deal needs a connection: a power line, pipe or road to the map edge
+    built with build_network(connect_neighbor=true)."""
+    return _nb(neighbors.open_deals)
+
+
+@tool(mcp, "act")
+@guarded
+def cancel_neighbor_deal(index: int) -> dict:
+    """Cancel a running neighbour deal, as its "Cancel Deal" button does (the money stops at once; opening the
+    panel again proposes it anew if it is still possible).
+
+    Args:
+        index: the deal's index from neighbor_deals.
+    """
+    return _nb(neighbors.cancel_deal, index)
 
 
 @tool(mcp, "read")

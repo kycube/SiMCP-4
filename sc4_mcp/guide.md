@@ -50,7 +50,8 @@ Everything is read from the game's memory, never from screenshots:
 - `tile_info(x, z)` - every layer at one cell, the terrain altitude, water, and the lot and building there.
 - `network_map(network)` - where the roads, streets, avenues, highways, rails, power lines (and, by name, pipes and
   subways) are, one string per cell row, with each cell's connected sides as a hex digit (1 west, 2 north, 4 east,
-  8 south) and the pieces that reach a neighbour city. `find_route(x0, z0, x1, z1)` gives the cells a car (or one
+  8 south) and the connections to neighbour cities; `traffic=true` adds the busiest cells with their trips by
+  travel type, and `map_data("traffic_volume")` gives the trips through every cell. `find_route(x0, z0, x1, z1)` gives the cells a car (or one
   network) follows between two places - an error means they are not connected.
 - `lots(zone, area)` - lots and their buildings (name, zone, wealth, state such as abandoned or under construction).
 - `advisors()` - what each advisor says now, with mood and priority; read it every few months.
@@ -74,6 +75,12 @@ medium 128x128, a large 256x256.
   output), school and hospital capacity is maximum x staff funding, and buses / ambulances keep half their reach
   at zero. New schools and hospitals start at 25 %: raise them as enrolment grows. The department slider
   (`set_department_funding`) sets every building of the department at once.
+- `neighbor_deals()` / `open_neighbor_deals()` / `cancel_neighbor_deal(index)`: selling or buying power and water
+  and moving garbage to neighbour cities. A deal needs a connection: build a power line (power), pipe (water) or
+  road (garbage) to the map edge with `build_network(..., connect_neighbor=true)`. Opening the deals panel (as the
+  advisor suggests) starts every deal that is possible at once; cancel the ones you do not want.
+- `game_options()` / `set_play_option(option, on)`: the Play Options dialog (auto go to disaster, urgent advice
+  dialogs...), plus the sound and graphics settings (read only).
 - `save_city()` saves as the game's Save does (shipped cities are protected unless you say otherwise).
 - `dialog_status()` / `close_dialog(button)`: a dialog the game opened (advisor popups, notices, offers) and its
   buttons; `set_popups(false)` keeps advisor popups from interrupting.

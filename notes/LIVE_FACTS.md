@@ -354,3 +354,22 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   through the resource manager. Efficiency getters take a hidden result pointer (float* out, occupant) - calling
   PoliceSim 25 with the occupant first faulted (caught). The bridge's OP_CALL now also returns ST0 for functions
   that return float (conv bit 1). All funding was set back afterwards.
+- **Traffic volume** (MCP Village): TrafficSim `[0xB43DA8]` hash +0x17C..+0x180 (1543 buckets, 815 used, 1048
+  nodes): a node is {next, key ev<<24 | type<<16 | x<<8 | z, TrafficEdgeDensity inline at +8} - the use counter is
+  u16 at node +0x28 (not behind a pointer). 131 cells carry trips (walk 732, car 1952); the busiest is the main road
+  z = 30 at x 16..26 (122-136 trips, about 70 % by car). map_data("traffic_volume") and network_map(traffic=true).
+- **Neighbour deals** (MCP Village, MCP Town is the tile north): a power line from the coal plant to (22, 0) with
+  connect_neighbor made connection {type 4 power, edge (22, -1), neighbour tile (6, 0)} at N `[0xB43D8C]` +0x1C.
+  The Neighbor Deals panel's builder calls `city slot 62 -> N slot 25 ProposeDeals(list&, 1)` (0x77E735; the
+  monthly advisor feed calls it with 0, counting only). With 1, each possible deal goes through 0x6D0520: N slot 24
+  ProposeDeal, then it joins the city's deal list (+0x20) - running at once (flags 2): "sell_power" to (6, 0),
+  amount 0 (MCP Town has no demand: 0 residents), income 1 a month (N slot 32), dates today .. +1 year. Deal slot
+  34 Cancel (SetFlags(4, 1), SetFlags(2, 0), SetAmount(0)) + slot 37 SetFlags(1, 1), as the row's button does,
+  removed it from the list at once (income 0); opening the panel again proposed it anew (a new start date).
+  Starting an offered deal (slot 35 Activate) is not tried live: no deal stayed offered.
+- **Play options**: SC4Preferences `[0xB43CD8]` bytes +0xF08 auto go to disaster, +0xF09 edge scrolling, +0xF0A
+  expanded tooltips, +0xF0B urgent advice dialogs, +0x4EC auto edge reconciliation (all on here); set as the
+  dialog's Accept does - byte, a cGZMessage2Standard (new 0x2C 0x9133DA, ctor 0x9134D6, SetType slot 5
+  0x231BBF91) sent through `[0xB43CCC]` slot 4, app slot 17 SavePreferences: expanded tooltips off then on, SimCity
+  4.cfg in SiMCP's UserDir rewritten (276 -> 275 bytes and back), no faults. Video prefs +0xF0C: effects 3, shadows
+  3, textures 3, city detail 3, 1024x768x32 windowed; music and sound on.

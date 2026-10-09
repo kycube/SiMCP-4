@@ -40,6 +40,11 @@ SIDES = "WNES"
 STEP = {0: (-1, 0), 1: (0, -1), 2: (1, 0), 3: (0, 1)}       # side -> (dx, dz)
 
 
+G_TRAFFIC = 0xB43DA8
+TRAVEL_TYPES = ["walk", "car", "bus", "passenger_train", "freight_truck", "freight_train", "subway", "elevated_train",
+                "monorail"]
+
+
 class NetworkError(RuntimeError):
     pass
 
@@ -149,6 +154,33 @@ def _power_sides(out: dict) -> None:
                                      if "power_line" in out.get((x + dx, z + dz), {}))
 
 
+def traffic(g) -> dict:
+    """{(x, z): {travel type: trips}} - the traffic simulator's per-cell use (what the Traffic Volume view and the
+    network query window show): the hash at TrafficSim +0x17C..+0x180 of nodes {next, key ev<<24 | type<<16 | x<<8 |
+    z, TrafficEdgeDensity (16 u16 edge flows, u16 use +0x20)}, morning and evening commutes summed."""
+    p = g.proc
+    if not memory.city_pointer(p):
+        raise NetworkError("no city is open")
+    ts = p.u32(G_TRAFFIC)
+    b0, b1 = p.u32(ts + 0x17C), p.u32(ts + 0x180)
+    n = (b1 - b0) // 4
+    if not 0 < n < 1 << 22:
+        return {}
+    out: dict = collections.defaultdict(dict)
+    for head in struct.unpack("<%dI" % n, p.read(b0, 4 * n)):
+        node, guard = head, 0
+        while node and guard < 100000:
+            raw = p.read(node, 0x2A)
+            nxt, key = struct.unpack_from("<II", raw)
+            use = struct.unpack_from("<H", raw, 0x28)[0]
+            tt, x, z = (key >> 16) & 0xFF, (key >> 8) & 0xFF, key & 0xFF
+            if use:
+                name = TRAVEL_TYPES[tt] if tt < len(TRAVEL_TYPES) else str(tt)
+                out[(x, z)][name] = out[(x, z)].get(name, 0) + use
+            node, guard = nxt, guard + 1
+    return dict(out)
+
+
 def pieces(g, x0: int = 0, z0: int = 0, x1: int = -1, z1: int = -1) -> list[dict]:
     """Every network piece in the rectangle with its piece id, rotation and connected sides per network."""
     p = g.proc
@@ -189,12 +221,13 @@ def network_map(g, network: str = "", x0: int = 0, z0: int = 0, x1: int = -1, z1
             for v in shown.values():
                 bits |= v
             e.append("%x" % bits)
-            for k, v in nets.items():
-                for side, (dx, dz) in STEP.items():
-                    if v >> side & 1 and not (0 <= x + dx < nx and 0 <= z + dz < nz):
-                        links.append({"x": x, "z": z, "side": SIDES[side], "network": k})
         rows.append("".join(r))
         edges.append("".join(e))
+    from . import neighbors
+    try:
+        links = neighbors.connections(g)
+    except Exception:  # noqa: BLE001 - the map is still useful without them
+        links = []
     return {"area": [x0, z0, x1, z1], "network": network or "surface (all but pipes and subways)",
             "legend": {**{v: k for k, v in CHARS.items()}, "+": "two or more networks", ".": "none"},
             "edges_legend": "hex digit of connected sides: 1 west, 2 north, 4 east, 8 south",

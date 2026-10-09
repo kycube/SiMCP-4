@@ -37,7 +37,7 @@ L = a day or more, XL = several days.
 
 ## Phase 9 - harder
 
-- [ ] God-mode fire torch (L)
+- [x] God-mode fire torch (L)
 - [ ] Animated content: seasonal trees, animated props (L)
 - [ ] Sims and pedestrians as models (L)
 - [ ] Custom My Sim faces (L)

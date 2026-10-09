@@ -659,3 +659,21 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   of the map by more than 1 m.
 - **open_tile right after load_region** once failed reading the region view (ReadProcessMemory error 299: the view
   was still being built); open_tile now retries for up to 5 s (load_region then open_tile at once then worked).
+
+## Session 2026-10-08 (Phase 9: harder items)
+
+- **God-mode fire (solved)**: the Fire button does not select the menu exemplar (4): the disaster tool factory
+  0x7E9DB0(item) builds the torch control (new 0x80, ctor 0x5805C0) only for item **0xA9DE8784** and makes it the
+  current control (view slot 25, 2); any other item loads the disaster exemplar (group 0x29B6C670) and makes the
+  generic disaster tool (vtable 0xA9EAA0, ctor 0x580220) - which is what SiMCP had selected, so nothing lit. The
+  torch's vtable is 0xA9EB40 (0xA9EAA0's 31 slots are followed by the string "torch_inactive"; the old "slot 56"
+  was slot 16 of the torch): slot 7 init (fire manager 0x621CDA33 QI 0x49B43F57 -> +0x2C), slot 16 OnMouseDownL
+  0x5808B0 = pick terrain (view slot 36), city slot 95 to a cell, IgniteCell(x, z, 0, 1, 0), SetCause(1). Live:
+  start_disaster("fire", 2, 31) in MCP Village lit the house there (disaster_status: fire 1 at (2, 31); flames and
+  the red emergency frame in a snapshot); again at (3, 33) - then leaving the city with the fire burning was fine.
+- **A second crash after a cancelled edge-reconcile prompt**: during the torch test the prompt came up; Cancel, then
+  leave_city -> the game died: 0xC0000005 at 0x74D290 reading [terrain array + i*36] with the terrain's altitude
+  array [+0x6C] null, in the terrain class's own code (vtable 0xAB3CF0, 108 slots). Like the 20:55 crash (the city
+  view's camera control null after an advisor dialog closed, a cancelled reconcile prompt just before), objects
+  of the city were half torn down. Not reproduced: the Phase 5 run cancelled the prompt and left the city cleanly.
+  Until it is understood, avoid leaving a city right after cancelling that prompt (let a few days run first).

@@ -141,7 +141,8 @@ there is demand.
 ## Disasters and emergencies
 
 - `start_disaster(disaster, x, z)` uses god mode's Disasters menu through the game's disaster tool; disasters
-  unfold while the game runs. `disaster_status()` lists what is going on.
+  unfold while the game runs. `disaster_status()` lists what is going on. Fire is god mode's torch: it lights the cell you
+  give (a building or trees there burn and spread).
 - `dispatch(unit, x, z)` sends fire or police units, as the dispatch buttons do (a station with a free unit and a
   road route is needed).
 

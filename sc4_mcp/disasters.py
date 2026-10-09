@@ -31,6 +31,7 @@ MANAGERS = {0xC4C90997: "volcano", 0x621CDA33: "fire", 0x42963812: "earthquake",
 DISPATCH = {"fire": ("DispatchFireTool", 1), "police": ("DispatchPoliceTool", 0),
             "fire_plane": ("DispatchFireAirTool", 5), "police_helicopter": ("DispatchPoliceAirTool", 6)}
 D_COUNT = 11
+TORCH_ITEM = 0xA9DE8784
 
 
 class DisasterError(Exception):
@@ -98,7 +99,11 @@ def start(g, kind: str, x: int, z: int, hold_s: float = 0.3) -> dict:
         raise DisasterError("unknown disaster %r" % kind, "disasters: " + ", ".join(d["key"] for d in items))
     d = hit[0]
     before = status(g)
-    pointer.select_tool(g, pointer.CATEGORY_DISASTER, d["id"])
+    # the Fire button selects the torch with its own id: the disaster tool factory (0x7E9DB0) builds the torch
+    # control (vtable 0xA9EB40, slot 16 OnMouseDownL ignites the picked cell) only for 0xA9DE8784; the menu exemplar
+    # (4) would make the generic disaster tool, which lights nothing
+    item = TORCH_ITEM if d["key"] == "fire" else d["id"]
+    pointer.select_tool(g, pointer.CATEGORY_DISASTER, item)
     try:
         pointer.drag(g, [(x, z), (x, z)], pause_s=hold_s)
     finally:

@@ -10,9 +10,8 @@ with the game's own rules and prices. It is the sibling of [SiMCP 3000](https://
 (SimCity 3000 Unlimited).
 
 > **Status: Phases 1-8, 95 tools, tested in the running game.** What each test showed, and the known limits, are in
-> [notes/LIVE_FACTS.md](notes/LIVE_FACTS.md); every tool's parameters are in [docs/TOOLS.md](docs/TOOLS.md). Not yet
-> done or not yet proven: the god-mode fire item. Driving a U-Drive-It mission
-> to success is left for a later release.
+> [notes/LIVE_FACTS.md](notes/LIVE_FACTS.md); every tool's parameters are in [docs/TOOLS.md](docs/TOOLS.md); what is
+> left is in [notes/ROADMAP.md](notes/ROADMAP.md). U-Drive-It is left out for now (the existing mission tools stay).
 
 > SiMCP 4 is a fan project, not affiliated with or endorsed by Electronic Arts or Maxis. SimCity is a trademark of
 > Electronic Arts Inc. You need your own copy of SimCity 4 Deluxe; this repository contains no game files.

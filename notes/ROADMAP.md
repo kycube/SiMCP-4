@@ -41,7 +41,6 @@ L = a day or more, XL = several days.
 - [ ] Animated content: seasonal trees, animated props (L)
 - [ ] Sims and pedestrians as models (L)
 - [ ] Custom My Sim faces (L)
-- [ ] U-Drive-It content: drivable vehicles, new missions; driving a mission to success (deferred by the user) (L)
 - [ ] Terrain looks (global) (L)
 - [ ] The old simulator stall (L, needs a reproduction)
 
@@ -52,3 +51,18 @@ L = a day or more, XL = several days.
 - [ ] Transit-enabled lots (XL)
 - [ ] Lot Editor parity (L-XL)
 - [ ] Release packaging (M-L)
+
+## Phase 11 - realism polish (last)
+
+The aim, as with SiMCP 3000: learn and write down best practices for realistic content within the bounds and the
+style of the game, working from photographs of real things as references, and bring SiMCP's own content up to
+them.
+
+- [ ] Cars and trucks: real proportions, paint, glass, lights, wheels; the game's look at every zoom
+- [ ] Buildings: homes, shops, parks, landmarks - massing, roofs, windows, materials, lots that read as real
+- [ ] Props: street furniture, signs, statues
+- [ ] Vegetation: trees (broadleaf, conifer, palm, seasonal) and shrubs, hedges, flower beds
+- [ ] A written guide of what worked (scale, texture size and detail, colour against the game's palette, shading,
+      silhouettes at each zoom) for agents designing content
+
+U-Drive-It (drivable vehicles, missions) is left out for now, at the user's request.

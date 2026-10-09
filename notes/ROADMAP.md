@@ -12,7 +12,7 @@ L = a day or more, XL = several days.
 - [ ] Seaport zones on a city with water (S)
 - [x] Strikes and jailbreaks status (S)
 - [x] Region housekeeping: rename a region, delete a city / region (confirmed), back up a region (S)
-- [ ] Graphics and sound settings through the options dialogs' path (S-M)
+- [x] Graphics and sound settings through the options dialogs' path (S-M)
 - [x] School / hospital auto-budget: not a player option in this version, so not offered (cheat-class) (S)
 - [ ] Starting an offered neighbour deal (S-M)
 

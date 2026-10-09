@@ -384,6 +384,60 @@ def set_play_option(option: str, on: bool) -> dict:
     return _opt(options.set_play_option, option, on)
 
 
+def _given(**kw) -> dict:
+    return {k: v for k, v in kw.items() if v is not None and v != ""}
+
+
+@tool(mcp, "set")
+@guarded
+def graphics_options(visual_effects: str = "", cars_and_sims: str = "", shadows: str = "",
+                     building_draw_speed: str = "", texture_quality: str = "", city_detail: str = "",
+                     clouds_and_fog: bool | None = None, waves: bool | None = None,
+                     ui_translucency: bool | None = None, color_cursor: bool | None = None,
+                     variable_speed_automata: bool | None = None) -> dict:
+    """The Graphic Options dialog: with no arguments, read its settings; with arguments, set them as the player does
+    (the game's own dialog: SiMCP clicks its buttons and presses Accept, and the game applies and saves them).
+    Resolution, colour quality and renderer are reported only: SiMCP's game_launch sets the window.
+
+    Args:
+        visual_effects: low, medium or high (also cars_and_sims, shadows, building_draw_speed, texture_quality,
+            city_detail).
+        cars_and_sims: low, medium or high.
+        shadows: low, medium or high.
+        building_draw_speed: low, medium or high.
+        texture_quality: low, medium or high.
+        city_detail: low, medium or high.
+        clouds_and_fog: on or off (also waves, ui_translucency, color_cursor, variable_speed_automata).
+        waves: on or off.
+        ui_translucency: on or off.
+        color_cursor: on or off.
+        variable_speed_automata: on or off.
+    """
+    return _opt(lambda g: options.graphics(g, **_given(
+        visual_effects=visual_effects, cars_and_sims=cars_and_sims, shadows=shadows,
+        building_draw_speed=building_draw_speed, texture_quality=texture_quality, city_detail=city_detail,
+        clouds_and_fog=clouds_and_fog, waves=waves, ui_translucency=ui_translucency, color_cursor=color_cursor,
+        variable_speed_automata=variable_speed_automata)))
+
+
+@tool(mcp, "set")
+@guarded
+def audio_options(music: bool | None = None, music_volume: int | None = None, sound: bool | None = None,
+                  sound_volume: int | None = None, custom_tunes: bool | None = None) -> dict:
+    """The Audio Options dialog: with no arguments, read it; with arguments, set them through the game's own dialog
+    (its checkboxes and volume sliders, then Accept; the game applies and saves them).
+
+    Args:
+        music: music on or off.
+        music_volume: 0-100.
+        sound: sound effects on or off.
+        sound_volume: 0-100.
+        custom_tunes: play the music in the game's custom music folder (only when it has some).
+    """
+    return _opt(lambda g: options.audio(g, **_given(music=music, music_volume=music_volume, sound=sound,
+                                                       sound_volume=sound_volume, custom_tunes=custom_tunes)))
+
+
 @tool(mcp, "destructive")
 @guarded
 def save_city(allow_shipped: bool = False) -> dict:

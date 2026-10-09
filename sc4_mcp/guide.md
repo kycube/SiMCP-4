@@ -102,7 +102,9 @@ medium 128x128, a large 256x256.
   road (garbage) to the map edge with `build_network(..., connect_neighbor=true)`. Opening the deals panel (as the
   advisor suggests) starts every deal that is possible at once; cancel the ones you do not want.
 - `game_options()` / `set_play_option(option, on)`: the Play Options dialog (auto go to disaster, urgent advice
-  dialogs...), plus the sound and graphics settings (read only).
+  dialogs...). `graphics_options(...)` and `audio_options(...)` read the Graphic / Audio Options dialogs, or set
+  them through the dialogs themselves (levels low / medium / high, switches, volumes 0-100); with no arguments
+  they only read. The window size and renderer come from `game_launch`.
 - `save_city()` saves as the game's Save does (shipped cities are protected unless you say otherwise).
 - `dialog_status()` / `close_dialog(button)`: a dialog the game opened (advisor popups, notices, offers) and its
   buttons; `set_popups(false)` keeps advisor popups from interrupting.

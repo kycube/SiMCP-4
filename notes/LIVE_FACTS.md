@@ -502,3 +502,13 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   loaded region by folder or display name (live: remove_region / remove_city / rename_region on "MCP Test" while it
   was loaded were refused). An offline test found that a city given by its plain name never matched its file
   ("City - <name>.sc4"); fixed.
+- **Graphics and sound settings** through the game's own dialogs: OpenGraphicOptionsDialog (root 0x2A57CB82) and
+  OpenAudioOptionsDialog (root 0xEA53F5DB), run deferred because they are modal. Radio buttons and checkboxes are
+  cGZWinBtn (window vtable 0xADDAF0, the button interface at window-4, vtable 0xADDD50: slot 8 IsOn = bit 0 of
+  [btn+0xDC], i.e. [window+0xD8]); they read exactly as the dialog showed (all High, all switches on, 32-bit,
+  1024x768, Hardware). GZWinClickButton <id> <root> selects a radio / toggles a checkbox. Volume sliders (window
+  vtable 0xAE04D8, interface window+0xD8 vtable 0xAE049C: +8 min 0, +0xC max 1000, +0x10 fraction; slot 4 GetValue,
+  slot 5 SetValue(int) clamps, redraws and notifies the dialog 0x887113A3). Live: shadows Low -> Accept -> the
+  preference byte video+3 = 1 and the reopened dialog shows Low; shadows High + waves off -> video+3 = 3, +6 = 0,
+  SimCity 4.cfg rewritten; music volume 50 -> 30 -> reread 30; all restored. Custom Tunes is disabled without
+  custom music files (refused; the dialog is cancelled, no modal left open).

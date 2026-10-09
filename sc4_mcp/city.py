@@ -240,3 +240,38 @@ def advisors(g, include_fluff: bool = False) -> dict:
         worst = next((m for m in ("alarm", "bad", "neutral", "good") if m in moods), None)
         out.append({"advisor": memory.rz_string(p, I + 0x10), "id": aid, "mood": worst, "messages": active})
     return {"advisors": out}
+
+
+CITY_SET_NAME, CITY_SET_NAME_CHANGED, CITY_SET_MAYOR = 13, 15, 17
+FN_RZSTRING_CTOR, RZSTRING_FROM_CHAR, RZSTRING_DELETE = 0x578390, 3, 28
+
+
+def rename(g, name: str = "", mayor: str = "") -> dict:
+    """What the city name window in the control panel does: city slot 13 SetCityName (and slot 15 marks the name
+    changed, so the next save names the file after it) and slot 17 SetMayorName, each from a cRZString."""
+    p, b = g.proc, g.bridge
+    c = memory.city_pointer(p)
+    if not c:
+        raise ValueError("no city is open")
+    for label, text in (("city name", name), ("mayor name", mayor)):
+        if text and (len(text) > 31 or any(ord(ch) < 32 or ch in r'\/:*?"<>|' for ch in text)):
+            raise ValueError(r'the %s is 1-31 characters, without \ / : * ? " < > |' % label)
+    s = b.scratch(0x1D80)
+    for text, slot in ((name, CITY_SET_NAME), (mayor, CITY_SET_MAYOR)):
+        if not text:
+            continue
+        raw = text.encode("latin-1")
+        p.write(s + 0x40, raw + b"\0")
+        p.write(s, bytes(0x14))
+        if not b.call_function(FN_RZSTRING_CTOR, [], this=s).ok:
+            raise ValueError("could not make a game string")
+        try:
+            b.vcall(s, RZSTRING_FROM_CHAR, s + 0x40, len(raw))
+            b.vcall(c, slot, s)
+            if slot == CITY_SET_NAME:
+                b.vcall(c, CITY_SET_NAME_CHANGED, 1)
+        finally:
+            b.vcall(s, RZSTRING_DELETE, 0)
+    basics = memory.city_basics(p) or {}
+    return {"name": basics.get("name"), "mayor": basics.get("mayor"),
+            "note": "save_city writes the city under its new name"}

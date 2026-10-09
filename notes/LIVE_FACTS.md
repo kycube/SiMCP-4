@@ -441,3 +441,6 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   Triggers pass SiMCP's read-only Lua whitelist; links (`#link_id#game...`) are refused (they run actions).
 - **Airport zone**: zone("airport") laid zone 11 over 8x6 cells for 48 (development needs airport demand, which
   the small village does not have).
+- **Rename**: city slots 13 SetCityName(const cIGZString&), 15 SetCityNameChanged(bool) (byte +0x2D), 17
+  SetMayorName (header order holds): MCP Village -> "MCP Hamlet" / mayor "Agent Mayor" and back, read back from the
+  city's own fields, no faults.

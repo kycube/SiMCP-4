@@ -71,6 +71,7 @@ medium 128x128, a large 256x256.
 ## Founding and running a city
 
 - `found_city(name, mayor, difficulty)` founds the open unfounded tile (mayor mode starts).
+- `rename_city(name, mayor)` renames the city or its mayor later, as the control panel's city name window does.
 - `set_speed(slow|medium|fast)`, `set_paused(true|false)`: the game's own clock while you watch it run.
 - `set_tax(group, rate)`, `departments()` / `set_department_funding(...)`, `ordinances()` / `set_ordinance(...)`,
   `loans()` / `take_loan(amount)`: the budget window's controls, with the game's limits.

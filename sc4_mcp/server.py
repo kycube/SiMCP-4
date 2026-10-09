@@ -762,6 +762,22 @@ def lots(zone: str = "", x0: int = 0, z0: int = 0, x1: int = -1, z1: int = -1, l
                      limit=limit, occupancy=occupancy)
 
 
+@tool(mcp, "set")
+@guarded
+def rename_city(name: str = "", mayor: str = "") -> dict:
+    """Rename the open city and / or its mayor, as the city name window of the control panel does. The next
+    save_city writes the city under its new name.
+
+    Args:
+        name: the city's new name (1-31 characters; "" = keep).
+        mayor: the mayor's new name ("" = keep).
+    """
+    try:
+        return city.rename(_city(), name, mayor)
+    except ValueError as e:
+        return {"error": str(e), "hint": ""}
+
+
 @tool(mcp, "act")
 @guarded
 def make_historical(x: int, z: int, historical: bool = True) -> dict:

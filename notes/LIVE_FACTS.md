@@ -444,3 +444,18 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
 - **Rename**: city slots 13 SetCityName(const cIGZString&), 15 SetCityNameChanged(bool) (byte +0x2D), 17
   SetMayorName (header order holds): MCP Village -> "MCP Hamlet" / mayor "Agent Mayor" and back, read back from the
   city's own fields, no faults.
+- **Creating My Sims**: the Select A My Sim dialog (0x6A243D9E) has 21 face buttons (10 male, 11 female; each sets
+  a preset name, sign and gender - "Bob Newbie" is the default), a name edit 0x8A243F1F (text-edit slot 49
+  SetText), a sign combo 0xAA243F5E (cIGZWinCombo 0x412CE496: slot 28 SetSelection(index, notify), 30
+  GetSelection; list order = cISC4MySim::ZodiacSign, Capricorn 0 .. Sagittarius 11) and the gender label
+  0xEA243F57. Moved in: "Ada Agent" (Eve Tomayo's face, Scorpio), "Cleo Coder", "Dana Data" (Judith Peynter's face,
+  Aquarius, female) - read back from the Sim: the personal name is a cRZString at the cISC4MySim interface - 0x80
+  (slot 3 is the Sim's *advisor*, named MySim<n>), slot 16 GetSign in the enum order above (the old reader mapped
+  it Aries-first: the two earlier Sims are Bob Newbie, Gemini). A face click right after the dialog opens can be
+  lost: SiMCP checks the gender label and clicks again. **Crash found and fixed**: pressing a slot button while
+  the My Sim panel is hidden crashed the game (0x771D42: the panel window's handler, vtable 0xAB5120, reads a null
+  member +0x34; caught by the new crash log, pid 39120). move_in now opens the panel (ToggleMySimPanel) and waits
+  for its parents to show - right after a move-in the game hides them for a moment - and refuses while a dialog
+  is open (the panel ignores the toggle under a modal).
+- **cISC4MySim / AgentSim MoveIn** take name, gender, sign, bio, a bitmap IID and a bitmap *file path*: a custom
+  face picture may be possible through that path (not tried).

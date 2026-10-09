@@ -1187,15 +1187,27 @@ def my_sims() -> dict:
 
 @tool(mcp, "act")
 @guarded
-def move_in_sim(x: int, z: int) -> dict:
-    """Move a new My Sim into the house on a cell, through the game's My Sims panel, its Select A My Sim dialog
-    (default choices) and the move-in tool. The game then reports through the Sim's own advice balloons.
+def move_in_sim(x: int, z: int, face: str = "", name: str = "", sign: str = "") -> dict:
+    """Make a My Sim and move it into the house on a cell, through the game's My Sims panel, its Select A My Sim
+    dialog and the move-in tool. The face sets the gender (and a preset name and sign, which name and sign
+    override). The game then reports through the Sim's own advice balloons.
 
     Args:
         x: a cell of the house (west-east).
         z: a cell of the house (north-south).
+        face: one of the dialog's 21 faces, by number or preset name (my_sim_faces lists them); "" = the default.
+        name: the Sim's name (1-31 characters; "" = the face's preset name).
+        sign: capricorn, aquarius, pisces, aries, taurus, gemini, cancer, leo, virgo, libra, scorpio or
+            sagittarius ("" = the face's).
     """
-    return _mysim(mysim.move_in, x, z)
+    return _mysim(mysim.move_in, x, z, face or None, name, sign)
+
+
+@tool(mcp, "read")
+@guarded
+def my_sim_faces() -> dict:
+    """The faces the Select A My Sim dialog offers: number, preset name, sign and gender."""
+    return {"faces": mysim.faces()}
 
 
 def _terrain(fn, *a):

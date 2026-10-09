@@ -57,6 +57,26 @@ def _children(p, w: int) -> list[int]:
     return out
 
 
+def find_window(g, win_id: int, visible_only: bool = True) -> int:
+    """The first window with this id in the window tree under the main window (0 if none)."""
+    p = g.proc
+    wm = win_mgr(g)
+    main = g.bridge.call_function(p.u32(p.u32(wm) + 4 * WM_GET_MAIN), [], this=wm).ret[0] & 0xFFFFFFFF
+    stack = [main]
+    seen = 0
+    while stack and seen < 20000:
+        w = stack.pop()
+        seen += 1
+        for c in _children(p, w):
+            f = p.u32(c + W_FLAGS)
+            if visible_only and not f & F_VISIBLE:
+                continue
+            if p.u32(c + W_ID) == win_id:
+                return c
+            stack.append(c)
+    return 0
+
+
 def _is_button(g, w: int) -> bool:
     p, b = g.proc, g.bridge
     out = b.block + bridgemod.B_STR + 1012

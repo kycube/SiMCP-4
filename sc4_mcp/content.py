@@ -261,6 +261,57 @@ def box_mesh(width: float, depth: float, height: float, wall_tex: int, roof_tex:
     return s3d.multi_mesh([(wv, wt, wall_tex, False), (rv, rt, roof_tex, False)], name=b"SiMCP_box")
 
 
+G_ICONS, P_ICON = 0x6A386D26, 0x8A2602B8      # build menu icons (PNG) and the exemplar property naming one
+
+
+def menu_icon(draw, size: int = 44) -> bytes:
+    """A build-menu icon as the game's are: one 176 x 44 PNG of four 44 x 44 states - disabled (grey), normal,
+    hover (brighter), selected (bright, white frame). `draw(image, draw_context)` paints the 44 x 44 picture."""
+    import io
+    from PIL import Image, ImageDraw, ImageEnhance, ImageOps
+    base = Image.new("RGBA", (size, size))
+    d = ImageDraw.Draw(base)
+    for y in range(size):                                        # a sky like the game's icons
+        t = y / (size - 1)
+        d.line([(0, y), (size, y)], fill=(int(120 + 80 * t), int(150 + 70 * t), int(200 + 40 * t), 255))
+    draw(base, d)
+    grey = ImageOps.grayscale(base).convert("RGBA")
+    grey = ImageEnhance.Brightness(grey).enhance(0.8)
+    hover = ImageEnhance.Brightness(base).enhance(1.15)
+    sel = hover.copy()
+    ImageDraw.Draw(sel).rectangle([0, 0, size - 1, size - 1], outline=(255, 255, 255, 255), width=2)
+    out = Image.new("RGBA", (size * 4, size))
+    for i, im in enumerate((grey, base, hover, sel)):
+        out.paste(im, (i * size, 0))
+    buf = io.BytesIO()
+    out.save(buf, "PNG")
+    return buf.getvalue()
+
+
+def box_icon(width: float, depth: float, height: float, wall, roof) -> bytes:
+    """An isometric picture of a box building for its menu icon."""
+    import math
+
+    def paint(im, d):
+        c, s = math.cos(math.radians(30)), math.sin(math.radians(30))
+        pts = {}
+        for name, (x, y, z) in {"a": (0, 0, 0), "b": (width, 0, 0), "c": (width, 0, depth), "e": (0, 0, depth),
+                                 "a2": (0, height, 0), "b2": (width, height, 0), "c2": (width, height, depth),
+                                 "e2": (0, height, depth)}.items():
+            pts[name] = ((x - z) * c, (x + z) * s - y)
+        xs = [p[0] for p in pts.values()]
+        ys = [p[1] for p in pts.values()]
+        k = 34.0 / max(max(xs) - min(xs), max(ys) - min(ys), 1e-6)
+        ox = 22 - (max(xs) + min(xs)) / 2 * k
+        oy = 23 - (max(ys) + min(ys)) / 2 * k
+        P = {n: (ox + px * k, oy + py * k) for n, (px, py) in pts.items()}
+        shade = tuple(int(v * 0.72) for v in wall)
+        d.polygon([P["e"], P["c"], P["c2"], P["e2"]], fill=tuple(wall) + (255,), outline=(40, 40, 40, 255))
+        d.polygon([P["c"], P["b"], P["b2"], P["c2"]], fill=shade + (255,), outline=(40, 40, 40, 255))
+        d.polygon([P["a2"], P["b2"], P["c2"], P["e2"]], fill=tuple(roof) + (255,), outline=(40, 40, 40, 255))
+    return menu_icon(paint)
+
+
 def model_building(name: str, width: float, depth: float, height: float, wall=(205, 195, 170), roof=(90, 90, 95),
                    windows: bool = True, lot_cells: int = 1, description: str = "", plop_cost: int = 500,
                    monthly_cost: int = 20, template_building: int = 0x4A635AD2, taken: set[int] | None = None) -> dict:
@@ -309,11 +360,14 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
     _set(bprops, P_PLOP, dbpf.PT_SINT64, [int(plop_cost)])
     old = [p for p in bprops if p.id == P_MONTHLY]
     _set(bprops, P_MONTHLY, dbpf.PT_SINT64, [int(monthly_cost)], multi=old[0].multi if old else True)
+    icon_iid = _free(dbpf.T_PNG, G_ICONS, 0xFFFFFFFF, taken or set())
+    _set(bprops, P_ICON, dbpf.PT_UINT32, [icon_iid])
     records = [(dbpf.T_EXEMPLAR, G_SIMCP_BUILDINGS, bld_iid, dbpf.build_exemplar(bprops, bld.parent)),
                (dbpf.T_EXEMPLAR, G_LOTS, lot_iid, dbpf.build_exemplar(lprops, LOT_COHORT)),
                (dbpf.T_S3D, G_MODELS, model_iid, model),
                (dbpf.T_FSH, G_TEXTURES, tex_iid, wall_fsh),
-               (dbpf.T_FSH, G_TEXTURES, tex_iid + 1, roof_fsh)]
+               (dbpf.T_FSH, G_TEXTURES, tex_iid + 1, roof_fsh),
+               (dbpf.T_PNG, G_ICONS, icon_iid, box_icon(width, depth, height, tuple(wall), tuple(roof)))]
     os.makedirs(FOLDER, exist_ok=True)
     path = os.path.join(FOLDER, "SiMCP_%s.dat" % _slug(name))
     dbpf.write_dbpf(path, records)

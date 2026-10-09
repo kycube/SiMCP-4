@@ -231,3 +231,27 @@ def multi_mesh(parts: list[tuple[list, list, int, bool]], name: bytes = b"SiMCP"
                                textures=[Texture(texture, (1, 1), (1, 1), 0, 0, b"\0")]))
         m.meshes.append(Mesh(name + b"_%d\0" % k, 0, [(k, k, k, k)]))
     return m
+
+
+ROT_SIGN = -1         # which way a view rotation turns the model (found live with a four-colour box)
+
+
+def turned(m: Model, r: int) -> Model:
+    """A copy of a model turned r quarter turns about the vertical axis, for the game's view rotation r: building
+    models are drawn as given in every view, so each view needs its own turned copy (RKT1: base + zoom * 0x100 +
+    rotation * 0x10)."""
+    import copy
+    out = copy.deepcopy(m)
+    k = (ROT_SIGN * r) % 4
+    if not k:
+        return out
+    for vb in out.verts:
+        st = stride_of(vb.fmt)
+        data = bytearray(vb.data)
+        for i in range(0, len(data), st):
+            x, y, z = struct.unpack_from("<3f", data, i)
+            for _ in range(k):
+                x, z = -z, x
+            struct.pack_into("<3f", data, i, x, y, z)
+        vb.data = bytes(data)
+    return out

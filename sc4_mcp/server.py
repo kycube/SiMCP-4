@@ -1468,10 +1468,11 @@ def design_model_building(name: str, width_m: float, depth_m: float, height_m: f
                           roof_rgb: list[int], windows: bool = True, lot_cells: int = 1, description: str = "",
                           plop_cost: int = 500, monthly_cost: int = 20, ground: str = "plaza",
                           objects: list[dict] | None = None, model_path: str = "", model_scale: float = 1.0,
-                          department: dict | None = None):
-    """Design a new building with its own 3D model and textures (a block with a window grid and a flat roof) on
-    its own paved lot, for the Parks menu; written as a plugin into SiMCP's own Plugins folder. The game loads
-    plugins at start-up: quit_game and game_launch, then it is in build_menu like any other.
+                          department: dict | None = None, parts_model: dict | None = None):
+    """Design a new building with its own 3D model and textures on its own lot, for the Parks menu: a block with a
+    window grid and a flat roof, your OBJ model, or a building made of parts (parts_model - walls, roofs, towers,
+    trim, authored facades; guide topic "parts"). Written as a plugin into SiMCP's own Plugins folder; the game
+    loads plugins at start-up: quit_game and game_launch, then it is in build_menu like any other.
 
     Args:
         name: the new building's name, shown in the menu.
@@ -1498,12 +1499,25 @@ def design_model_building(name: str, width_m: float, depth_m: float, height_m: f
             {"name": "Museum Fund", "group": "government" (or business_deals, city_beautification,
             health_education, public_safety, transportation, utilities), "monthly_cost": 40,
             "monthly_income": 0}; each building of the design adds its line.
+        parts_model: a building made of parts: {"materials": {name: {...}}, "parts": [{"type": "box" | "roof" |
+            "extrude" | "prism" | "cone" | "beam" | "panel" | "patch", ...}]} in metres on the lot (x, y from the
+            lot's corner, the +y side facing the street, z up) - see guide(topic="parts"); parts_preview shows it.
+            Its size replaces width, depth and height.
     """
     if len(wall_rgb) != 3 or len(roof_rgb) != 3 or not all(0 <= c <= 255 for c in list(wall_rgb) + list(roof_rgb)):
         return {"error": "colours are [r, g, b] with values 0..255"}
     r = _content(content.model_building, name, width_m, depth_m, height_m, tuple(wall_rgb), tuple(roof_rgb),
                  windows, lot_cells, description, plop_cost, monthly_cost, ground=ground, objects=objects,
-                 model_path=model_path, model_scale=model_scale, department=department)
+                 model_path=model_path, model_scale=model_scale, department=department, parts_model=parts_model)
+    if parts_model and "error" not in r:
+        try:
+            from . import partmodel
+            pm = dict(parts_model)
+            pm["lot"] = lot_cells
+            mesh, mats = partmodel.Builder(pm).build()
+            return [json.dumps(r), _png_image(partmodel.preview(mesh, mats, lot_cells, 0, 192))]
+        except Exception:  # noqa: BLE001 - the design is written; the picture is a convenience
+            return r
     if model_path and "error" not in r:
         import io
         from . import meshimport
@@ -2010,6 +2024,153 @@ def edit_lot(name: str, lot: str, remove: list[int] | None = None, move: list[di
                             None if plop_cost < 0 else plop_cost, None if monthly_cost < 0 else monthly_cost)
     except (lotedit.LotEditError, content.ContentError, lotdesign.LotError) as e:
         return {"error": str(e), "hint": e.hint}
+
+
+def _png_image(im):
+    import io
+    buf = io.BytesIO()
+    im.save(buf, "PNG")
+    return Image(data=buf.getvalue(), format="png")
+
+
+def _photo(fn):
+    from . import partmodel
+    try:
+        return fn()
+    except (partmodel.GameError, OSError, ValueError) as e:
+        return {"error": str(e), "hint": getattr(e, "hint", "")}
+
+
+@tool(mcp, "set")
+@guarded
+def photo_add(name: str, image_path: str = "", image_base64: str = "", crop: list[int] | None = None,
+              scale: float = 1.0) -> dict:
+    """Add a photograph to work from (a reference for a building, a car, a tree...): a picture file or base64,
+    optionally cropped and scaled; later calls name it. Photos are kept in SiMCP's home folder (photos), never in the
+    game's. Use photos as the reference, not the paint: measure from them and draw clean materials (guide "parts").
+
+    Args:
+        name: a short name for the photo (letters, digits, spaces, - and _).
+        image_path: a picture file (JPG, PNG...).
+        image_base64: or the picture as base64 (or a data: URL).
+        crop: [x0, y0, x1, y1] in the original picture's pixels.
+        scale: resize after cropping (e.g. 0.5); 30 - 60 px per metre of facade is plenty.
+    """
+    def run():
+        import base64
+        import io
+        from PIL import Image as PImage
+        from . import partmodel
+        if image_base64:
+            data = image_base64.split(",", 1)[1] if image_base64.startswith("data:") else image_base64
+            im = PImage.open(io.BytesIO(base64.b64decode(data)))
+        elif image_path:
+            im = PImage.open(image_path)
+        else:
+            raise partmodel.GameError("give image_path or image_base64")
+        im = im.convert("RGB")
+        if crop:
+            if len(crop) != 4:
+                raise partmodel.GameError("crop: [x0, y0, x1, y1]")
+            im = im.crop(tuple(int(v) for v in crop))
+        if scale and scale != 1.0:
+            if not 0.05 <= scale <= 4:
+                raise partmodel.GameError("scale: 0.05 .. 4")
+            im = im.resize((max(1, int(im.width * scale)), max(1, int(im.height * scale))), PImage.LANCZOS)
+        return partmodel.add_photo(name, im)
+    return _photo(run)
+
+
+@tool(mcp, "observe")
+@guarded
+def photo_view(name: str, x0: int = 0, y0: int = 0, x1: int = -1, y1: int = -1, grid: int = 0):
+    """A photo (or part of it) with a labelled pixel grid in the photo's own coordinates: for reading the corners of
+    facades, roofs and windows (to measure, and for photo materials' quad), and colours to sample.
+
+    Args:
+        name: the photo's name (photo_add).
+        x0: left edge of the part to show (photo pixels).
+        y0: top edge.
+        x1: right edge (-1 = the photo's width).
+        y1: bottom edge (-1 = the photo's height).
+        grid: grid spacing in photo pixels (0 = about 10 lines across).
+    """
+    def run():
+        from PIL import Image as PImage, ImageDraw
+        from . import partmodel
+        im = partmodel.load_photo(name)
+        X1 = im.width if x1 < 0 else min(x1, im.width)
+        Y1 = im.height if y1 < 0 else min(y1, im.height)
+        crop = im.crop((max(0, x0), max(0, y0), X1, Y1))
+        f = min(1.0, 1200 / max(crop.size)) if max(crop.size) > 1200 else min(4.0, 800 / max(crop.size))
+        view = crop.resize((max(1, int(crop.width * f)), max(1, int(crop.height * f))), PImage.LANCZOS)
+        g = grid or max(10, int(round(max(crop.size) / 10 / 10)) * 10)
+        dr = ImageDraw.Draw(view)
+        for gx in range((max(0, x0) // g + 1) * g, X1, g):
+            X = int((gx - x0) * f)
+            dr.line([(X, 0), (X, view.height)], fill=(255, 255, 0), width=1)
+            dr.text((X + 2, 2), str(gx), fill=(255, 255, 0))
+        for gy in range((max(0, y0) // g + 1) * g, Y1, g):
+            Y = int((gy - y0) * f)
+            dr.line([(0, Y), (view.width, Y)], fill=(0, 255, 255), width=1)
+            dr.text((2, Y + 2), str(gy), fill=(0, 255, 255))
+        return _png_image(view)
+    return _photo(run)
+
+
+@tool(mcp, "observe")
+@guarded
+def photo_rectify(name: str, quad: list[list[float]], width_m: float = 0, height_m: float = 0):
+    """A photo region with the perspective removed: the facade inside quad (four photo pixels: top-left, top-right,
+    bottom-right, bottom-left), as a photo material would paint a face. Give the face's size to see it in
+    proportion.
+
+    Args:
+        name: the photo's name.
+        quad: [[x, y], [x, y], [x, y], [x, y]]: top-left, top-right, bottom-right, bottom-left.
+        width_m: the face's width in metres (0 = the photo's proportions).
+        height_m: its height in metres.
+    """
+    def run():
+        import math as _m
+        from . import partmodel
+        im = partmodel.load_photo(name)
+        wq = max(_m.dist(quad[0], quad[1]), _m.dist(quad[3], quad[2]))
+        hq = max(_m.dist(quad[0], quad[3]), _m.dist(quad[1], quad[2]))
+        if width_m > 0 and height_m > 0:
+            hq = wq * height_m / width_m
+        return _png_image(partmodel.rectify(im, quad, int(max(16, min(1600, wq))), int(max(16, min(1600, hq)))))
+    return _photo(run)
+
+
+@tool(mcp, "observe")
+@guarded
+def parts_preview(parts_model: dict, lot_cells: int = 1, rotation: int = -1):
+    """A quick picture of a parts model (design_model_building's parts_model) without the game: SiMCP 3000's
+    isometric renderer with its own light, all four sides (rotation -1) or one. The game draws the real thing with
+    its own camera and SiMCP's baked light: check there with snapshot after design_model_building.
+
+    Args:
+        parts_model: the model ({"materials": ..., "parts": [...]}).
+        lot_cells: the lot's size in cells a side.
+        rotation: 0-3, or -1 for all four side by side.
+    """
+    def run():
+        from PIL import Image as PImage
+        from . import partmodel
+        pm = dict(parts_model)
+        pm["lot"] = lot_cells
+        mesh, mats = partmodel.Builder(pm).build()
+        rots = range(4) if rotation < 0 else [rotation % 4]
+        ims = [partmodel.preview(mesh, mats, lot_cells, r, 256) for r in rots]
+        w = sum(im.width for im in ims) + 8 * (len(ims) - 1)
+        out = PImage.new("RGBA", (w, max(im.height for im in ims)), (150, 185, 215, 255))
+        x = 0
+        for im in ims:
+            out.alpha_composite(im, (x, out.height - im.height))
+            x += im.width + 8
+        return _png_image(out)
+    return _photo(run)
 
 
 @tool(mcp, "act")

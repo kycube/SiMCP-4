@@ -354,16 +354,37 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
                    ground="plaza", objects: list[dict] | None = None, invisible: bool = False,
                    model_path: str = "", model_scale: float = 1.0, overrides: dict | None = None,
                    kind: str = "", template_group: int | None = None, extra=None,
-                   department: dict | None = None, lot_template: int | None = None) -> dict:
+                   department: dict | None = None, lot_template: int | None = None,
+                   parts_model: dict | None = None) -> dict:
     """A new building with its own model and texture on its own lot (Parks / landmarks properties of the template
     building), written as a plugin into SiMCP's Plugins folder. `ground` covers every cell of the lot (a name from
     lotdesign.GROUNDS or a lot texture id) and `objects` adds props, trees and grounds (lotdesign.rows). invisible:
     the building is a transparent 1 m quad (lotdesign.park). model_path: an OBJ model (meshimport) instead of the
     generated block; its size (after model_scale) replaces width / depth / height. lot_template: a game lot whose
     size, properties and rows (network tiles of transit-enabled lots, props, textures) the new lot copies, with
-    SiMCP's building on the template's building row (ground and objects are then not used)."""
+    SiMCP's building on the template's building row (ground and objects are then not used). parts_model: a
+    building made of parts and materials (partmodel; guide topic "parts") instead of the generated block - its
+    "lot" (cells) is lot_cells, its size the model's."""
     from . import fsh, lotdesign, meshimport, s3d
     mesh = meshimport.load(model_path, model_scale) if model_path else None
+    built = None
+    if parts_model is not None:
+        from . import partmodel
+        pm = dict(parts_model)
+        pm["lot"] = lot_cells
+        try:
+            built = partmodel.Builder(pm).build()
+        except (partmodel.GameError, ValueError) as e:
+            raise ContentError("parts model: %s" % e, getattr(e, "hint", ""))
+        P = built[0].arrays()[0]
+        if not len(P):
+            raise ContentError("parts model: no parts")
+        width = float(P[:, :, 0].max() - P[:, :, 0].min())
+        depth = float(P[:, :, 1].max() - P[:, :, 1].min())
+        height = float(P[:, :, 2].max())
+        if P[:, :, :2].min() < -1.0 or P[:, :, :2].max() > 16 * lot_cells + 1.0:
+            raise ContentError("parts model: parts reach outside the %d-cell lot (0..%d m)" % (lot_cells,
+                                                                                            16 * lot_cells))
     lt = None
     lot_w = lot_d = lot_cells
     if lot_template is not None:
@@ -382,8 +403,8 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
     _check_tokens(description, "description")
     if plop_cost < 0 or monthly_cost < 0:
         raise ContentError("costs are 0 or more")
-    if not invisible and not mesh and not (2 <= width <= 16 * lot_w - 1 and 2 <= depth <= 16 * lot_d - 1
-                              and 2 <= height <= 400):
+    if not invisible and not mesh and not built and not (2 <= width <= 16 * lot_w - 1 and
+                                                         2 <= depth <= 16 * lot_d - 1 and 2 <= height <= 400):
         raise ContentError("the building must fit its lot: width 2..%d m, depth 2..%d m, height 2..400 m"
                            % (16 * lot_w - 1, 16 * lot_d - 1))
     if not 1 <= lot_cells <= 6:
@@ -394,26 +415,42 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
     lot_iid, bld_iid = _new_ids(taken or set(), 2)
     model_iid = _free(dbpf.T_S3D, G_MODELS, 0xFFFF0000, taken or set())
     tex_iid = _free(dbpf.T_FSH, G_TEXTURES, 0xFFFFFF00, taken or set())
+    views = False
     if invisible:              # alpha 0 everywhere: the default material's alpha test drops every pixel
         wall_fsh = roof_fsh = fsh.write_argb(8, 8, bytes(8 * 8 * 4))
         model = s3d.write(s3d.textured_mesh([(-0.5, 0.01, -0.5, 0, 0), (0.5, 0.01, -0.5, 1, 0), (0.5, 0.01, 0.5, 1, 1),
                                              (-0.5, 0.01, 0.5, 0, 1)], [(0, 2, 1), (0, 3, 2)], tex_iid))
         textures = [(tex_iid, wall_fsh)]
         icon_png = lotdesign.park_icon()
+    elif built:
+        from . import partmodel
+        model, textures, _ = partmodel.to_s3d(built[0], built[1], lot_cells, tex_iid)
+        icon_png = partmodel.icon(built[0], built[1], lot_cells)
+        views = True                    # one turned copy per view rotation (RKT1)
     elif mesh:
         mobj, textures = meshimport.model(mesh, tex_iid)
         model = s3d.write(mobj)
         icon_png = meshimport.icon(mesh)
+        views = True
     else:
         wall_fsh = fsh.write_argb(32, 32, wall_tile(tuple(wall), windows))
         roof_fsh = fsh.write_argb(8, 8, solid(tuple(roof)))
         model = s3d.write(box_mesh(width, depth, height, tex_iid, tex_iid + 1))
         textures = [(tex_iid, wall_fsh), (tex_iid + 1, roof_fsh)]
         icon_png = box_icon(width, depth, height, tuple(wall), tuple(roof))
+        views = True
+    rotated = [s3d.write(s3d.turned(s3d.parse(model), r)) for r in range(4)] if views else []
     side = 16.0 * lot_cells
     cx = cz = side / 2
-    building_row = [0, 0, 0, _fx(cx), 0, _fx(cz), _fx(cx - width / 2), _fx(cz - depth / 2), _fx(cx + width / 2),
-                    _fx(cz + depth / 2), 0, 1, bld_iid]
+    if built:                            # the model's own footprint (its x is mirrored: +x is west)
+        P = built[0].arrays()[0]
+        bx0, bx1 = side - float(P[:, :, 0].max()), side - float(P[:, :, 0].min())
+        bz0, bz1 = float(P[:, :, 1].min()), float(P[:, :, 1].max())
+        building_row = [0, 0, 0, _fx(cx), 0, _fx(cz), _fx(max(0.0, bx0)), _fx(max(0.0, bz0)), _fx(min(side, bx1)),
+                        _fx(min(side, bz1)), 0, 1, bld_iid]
+    else:
+        building_row = [0, 0, 0, _fx(cx), 0, _fx(cz), _fx(cx - width / 2), _fx(cz - depth / 2), _fx(cx + width / 2),
+                        _fx(cz + depth / 2), 0, 1, bld_iid]
     if lt is not None:                   # the template lot's rows, SiMCP's building on its building row
         rows, placed = [], []
         for pr in sorted((p for p in lt.props if LOT_ROW0 <= p.id <= LOT_ROW0 + 0x4FF), key=lambda p: p.id):
@@ -445,7 +482,11 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
     _set(bprops, P_ITEM_DESC, dbpf.PT_STRING, description or name)
     _set(bprops, P_LOT_KEY, dbpf.PT_UINT32, [lot_iid])
     _set(bprops, P_SIZE, dbpf.PT_FLOAT32, [float(width), float(height), float(depth)], multi=True)
-    _set(bprops, P_RKT0, dbpf.PT_UINT32, [dbpf.T_S3D, G_MODELS, model_iid], multi=True)
+    if views:
+        bprops = _drop(bprops, P_RKT0)
+        _set(bprops, P_RKT1, dbpf.PT_UINT32, [dbpf.T_S3D, G_MODELS, model_iid], multi=True)
+    else:
+        _set(bprops, P_RKT0, dbpf.PT_UINT32, [dbpf.T_S3D, G_MODELS, model_iid], multi=True)
     _set(bprops, P_PLOP, dbpf.PT_SINT64, [int(plop_cost)])
     for pid, value in (overrides or {}).items():       # service numbers (civic designs): keep the template's type
         cur = [p for p in bprops if p.id == pid]
@@ -467,9 +508,13 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
     records = [(dbpf.T_EXEMPLAR, G_SIMCP_BUILDINGS, bld_iid, dbpf.build_exemplar(bprops, bld.parent)),
                (dbpf.T_EXEMPLAR, G_LOTS, lot_iid, dbpf.build_exemplar(lprops, lt.parent if lt is not None
                                                                       else LOT_COHORT)),
-               (dbpf.T_S3D, G_MODELS, model_iid, model),
                (dbpf.T_PNG, G_ICONS, icon_iid, icon_png)] + \
               [(dbpf.T_FSH, G_TEXTURES, inst, data) for inst, data in textures]
+    if views:                            # RKT1: the model for zoom z, view rotation r at base + z * 0x100 + r * 0x10
+        records += [(dbpf.T_S3D, G_MODELS, model_iid + z * 0x100 + r * 0x10, rotated[r])
+                    for z in range(5) for r in range(4)]
+    else:
+        records.append((dbpf.T_S3D, G_MODELS, model_iid, model))
     records += dept_records
     extra_entry = dict(dept_entry)
     if extra:                                  # more records that need the building's id (a reward's advice)
@@ -494,6 +539,9 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
     if mesh:
         entry["model_file"] = os.path.basename(model_path)
         entry["size_m"] = [width, depth, height]
+    if built:
+        entry["parts"] = len(parts_model.get("parts", []))
+        entry["size_m"] = [round(width, 2), round(depth, 2), round(height, 2)]
     items = _manifest()
     items.append(entry)
     _save_manifest(items)
@@ -635,7 +683,8 @@ def growable_building(name: str, purpose: str, wealth: int, width: float, depth:
     _set(bprops, P_NAME_KEY, dbpf.PT_UINT32, [dbpf.T_LTEXT, G_SIMCP_NAMES, bld_iid], multi=True)   # query name
     _set(bprops, P_FAMILY, dbpf.PT_UINT32, [family], multi=True)
     _set(bprops, P_SIZE, dbpf.PT_FLOAT32, [float(width), float(height), float(depth)], multi=True)
-    _set(bprops, P_RKT0, dbpf.PT_UINT32, [dbpf.T_S3D, G_MODELS, model_iid], multi=True)
+    bprops = _drop(bprops, P_RKT0)        # building models are drawn as given in every view: one turned copy each
+    _set(bprops, P_RKT1, dbpf.PT_UINT32, [dbpf.T_S3D, G_MODELS, model_iid], multi=True)
     # building styles (occupant groups 0x2000 Chicago 1890, 0x2001 New York 1940, 0x2002 Houston 1990, 0x2003
     # Euro-contemporary): a city grows only the styles it has switched on, so a design carries all four
     grp = next((p for p in bprops if p.id == P_GROUPS), None)
@@ -649,10 +698,11 @@ def growable_building(name: str, purpose: str, wealth: int, width: float, depth:
         cap.values = [cap.values[0], int(capacity)] + list(cap.values[2:])
     wall_fsh = fsh.write_argb(32, 32, wall_tile(tuple(wall), windows))
     roof_fsh = fsh.write_argb(8, 8, solid(tuple(roof)))
-    model = s3d.write(box_mesh(width, depth, height, tex_iid, tex_iid + 1))
+    base_model = box_mesh(width, depth, height, tex_iid, tex_iid + 1)
     records = [(dbpf.T_EXEMPLAR, G_SIMCP_BUILDINGS, bld_iid, dbpf.build_exemplar(bprops, bld.parent)),
-               (dbpf.T_EXEMPLAR, G_LOTS, lot_iid, dbpf.build_exemplar(lprops, lot.parent)),
-               (dbpf.T_S3D, G_MODELS, model_iid, model),
+               (dbpf.T_EXEMPLAR, G_LOTS, lot_iid, dbpf.build_exemplar(lprops, lot.parent))] + \
+              [(dbpf.T_S3D, G_MODELS, model_iid + z * 0x100 + r * 0x10, s3d.write(s3d.turned(base_model, r)))
+               for z in range(5) for r in range(4)] + [
                (dbpf.T_FSH, G_TEXTURES, tex_iid, wall_fsh),
                (dbpf.T_FSH, G_TEXTURES, tex_iid + 1, roof_fsh),
                (dbpf.T_LTEXT, G_SIMCP_NAMES, bld_iid, dbpf.build_ltext(name))]

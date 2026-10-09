@@ -252,6 +252,26 @@ there is demand.
   `quit_game()` and `game_launch()` before they appear in `build_menu()`. `disable_design(name)` (with the game
   closed) moves a design's file aside.
 
+## Buildings from parts (photo to building)
+
+For realistic buildings, describe the building as 3D parts in metres and draw its walls as authored facades
+measured from a photograph (SiMCP 3000's photo-to-building model): `design_model_building(name, 0, 0, 0,
+lot_cells=..., parts_model={...})`.
+
+1. `photo_add(name, image_path, crop, scale)` - a reference photo (kept in SiMCP's home, never the game's).
+2. `photo_view(name, x0, y0, x1, y1, grid)` - read corners, eaves, ridges, storey lines, windows and doors off a
+   pixel grid; `photo_rectify(name, quad, width_m, height_m)` shows a facade with the perspective removed.
+3. Write the model: {"materials": {name: {...}}, "parts": [{"type": ...}, ...]}. Axes: x and y on the lot in
+   metres from its corner (a cell is 16 m), the +y side facing the street, +x is west, z up. Parts: box, extrude,
+   prism / cylinder, cone / pyramid, roof (hip, gable_x, gable_y, pyramid, shed_+x / -x / +y / -y, flat; pitch,
+   overhang, gable, bargeboard, finial, ridge_cap), beam, panel, patch. Materials: color, pattern (clapboard,
+   shingle, fishscale, brick, stone, roof_shingle, slate, paving, clapboard_window, wall_window), texture (a
+   picture file), photo (with quad), facade (authored: windows, doors, bands, railings, ornaments at measured
+   positions). partmodel.py and facade.py document every key.
+4. `parts_preview(parts_model, lot_cells)` - all four sides without the game; iterate on the massing first.
+5. `design_model_building(...)` writes the building (a model per view and zoom); quit_game, game_launch, plop it,
+   and judge it with `snapshot` at the closest zoom in daylight, in all four rotations, beside the game's own.
+
 ## Cheats
 
 `cheat(name, argument)` runs one of the game's player cheats. Cheats are not honest play: SiMCP runs only vetted

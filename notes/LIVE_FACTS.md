@@ -828,3 +828,18 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   dependencies (mcp 1.30.0, numpy 2.5.3, pillow 12.3.0); `simcp4 --check` found the game and the DLLs bundled in
   site-packages\\sc4_mcp\\bin; an MCP stdio client listed 108 tools, called setup_check and game_status (which
   attached to the running game).
+
+## Session 2026-10-09 (Phase 11: realism - per-view building models)
+
+- **Building models are not turned by the game.** A box with four coloured walls ("MCP Compass Box", RKT0: one
+  model) showed the same wall toward the camera in every view rotation, and in rotation 3 it was not drawn at all.
+  With RKT1 (0x27812821: [S3D, group, base]) the game takes the model for zoom z and rotation r at base + z *
+  0x100 + r * 0x10, as Maxis' pre-rendered models are stored; SiMCP writes 20 copies turned by r quarter turns.
+  The turn's sign: "MCP Compass Box Two" (turned +r) was 180 degrees off on a lot facing west; "MCP Compass Box
+  Three" (turned -r, s3d.ROT_SIGN = -1) showed the right wall toward the street in all four rotations on lots
+  facing west (31, 38) and east (29, 38) in MCP Town. Every SiMCP building design (block, OBJ, parts, growable) is
+  now written this way.
+- **Parts buildings** (partmodel, ported from SiMCP 3000): the model's x / y on the lot (+y to the street, +x
+  west), z up become S3D X = -(x - c), Y = z, Z = y - c; triangles are wound so (b - a) x (c - a) points outward.
+  Maxis models carry positions and UVs only (vertex format 0x80004001) with the light in the texture, so to_s3d
+  groups triangles by material and light level and writes a lit copy of the texture per group.

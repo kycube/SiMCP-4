@@ -13,6 +13,13 @@ you act on it through these tools and read everything back from the game's memor
    works before the game starts.
 4. `quit_game()` ends the game without saving.
 
+What you can do, by section below: regions and terrain (including whole regions from a height map); time;
+reading the city (data layers, the network map and routes, traffic, lots and how full they are, budget,
+advisors, graphs); running it (taxes, department and per-building funding with their effect on service,
+ordinances, loans, neighbour deals, play options); building (networks, zones, plopping, bulldozing, trees,
+terraforming, historical buildings); looking at it (camera, snapshots); disasters and emergencies; U-Drive-It and
+My Sims; and making content (buildings for the menus, buildings that grow in zones, advice and news).
+
 ## Regions and cities
 
 A region is a grid of city tiles: small (1x1 grid squares = 64x64 cells), medium (2x2 = 128x128) and large
@@ -37,10 +44,13 @@ the test region "MCP Test" has one large, two medium and eight small tiles on fl
 
 ## Time
 
-`advance_time(days)` advances the open city by exactly that many game days with the game's own day code (all the
-daily, weekly, monthly and yearly simulation work runs for every day), much faster than real time - about 80 days
-per second in a city of 25,000 people. It leaves the game's own pause and speed as they were. If `max_seconds`
-runs out first, `remaining_days` says how many days are left: call it again.
+`advance_time(days)` runs the open city that many game days and stops on the target day. The default mode,
+"natural", lets the game play at its fast speed (about 10-20 days per second): buildings finish construction, cars
+drive and growth happens as for a player who presses fast and waits. "exact" steps days under a hidden pause (fast
+and deterministic, but construction barely moves - for budget and time checks); "unthrottled" is in between.
+Afterwards the player's speed and pause state come back - an unpaused city keeps running at its own speed while
+you think, so pause it (`set_paused(true)`) when you need it still. If `max_seconds` runs out first,
+`remaining_days` says how many days are left: call it again.
 
 ## Seeing the city
 

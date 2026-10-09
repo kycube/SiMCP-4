@@ -472,3 +472,11 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   dialog; the bridge logs faults its guards catch ("caught-in-call", "caught-in-deferred", tested with a call to
   address 0x10) besides first-chance faults, with a re-entry guard and a stack scan bounded by the thread's stack,
   into SIMCP4_HOME\crash.log (the launcher passes the variable); game_status reports only first-chance ones.
+- **Strikes and jails**: police / fire strike flag = byte +0xA4 of each simulator (both use 0x6E0120); teachers /
+  doctors +0x178 / +0x118 of ResidentialSim. GetChanceOfStrike (police slot 11, fire 12, ResidentialSim 10 / 11)
+  takes a hidden result pointer: for each station it reads the station's budget item funding and runs it through
+  the strike curve (+0x134 in the police simulator), p = 1 - prod(1 - p_i). Fire at 30 % funding: 22.0 % (the curve
+  0:100, 25:25, 50:10, 70:0), 0 % at 100 %. Police stayed 0 % at 30 % for three months: a plugin in this setup loads
+  the police strike curve as all zeros (live tuning 68DDAE9E = [0,0, 25,0, 50,0, 70,0]). Jails (Windows slots shifted
+  by MSVC's overload grouping: 28 GetJailCapacity(occ), 29 GetJailCapacity() ... 38 ProcessMonthlyCrimeStats - never
+  called): capacity +0xD8 = 120, inmates +0xDC, criminals +0xE0, arrests +0xE4 (all 0 here).

@@ -680,6 +680,15 @@ def building_funding(x: int, z: int) -> dict:
     return _svc(services.building_funding, x, z)
 
 
+@tool(mcp, "read")
+@guarded
+def strikes_and_jails() -> dict:
+    """Whether police, firefighters, teachers or doctors are on strike and the chance of a strike now (from each
+    station's funding through the game's strike curve - plugins may switch strikes off, as this setup does for the
+    police), and the jails: capacity, inmates, criminals at large, arrests."""
+    return _svc(services.strikes_and_jails)
+
+
 @tool(mcp, "set")
 @guarded
 def set_building_funding(x: int, z: int, item: str, percent: float) -> dict:

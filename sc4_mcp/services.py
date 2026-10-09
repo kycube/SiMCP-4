@@ -53,7 +53,12 @@ DEPARTMENT_CURVES = {"water": (T_UTILITIES, 0x6A410BF2, "efficiency %"),
                      "jail": (T_POLICE, 0x68DDAEA0, "efficiency %"),
                      "power_line_decay": (T_UTILITIES, 0xAA713782, "decay (-) or repair (+) per month"),
                      "pipe_decay": (T_UTILITIES, 0xCA7138C4, "decay (-) or repair (+) per month"),
-                     "power_plant_decay": (T_UTILITIES, 0x0911E2E8, "plant decay rate multiplier (x: funding 0-1.2)")}
+                     "power_plant_decay": (T_UTILITIES, 0x0911E2E8, "plant decay rate multiplier (x: funding 0-1.2)"),
+                     "police_strike": (T_POLICE, 0x68DDAE9E, "chance of a strike % (x: funding %)"),
+                     "fire_strike": (T_FIRE, 0x29233E98, "chance of a strike % (x: funding %)"),
+                     "utility_strike": (T_UTILITIES, 0x0911E2E6, "chance of a strike % (x: funding %)"),
+                     "school_strike": (T_RESIDENTIAL, 0xC91894CB, "chance of a teachers' strike % (x: grade)"),
+                     "health_strike": (T_RESIDENTIAL, 0x691894A4, "chance of a doctors' strike % (x: grade)")}
 
 
 class ServiceError(RuntimeError):
@@ -261,3 +266,27 @@ def set_building_funding(g, x: int, z: int, item: str, percent: float) -> dict:
             "service_before": before["service"], "service_after": after["service"],
             "note": "capacity and efficiency change at once; coverage maps (map_data police_coverage / "
                     "fire_coverage) follow when the simulators next update (within a month)"}
+
+
+def strikes_and_jails(g) -> dict:
+    """Strikes (police, fire, teachers, doctors) with the chance of one, and the jails, from the simulators: police /
+    fire strike byte +0xA4 and GetChanceOfStrike (police slot 11, fire 12; a hidden result pointer), schools +0x178
+    and hospitals +0x118 of ResidentialSim with slots 10 / 11; jail capacity, population, criminals and arrests at
+    PoliceSim +0xD8 / +0xDC / +0xE0 / +0xE4 (Windows slots 29-31 and 34, read as fields). Nothing is changed."""
+    p = g.proc
+    pol, fire, res = p.u32(G_POLICE), p.u32(G_FIRE), p.u32(G_RES)
+    out = {"police": {"on_strike": bool(p.u8(pol + 0xA4)), "chance_of_strike_percent": _out_float(g, pol, 11, 0)},
+           "fire": {"on_strike": bool(p.u8(fire + 0xA4)), "chance_of_strike_percent": _out_float(g, fire, 12, 0)},
+           "schools": {"on_strike": bool(p.u8(res + 0x178)), "chance_of_strike_percent": _hidden_float(g, res, 10)},
+           "hospitals": {"on_strike": bool(p.u8(res + 0x118)), "chance_of_strike_percent": _hidden_float(g, res, 11)},
+           "jails": {"capacity": p.u32(pol + 0xD8), "inmates": p.u32(pol + 0xDC), "criminals": p.u32(pol + 0xE0),
+                     "arrests": p.u32(pol + 0xE4)}}
+    return out
+
+
+def _hidden_float(g, sim: int, slot: int) -> float:
+    """A getter whose only argument is the hidden result pointer (an SC4Percentage), as a percent."""
+    buf = g.bridge.scratch(0x1C80, 4)
+    g.proc.write(buf, bytes(4))
+    _v(g, sim, slot, buf)
+    return round(struct.unpack("<f", g.proc.read(buf, 4))[0] * 100, 1)

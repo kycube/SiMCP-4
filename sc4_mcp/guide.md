@@ -371,8 +371,9 @@ Cars
 
 Pedestrians
 17. design_walker draws a person as the game's walkers are: about life size at the two closest zooms, 8
-    directions x 8 walk frames, a short shadow. Clothes in everyday colours (navy, grey, denim, a few warm
-    tops) read as a crowd; one bright colour on everyone looks like a uniform.
+    directions x 11 walk frames (as many as the game's walkers have), a short shadow. Clothes in everyday
+    colours (navy, grey, denim, a few warm tops) read as a crowd; one bright colour on everyone looks like a
+    uniform.
 
 Industry
 18. Industrial buildings beside the game's own look grimy, not new: greyed colours (cladding about #b3b5b1,

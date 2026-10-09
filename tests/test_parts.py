@@ -194,26 +194,33 @@ def test_shell_covers_the_picture():
 
 
 def test_walker_sprites():
-    """Walker atlases follow the game's layout: per direction, frames left to right wrapping at the page's edge;
-    a frame table is a 32-byte header, a count and 8-byte entries; the descriptor names the atlas and tables."""
+    """Walker atlases follow the game's layout: per direction, as many frames as the descriptor's last value (11,
+    as the game's walkers), left to right wrapping at the page's edge, each direction's frames its own; a frame
+    table is a 32-byte header, a count and 8-byte entries whose second byte is 8 (as in every game sprite)."""
     import struct
     import numpy as np
     from sc4_mcp import walkers
-    dirs = [([np.ones((30, 20 + d % 2 * 3, 4), np.float32)] * 8, (10, 28)) for d in range(8)]
+    n = walkers.FRAMES
+    assert n == 11
+    # every frame a different value, so a frame read from the wrong place shows
+    dirs = [([np.full((30, 20 + d % 2 * 3, 4), (d * n + f + 1) / 200.0, np.float32) for f in range(n)], (10, 28))
+            for d in range(8)]
     pages, tables = walkers.pack([dirs, dirs])
     assert len(tables) == 2 and all(len(t) == 8 for t in tables)
-    for pg, n, x, y, w, h, ax, ay in tables[0] + tables[1]:
-        X, Y = x, y
-        assert x + w <= 256
-        for _ in range(n):                                      # every frame lies inside its page
-            if X + w > 256:
-                X, Y = 0, Y + h
-            assert Y + h <= 256 and pages[pg][Y:Y + h, X:X + w, 3].min() == 1.0
-            X += w
+    for z in range(2):
+        for d, (pg, b, x, y, w, h, ax, ay) in enumerate(tables[z]):
+            assert b == 8 and x + w <= 256
+            X, Y = x, y
+            for f in range(n):                      # read back as the game does: every frame inside its page and
+                if X + w > 256:                     # the direction's own
+                    X, Y = 0, Y + h
+                assert Y + h <= 256
+                assert abs(pages[pg][Y + 15, X + 5, 0] - (d * n + f + 1) / 200.0) < 1e-6
+                X += w
     t = walkers.frame_table(tables[0])
     assert len(t) == 100 and struct.unpack_from("<4I", t) == (walkers.T_FRAMES, 8, 1, 1)
     d = struct.unpack("<12I", walkers.descriptor(0x100, 0x100, 0x101))
-    assert d[0] == walkers.T_SPRITE and d[3] == 0x100 and d[9:] == (0x100, 0x101, 11)
+    assert d[0] == walkers.T_SPRITE and d[3] == 0x100 and d[9:] == (0x100, 0x101, n)
     fsh_pages = walkers.write_pages(pages)
     assert fsh_pages[:4] == b"SHPI" and struct.unpack_from("<I", fsh_pages, 8)[0] == len(pages)
     assert [round(walkers.DIR_DEG[k]) % 360 for k in (0, 2, 4, 6)] == [90, 0, 270, 180]

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.1
+
+- **Walkers play their whole walk cycle**: a sprite's frame count is its descriptor's last value (the game's
+  walkers: 11 per direction). design_walker drew 8 frames per direction under a descriptor saying 11, so the game
+  showed 3 frames of another direction in every loop; it now draws 11 and writes the count it drew (the frame
+  table keeps the game's constant 8). Seen in the game with probe walkers: every frame of the cycle, nothing from
+  another direction. Rebuild older walker designs with `design_walker(..., replace=true)`.
+
 ## 0.12.0
 
 The roadmap's last open items (all but U-Drive-It, left out at the user's request). 114 tools.

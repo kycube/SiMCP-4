@@ -3,15 +3,17 @@
 A walker is an exemplar of type 0x17 in group 0xC96E6806 (the game's "Ped_male-med01-walk" 0x01600000: name, model
 key, occupant groups 0x4000 / 0x4001 / 0x4107 and 0x4149 men or 0x414A women, under cohort 0x05342861) whose model
 key [0x29A5D1EC, 0x49A593E7, i] names a 48-byte sprite descriptor: [0x29A5D1EC, FSH type, group, the atlas, 0x09ADCD75,
-group, 0, 0, 0, the far zoom's frame table, the close zoom's, 11]. The atlas is an FSH of 256 x 256 DXT3 pages; a frame
-table (0x09ADCD75, 100 bytes) has a 32-byte header (type, 8, 1, 1, zeros), a count (8) and one 8-byte entry per
-direction - page, frames, x, y, width, height, anchor x, anchor y - the direction's frames running left to right from
-(x, y) and wrapping to x = 0, y + height at the page's edge (LIVE_FACTS, Phase 11).
+group, 0, 0, 0, the far zoom's frame table, the close zoom's, the frames per direction (the game's walkers: 11)]. The
+atlas is an FSH of 256 x 256 DXT3 pages; a frame table (0x09ADCD75, 100 bytes) has a 32-byte header (type, 8, 1, 1,
+zeros), a count (8) and one 8-byte entry per direction - page, 8 (in every game sprite; not the frame count), x, y,
+width, height, anchor x, anchor y - the direction's frames running left to right from (x, y), wrapping to x = 0,
+y + height at the page's right edge and to (0, 0) of the next page at its bottom (LIVE_FACTS, Phase 11 and the
+2026-10-09 sprite survey: the game's walker tables start each direction 11 frames after the last).
 
-SiMCP draws the figure as a parts model posed for each of 8 walk-cycle frames (legs and arms swinging), turned to
-each of 8 headings and rendered with the game's camera and light (batrender) at about life size, as the game's
-walkers are, at the two closest zooms (7 and 14 px per metre); its shadow is the figure flattened along the game's
-sun (half length), a translucent dark patch in the sprite.
+SiMCP draws the figure as a parts model posed for each of 11 walk-cycle frames (legs and arms swinging), as many as
+the game's walkers have, turned to each of 8 headings and rendered with the game's camera and light (batrender) at
+about life size, as the game's walkers are, at the two closest zooms (7 and 14 px per metre); its shadow is the
+figure flattened along the game's sun (half length), a translucent dark patch in the sprite.
 """
 
 from __future__ import annotations
@@ -35,7 +37,8 @@ T_COHORT = 0x05342861
 TEMPLATE = 0x01600000                       # Ped_male-med01-walk
 GROUPS = {"male": [0x4000, 0x4001, 0x4107, 0x4149], "female": [0x4000, 0x4001, 0x4107, 0x414A]}
 SCALE = 1.08                                # the game's walkers are about life size (a little over)
-FRAMES = 8
+FRAMES = 11                                 # frames per direction, as the game's walkers (the descriptor's last value)
+TABLE_B = 8                                 # a frame table entry's second byte: 8 in every game sprite
 ZOOMS = (4, 5)                              # walkers show at the two closest zooms (UI 5 and 6: 7 and 14 px/m)
 # direction d walks along (cos 45d, sin 45d) in the game's camera-fixed frame (X, Z): 0 along +X, 2 towards the camera
 # (+Z) - found with probe walkers showing their direction (2 and 6 on a north-south street) and the frame widths
@@ -140,13 +143,17 @@ def _render_frame(model: dict, zoom: int):
     return out, (-x0, -y0)
 
 
-def _probe_frame(d: int, zoom: int):
-    """A probe frame: a bright card with the direction's digit (to find which direction is which heading)."""
+def _probe_frame(d: int, zoom: int, f: int = 0):
+    """A probe frame: a bright card with the direction's digit (to find which direction is which heading) and,
+    along its foot, a bar filled to frame f's place in the cycle (to see the game play every frame, and only the
+    direction's own)."""
     from PIL import ImageDraw, ImageFont
     w, h = (14, 22) if zoom == 4 else (24, 36)
     im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     dr = ImageDraw.Draw(im)
     dr.rectangle([0, 0, w - 1, h - 6], fill=(255, 225, 40, 255), outline=(0, 0, 0, 255))
+    bar = h - 9 if zoom != 4 else h - 8
+    dr.rectangle([1, bar, 1 + round((w - 3) * (f + 1) / FRAMES), h - 7], fill=(200, 30, 30, 255))
     try:
         font = ImageFont.truetype("arialbd.ttf", h - 10)
     except OSError:
@@ -163,7 +170,7 @@ def frames(kind: str, colours: dict, zoom: int, probe: bool = False):
         imgs = []
         for f in range(FRAMES):
             if probe:
-                imgs.append(_probe_frame(d, zoom))
+                imgs.append(_probe_frame(d, zoom, f))
             else:
                 imgs.append(_render_frame(figure(kind, f / FRAMES, DIR_DEG[d], colours), zoom))
         # a common canvas: the union of every frame's box around the shared anchor
@@ -182,9 +189,10 @@ def frames(kind: str, colours: dict, zoom: int, probe: bool = False):
 
 
 def pack(zoom_sets):
-    """Pages (256 x 256 float RGBA) and per zoom 8 entries (page, frames, x, y, w, h, ax, ay), the frames placed
-    by the game's rule: left to right from (x, y), wrapping to x = 0, y + h. Every direction of a zoom uses the
-    zoom's tallest frame height so rows never overlap."""
+    """Pages (256 x 256 float RGBA) and per zoom 8 entries (page, 8, x, y, w, h, ax, ay), the frames placed by the
+    game's rule: left to right from (x, y), wrapping to x = 0, y + h. Every direction of a zoom uses the zoom's
+    tallest frame height so rows never overlap, and a direction whose frames would pass a page's bottom starts on
+    a new page. Every direction must have the same number of frames (the descriptor's)."""
     pages = [np.zeros((256, 256, 4), np.float32)]
     page, x, y = 0, 0, 0
     tables = []
@@ -208,7 +216,7 @@ def pack(zoom_sets):
             if Y + H > 256:
                 pages.append(np.zeros((256, 256, 4), np.float32))
                 page, x, y = len(pages) - 1, 0, 0
-            entries.append((page, n, x, y, w, H, ax, ay + (H - canv[0].shape[0])))
+            entries.append((page, TABLE_B, x, y, w, H, ax, ay + (H - canv[0].shape[0])))
             for im in canv:
                 if x + w > 256:
                     x, y = 0, y + H
@@ -227,8 +235,10 @@ def frame_table(entries) -> bytes:
     return b
 
 
-def descriptor(atlas: int, t0: int, t1: int) -> bytes:
-    return struct.pack("<12I", T_SPRITE, 0x7AB50E44, G_SPRITES, atlas, T_FRAMES, G_SPRITES, 0, 0, 0, t0, t1, 11)
+def descriptor(atlas: int, t0: int, t1: int, frames: int = FRAMES) -> bytes:
+    """The sprite descriptor: the atlas, the far and close frame tables, and the frames per direction (the game
+    plays that many from each direction's start)."""
+    return struct.pack("<12I", T_SPRITE, 0x7AB50E44, G_SPRITES, atlas, T_FRAMES, G_SPRITES, 0, 0, 0, t0, t1, frames)
 
 
 def write_pages(pages) -> bytes:
@@ -302,7 +312,7 @@ def design_walker(name: str, kind: str = "male", colours: dict | None = None, pr
     path = content._design_path("SiMCP_walker_", name)
     dbpf.write_dbpf(path, records)
     entry = {"name": name, "kind": "walker", "file": path, "walker": "0x%08X" % walker_iid,
-             "sprites": "0x%08X" % base, "who": kind, "probe": probe, "pages": len(pages),
+             "sprites": "0x%08X" % base, "who": kind, "probe": probe, "pages": len(pages), "frames": FRAMES,
              "created": time.strftime("%Y-%m-%d %H:%M:%S")}
     items = content._manifest()
     items.append(entry)

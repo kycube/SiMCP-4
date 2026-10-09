@@ -928,7 +928,8 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   wide...) - the Maxis protester's sign faces the camera in direction 2. Pedestrians are drawn afresh each frame
   (no walker could be followed from one snapshot to the next), and they are not in the vehicle list. "MCP
   Walker Man" / "MCP Walker Woman" (8 directions x 8 frames, legs and arms swinging, a half-length shadow; one
-  DXT3 page) walked the sidewalks at the closest zoom showing their fronts or backs along the street. The test
+  DXT3 page) walked the sidewalks at the closest zoom showing their fronts or backs along the street. (The frame
+  count was wrong: the game plays 11 frames per direction - see 2026-10-09, walkers with 11 frames.) The test
   plugin went to SiMCP's backups folder afterwards.
 
 ## Session 2026-10-09 (Phase 11 close-out: lamps, seasonal trees, grown houses)
@@ -984,3 +985,19 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   trees were rebuilt rendered under their own ids.
 - **Window patterns at night**: "glow" on a wall_window pattern lit the whole band (wall too); the night layer now
   takes the pattern's own layout and lights only the panes - in the game, a row of separate lit windows.
+
+## Session 2026-10-09 (walkers with 11 frames)
+
+- **A sprite's frame count is its descriptor's last value**: in the game's walker Ped_male-med01-walk
+  (descriptor 29A5D1EC-49A593E7-01600000, last value 11) the far table starts direction 0 at x 0 with 9-px frames
+  and direction 1 at x 99 (= 11 x 9), direction 5 at x 198 runs past the page's right edge and wraps to x 0 of the
+  next row for its last 3 frames, where direction 6 starts (x 21 = 3 x 7); in the close table direction 0 starts
+  at x 197 with 17-px frames, wraps after 3 and direction 1 starts at x 136 (= 8 x 17). A riot line (last value
+  11) continues from the bottom of one atlas page at (0, 0) of the next. The frame table entry's second byte is 8
+  in all 1,088 of the game's sprites (not the frame count); playground children have 7 or 29 frames, stoplights 3.
+- SiMCP's walkers had 8 frames per direction under a descriptor saying 11, so the game played 3 frames of the next
+  direction in every loop. design_walker now renders 11 (FRAMES), writes the count into the descriptor and 8 into
+  the table. Live in MCP Village with a probe walker (cards: the direction's digit and a bar growing with the
+  frame) standing in for every game pedestrian (a temporary override plugin, moved to backups afterwards): 40
+  snapshots on the north-south street showed only 2s and 6s with bars of every length up to full (frames 1 to 11
+  all seen), no card of another direction. "MCP Walker Man" / "MCP Walker Woman" were rebuilt (2 pages each).

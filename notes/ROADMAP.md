@@ -24,7 +24,7 @@ L = a day or more, XL = several days.
 ## Phase 7 - props and lots
 
 - [x] New props (M) - box, cylinder, cone, sign with a picture
-- [x] Lot designer: game props, trees, textures on a design's lot (M) - fences not yet (the lot loader does not keep type-3 rows; fences are props in practice)
+- [x] Lot designer: game props, trees, textures on a design's lot (M) - fences not yet (the format notes call type-3 fence rows "not written back"; untested)
 
 ## Phase 8 - real buildings
 

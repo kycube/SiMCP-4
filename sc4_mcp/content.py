@@ -38,11 +38,17 @@ class ContentError(Exception):
 
 
 def _manifest() -> list[dict]:
+    if not os.path.exists(MANIFEST):
+        return []
     try:
         with open(MANIFEST, encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, ValueError):
-        return []
+            items = json.load(f)
+        if not isinstance(items, list):
+            raise ValueError("not a list")
+        return items
+    except (OSError, ValueError) as e:
+        raise ContentError("the design list %s cannot be read (%s)" % (MANIFEST, e),
+                           "repair or move it aside; the design files themselves are untouched")
 
 
 def _save_manifest(items: list[dict]) -> None:
@@ -55,6 +61,37 @@ def _save_manifest(items: list[dict]) -> None:
 
 def _slug(name: str) -> str:
     return re.sub(r"[^A-Za-z0-9]+", "_", name).strip("_")[:40] or "design"
+
+
+# text tokens the game replaces in shown texts; any other #...# may reach the game's Lua - refused
+SAFE_TOKENS = {"#city#", "#mayor#", "#name#"}
+
+
+def _check_tokens(text: str, what: str) -> None:
+    for tok in re.findall(r"#[^#]*#", text):
+        if tok.lower() not in SAFE_TOKENS:
+            raise ContentError("the %s may use only the tokens %s (not %r)" % (what, ", ".join(sorted(SAFE_TOKENS)),
+                                                                             tok))
+
+
+def _check_name(name: str) -> None:
+    """A design's name: 1-60 printable characters, no game text tokens or Lua long-string brackets."""
+    if not name or len(name) > 60 or any(ord(c) < 32 for c in name):
+        raise ContentError("give the design a name of 1-60 printable characters")
+    if "#" in name or "[[" in name or "]]" in name:
+        raise ContentError("a design name may not contain '#', '[[' or ']]'")
+    if any(d["name"].lower() == name.lower() and not d.get("disabled") for d in _manifest()):
+        raise ContentError("a design named %r exists" % name, "content_designs lists them")
+
+
+def _design_path(prefix: str, name: str) -> str:
+    """The plugin file of a new design; refused when another design already has that file (similar names give the
+    same file name)."""
+    path = os.path.join(FOLDER, "%s%s.dat" % (prefix, _slug(name)))
+    if os.path.exists(path):
+        raise ContentError("another design already uses the file %s" % os.path.basename(path),
+                           "choose a more different name")
+    return path
 
 
 def _find_exemplar(tgi_type: int, instance: int, group: int | None = None, not_group: int | None = None):
@@ -124,10 +161,9 @@ def clone_lot(template_lot: int, template_building: int | None, name: str, descr
               plop_cost: int | None = None, monthly_cost: int | None = None, bulldoze_cost: int | None = None,
               taken: set[int] | None = None) -> dict:
     """Write a new design made from a game lot and its building (both from SimCity_1.dat)."""
-    if not 1 <= len(name) <= 60 or any(ord(c) < 32 for c in name):
-        raise ContentError("give the design a name (1-60 characters)")
-    if any(d["name"].lower() == name.lower() and not d.get("disabled") for d in _manifest()):
-        raise ContentError("a design named %r exists" % name, "content_designs lists them")
+    _check_name(name)
+    if any(v is not None and v < 0 for v in (plop_cost, monthly_cost, bulldoze_cost)):
+        raise ContentError("costs are 0 or more")
     le, lot = _find_exemplar(dbpf.T_EXEMPLAR, template_lot, G_LOTS)
     if lot is not None and template_building is None:      # the building the game's own lot names
         rows = [p.values for p in lot.props if LOT_ROW0 <= p.id <= 0x88EDCDFF and p.multi and p.values
@@ -166,7 +202,7 @@ def clone_lot(template_lot: int, template_building: int | None, name: str, descr
     records = [(dbpf.T_EXEMPLAR, G_SIMCP_BUILDINGS, bld_iid, dbpf.build_exemplar(bprops, bld.parent)),
                (dbpf.T_EXEMPLAR, G_LOTS, lot_iid, dbpf.build_exemplar(lprops, lot.parent))]
     os.makedirs(FOLDER, exist_ok=True)
-    path = os.path.join(FOLDER, "SiMCP_%s.dat" % _slug(name))
+    path = _design_path("SiMCP_", name)
     dbpf.write_dbpf(path, records)
     entry = {"name": name, "file": path, "lot": "0x%08X" % lot_iid, "building": "0x%08X" % bld_iid,
              "template_lot": "0x%08X" % template_lot, "template_building": "0x%08X" % template_building,
@@ -318,8 +354,9 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
     """A new building with its own model and texture on its own lot (Parks / landmarks properties of the template
     building), written as a plugin into SiMCP's Plugins folder."""
     from . import fsh, s3d
-    if any(d["name"].lower() == name.lower() and not d.get("disabled") for d in _manifest()):
-        raise ContentError("a design named %r exists" % name, "content_designs lists them")
+    _check_name(name)
+    if plop_cost < 0 or monthly_cost < 0:
+        raise ContentError("costs are 0 or more")
     if not (2 <= width <= 16 * lot_cells - 1 and 2 <= depth <= 16 * lot_cells - 1 and 2 <= height <= 400):
         raise ContentError("the building must fit its lot: width and depth 2..%d m, height 2..400 m"
                            % (16 * lot_cells - 1))
@@ -369,7 +406,7 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
                (dbpf.T_FSH, G_TEXTURES, tex_iid + 1, roof_fsh),
                (dbpf.T_PNG, G_ICONS, icon_iid, box_icon(width, depth, height, tuple(wall), tuple(roof)))]
     os.makedirs(FOLDER, exist_ok=True)
-    path = os.path.join(FOLDER, "SiMCP_%s.dat" % _slug(name))
+    path = _design_path("SiMCP_", name)
     dbpf.write_dbpf(path, records)
     entry = {"name": name, "file": path, "lot": "0x%08X" % lot_iid, "building": "0x%08X" % bld_iid,
              "model": "0x%08X" % model_iid, "texture": "0x%08X" % tex_iid, "size_m": [width, depth, height],
@@ -430,6 +467,17 @@ def growable_templates() -> list[dict]:
     return out
 
 
+def _capacity_range(templates: list[dict]) -> tuple[int, int]:
+    """The smallest and largest capacity of the game's buildings behind these growable lots."""
+    caps = []
+    for t in templates[:60]:
+        _, b = _find_exemplar(dbpf.T_EXEMPLAR, t["building"], not_group=G_LOTS)
+        v = next((p.values for p in (b.props if b else []) if p.id == P_CAPACITY), None)
+        if isinstance(v, list) and len(v) >= 2:
+            caps.append(int(v[1]))
+    return (min(caps), max(caps)) if caps else (1, 1)
+
+
 def growable_building(name: str, purpose: str, wealth: int, width: float, depth: float, height: float,
                       wall=(205, 195, 170), roof=(90, 90, 95), windows: bool = True, lot_size=(1, 1),
                       stage: int = 0, capacity: int = 0, description: str = "", taken: set[int] | None = None) -> dict:
@@ -440,8 +488,7 @@ def growable_building(name: str, purpose: str, wealth: int, width: float, depth:
     from . import fsh, s3d
     if purpose not in PURPOSES:
         raise ContentError("purpose is one of %s" % ", ".join(PURPOSES))
-    if any(dd["name"].lower() == name.lower() and not dd.get("disabled") for dd in _manifest()):
-        raise ContentError("a design named %r exists" % name, "content_designs lists them")
+    _check_name(name)
     lw, ld = int(lot_size[0]), int(lot_size[1])
     if not (1 <= lw <= 6 and 1 <= ld <= 6):
         raise ContentError("lots are 1 to 6 cells a side")
@@ -513,6 +560,9 @@ def growable_building(name: str, purpose: str, wealth: int, width: float, depth:
         grp.values = [g for g in grp.values if not 0x2000 <= g <= 0x2003] + [0x2000, 0x2001, 0x2002, 0x2003]
     cap = next((p for p in bprops if p.id == P_CAPACITY), None)
     if capacity and cap is not None and isinstance(cap.values, list) and len(cap.values) >= 2:
+        lo, hi = _capacity_range(same)          # honest play: no more than the game's own buildings of this kind
+        if not lo <= int(capacity) <= hi:
+            raise ContentError("capacity for this purpose, wealth and lot size is %d-%d (the game's own)" % (lo, hi))
         cap.values = [cap.values[0], int(capacity)] + list(cap.values[2:])
     wall_fsh = fsh.write_argb(32, 32, wall_tile(tuple(wall), windows))
     roof_fsh = fsh.write_argb(8, 8, solid(tuple(roof)))
@@ -524,7 +574,7 @@ def growable_building(name: str, purpose: str, wealth: int, width: float, depth:
                (dbpf.T_FSH, G_TEXTURES, tex_iid + 1, roof_fsh),
                (dbpf.T_LTEXT, G_SIMCP_NAMES, bld_iid, dbpf.build_ltext(name))]
     os.makedirs(FOLDER, exist_ok=True)
-    path = os.path.join(FOLDER, "SiMCP_%s.dat" % _slug(name))
+    path = _design_path("SiMCP_", name)
     dbpf.write_dbpf(path, records)
     cap_now = next((p.values for p in bprops if p.id == P_CAPACITY), None)
     entry = {"name": name, "kind": "growable", "file": path, "lot": "0x%08X" % lot_iid,
@@ -555,8 +605,9 @@ _ALLOWED_TAGS = re.compile(r"</?(b|i|u|br|p)\s*/?>", re.I)
 def _advice_text(s: str, what: str, limit: int) -> str:
     if not s or len(s) > limit:
         raise ContentError("the %s is 1-%d characters" % (what, limit))
-    if "]]" in s or "#link_id#" in s or "<a" in s.lower():
-        raise ContentError("the %s may not contain ']]', links or '#link_id#' (links run game actions)" % what)
+    if "[[" in s or "]]" in s or s.endswith("]") or "<a" in s.lower():
+        raise ContentError("the %s may not contain links, '[[', ']]' or end with ']'" % what)
+    _check_tokens(s, what)                    # #link_id#..., #sc4game...#: they run Lua when shown
     if re.sub(_ALLOWED_TAGS, "", s).count("<"):
         raise ContentError("the %s may use only <b>, <i>, <u>, <br> and <p> tags" % what)
     return s
@@ -572,10 +623,9 @@ def advice_design(name: str, advisor: str, title: str, message: str, trigger: st
         raise ContentError("advisor is one of %s" % ", ".join(ADVISORS))
     if mood not in MOODS:
         raise ContentError("mood is one of %s" % ", ".join(MOODS))
-    if not 1 <= len(name) <= 60 or any(ord(c) < 32 for c in name):
-        raise ContentError("give the advice a name (1-60 characters)")
-    if any(d["name"].lower() == name.lower() and not d.get("disabled") for d in _manifest()):
-        raise ContentError("a design named %r exists" % name, "content_designs lists them")
+    _check_name(name)
+    if "\r" in trigger or "\n" in trigger:
+        raise ContentError("the trigger is one line")
     try:
         luaquery.check(trigger)
     except luaquery.LuaError as e:
@@ -613,7 +663,7 @@ def advice_design(name: str, advisor: str, title: str, message: str, trigger: st
     while inst in taken:
         inst = 0xFF000000 | random.getrandbits(24)
     os.makedirs(FOLDER, exist_ok=True)
-    path = os.path.join(FOLDER, "SiMCP_advice_%s.dat" % _slug(name))
+    path = _design_path("SiMCP_advice_", name)
     dbpf.write_dbpf(path, [(dbpf.T_LUA, G_LUA_ADVICE, inst, lua.encode("latin-1", "replace")),
                            (dbpf.T_LTEXT, G_ADVICE_TEXT, title_iid, dbpf.build_ltext(title)),
                            (dbpf.T_LTEXT, G_ADVICE_TEXT, message_iid, dbpf.build_ltext(message))], compress=False)

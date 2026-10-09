@@ -459,3 +459,16 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   is open (the panel ignores the toggle under a modal).
 - **cISC4MySim / AgentSim MoveIn** take name, gender, sign, bio, a bitmap IID and a bitmap *file path*: a custom
   face picture may be possible through that path (not tried).
+- **Review fixes** (an independent read-only review of the day's modules, 24 findings, all handled): region names
+  are plain names inside SiMCP's Regions folder (a path is refused); advice texts and design names allow only the
+  #city# / #mayor# / #name# tokens (any other #...# may reach the game's Lua; "#sc4game.budget.deposit_funds(5)#"
+  is refused), no Lua long brackets, one-line triggers; designs refuse negative costs, capacities outside the
+  game's own range and file-name clashes; a corrupt design list is never overwritten; rename_city refuses another
+  city's name or file ("MCP Town" from the village), save_city checks the file it will write; Make Historical
+  needs a building; network routes keep to one network per piece (no hop from an elevated highway to the road
+  below); network_map clamps its area and reads power lines in bulk (whole village 0.9 -> 0.3 s; wire cells at
+  [O+0x40]/[O+0x44], 37 of 37 against GetPosition); lists and AddRef'd objects are released on every path; the
+  height-map import checks the file window's vtables, cancels it on any error and stops waiting at another
+  dialog; the bridge logs faults its guards catch ("caught-in-call", "caught-in-deferred", tested with a call to
+  address 0x10) besides first-chance faults, with a re-entry guard and a stack scan bounded by the thread's stack,
+  into SIMCP4_HOME\crash.log (the launcher passes the variable); game_status reports only first-chance ones.

@@ -54,34 +54,43 @@ def _city_size(p) -> tuple[int, int]:
     return p.u32(lm + 0x24), p.u32(lm + 0x28)
 
 
+def area(p, x0: int = 0, z0: int = 0, x1: int = -1, z1: int = -1) -> tuple[int, int, int, int]:
+    """A cell rectangle clamped to the city (-1 = the far edge); refused when empty."""
+    nx, nz = _city_size(p)
+    x0, z0 = max(0, min(int(x0), nx - 1)), max(0, min(int(z0), nz - 1))
+    x1 = nx - 1 if x1 < 0 else min(int(x1), nx - 1)
+    z1 = nz - 1 if z1 < 0 else min(int(z1), nz - 1)
+    if x1 < x0 or z1 < z0:
+        raise NetworkError("the area is empty (%d, %d .. %d, %d)" % (x0, z0, x1, z1))
+    return x0, z0, x1, z1
+
+
 @contextmanager
 def occupants(g, typ: int, x0: int = 0, z0: int = 0, x1: int = -1, z1: int = -1):
     """The occupants of one type in a cell rectangle (inclusive), held until the block ends."""
     p, b = g.proc, g.bridge
     if not memory.city_pointer(p):
         raise NetworkError("no city is open")
-    nx, nz = _city_size(p)
-    x1 = nx - 1 if x1 < 0 else min(x1, nx - 1)
-    z1 = nz - 1 if z1 < 0 else min(z1, nz - 1)
+    x0, z0, x1, z1 = area(p, x0, z0, x1, z1)
     om = p.u32(G_OCCUPANT_MANAGER)
-    s = b.scratch(0x1F00)
-    lst, root, nw, se = s, s + 0x10, s + 0x20, s + 0x28
+    s_ = b.scratch(0x1F00, 0x30)
+    lst, root, nw, se = s_, s_ + 0x10, s_ + 0x20, s_ + 0x28
     p.write(lst, struct.pack("<I", root))
     p.write(root, struct.pack("<III", root, root, 0))
-    p.write(nw, struct.pack("<ii", max(0, x0), max(0, z0)))
+    p.write(nw, struct.pack("<ii", x0, z0))
     p.write(se, struct.pack("<ii", x1, z1))
-    fn = p.u32(p.u32(om) + 4 * OM_GET_BY_CELLS)
-    r = b.call_function(fn, [lst, nw, se, typ, 0xFFFFFFFF], this=om)
-    if not r.ok:
-        raise NetworkError("the occupant query failed: %s" % r.msg)
-    items, n = [], p.u32(root)
-    while n != root and len(items) < 1_000_000:
-        items.append(p.u32(n + 8))
-        n = p.u32(n)
     try:
+        r = b.call_function(p.u32(p.u32(om) + 4 * OM_GET_BY_CELLS), [lst, nw, se, typ, 0xFFFFFFFF], this=om)
+        if not r.ok:
+            raise NetworkError("the occupant query failed: %s" % r.msg)
+        items, n = [], p.u32(root)
+        while n != root and len(items) < 1_000_000:
+            items.append(p.u32(n + 8))
+            n = p.u32(n)
         yield items
-    finally:
-        b.call_function(p.u32(p.u32(om) + 4 * OM_RELEASE_LIST), [lst], this=om)
+    finally:                       # release whatever the game put in the list, even after a partial fill
+        if p.u32(root) != root:
+            b.call_function(p.u32(p.u32(om) + 4 * OM_RELEASE_LIST), [lst], this=om)
 
 
 def _sides(edges: int) -> int:
@@ -124,25 +133,53 @@ def _piece(p, occ: int) -> dict | None:
             "rotation": raw[0x104] & 0x7F, "flip": raw[0x104] >> 7}
 
 
-def cells(g, x0: int = 0, z0: int = 0, x1: int = -1, z1: int = -1) -> dict:
-    """{(x, z): {network name: side bits}} for every network piece and power line in the rectangle."""
+def piece_cells(g, x0: int = 0, z0: int = 0, x1: int = -1, z1: int = -1) -> dict:
+    """{(x, z): [{network: side bits}, ...]} - one dict per network piece (a junction piece holds two networks;
+    an elevated highway and the road under it are two pieces)."""
     p = g.proc
-    out: dict = collections.defaultdict(dict)
+    out: dict = collections.defaultdict(list)
     with occupants(g, T_NETWORK, x0, z0, x1, z1) as items:
         for o in items:
             pc = _piece(p, o)
             if pc:
-                for k, bits in pc["networks"].items():
-                    out[(pc["x"], pc["z"])][k] = out[(pc["x"], pc["z"])].get(k, 0) | bits
-    for typ in (T_POWER_LINE, T_POWER_POLE):
-        with occupants(g, typ, x0, z0, x1, z1) as items:
-            for o in items:
-                pos = g.bridge.scratch(0x1F40)
-                p.write(pos, bytes(12))
-                g.bridge.call_function(p.u32(p.u32(o) + 4 * 8), [pos], this=o)
-                x, _, z = struct.unpack("<3f", p.read(pos, 12))
-                out[(int(x // 16), int(z // 16))].setdefault("power_line", 0)
-    _power_sides(out)
+                out[(pc["x"], pc["z"])].append(pc["networks"])
+    return dict(out)
+
+
+def _power_cells(g, x0, z0, x1, z1) -> set:
+    """Cells with a power line: wire segments from memory ([O+0x40], [O+0x44], checked against GetPosition for
+    37 of 37), poles by GetPosition (slot 8), 16 to a frame."""
+    p, b = g.proc, g.bridge
+    found = set()
+    with occupants(g, T_POWER_LINE, x0, z0, x1, z1) as items:
+        for o in items:
+            found.add(struct.unpack("<ii", p.read(o + 0x40, 8)))
+    with occupants(g, T_POWER_POLE, x0, z0, x1, z1) as items:
+        base = b.scratch(0x1F40, 16 * 12)
+        for c in range(0, len(items), 16):
+            chunk = items[c:c + 16]
+            p.write(base, bytes(12 * len(chunk)))
+            r = b.call_sequence([(8, o, [base + 12 * k], 1 << 15) for k, o in enumerate(chunk)])
+            if not r.ok:
+                continue
+            for k in range(len(chunk)):
+                if r.ret[k] & 0xFF:
+                    x, _, z = struct.unpack("<3f", p.read(base + 12 * k, 12))
+                    found.add((int(x // 16), int(z // 16)))
+    return {c for c in found if x0 <= c[0] and z0 <= c[1] and (x1 < 0 or c[0] <= x1) and (z1 < 0 or c[1] <= z1)}
+
+
+def cells(g, x0: int = 0, z0: int = 0, x1: int = -1, z1: int = -1, power: bool = True) -> dict:
+    """{(x, z): {network name: side bits}} for every network piece (and power line) in the rectangle."""
+    out: dict = collections.defaultdict(dict)
+    for cell, plist in piece_cells(g, x0, z0, x1, z1).items():
+        for nets in plist:
+            for k, bits in nets.items():
+                out[cell][k] = out[cell].get(k, 0) | bits
+    if power:
+        for cell in _power_cells(g, x0, z0, x1, z1):
+            out[cell].setdefault("power_line", 0)
+        _power_sides(out)
     return dict(out)
 
 
@@ -198,12 +235,10 @@ def pieces(g, x0: int = 0, z0: int = 0, x1: int = -1, z1: int = -1) -> list[dict
 def network_map(g, network: str = "", x0: int = 0, z0: int = 0, x1: int = -1, z1: int = -1) -> dict:
     """A character map of the networks (one row per cell row) with the connected sides as hex digits."""
     p = g.proc
-    nx, nz = _city_size(p)
-    x1 = nx - 1 if x1 < 0 else min(x1, nx - 1)
-    z1 = nz - 1 if z1 < 0 else min(z1, nz - 1)
     if network and network not in NAMES:
         raise NetworkError("unknown network %r (one of %s)" % (network, ", ".join(NAMES)))
-    data = cells(g, x0, z0, x1, z1)
+    x0, z0, x1, z1 = area(p, x0, z0, x1, z1)
+    data = cells(g, x0, z0, x1, z1, power=network in ("", "power_line"))
     counts = collections.Counter(k for nets in data.values() for k in nets)
     rows, edges, links = [], [], []
     for z in range(z0, z1 + 1):
@@ -238,65 +273,86 @@ def route(g, start: tuple[int, int], goal: tuple[int, int], kind: str = "car") -
     """The shortest path of cells from start to goal along connected pieces (car networks, or one named network)."""
     if kind != "car" and kind not in NAMES:
         raise NetworkError("kind is 'car' or a network name")
-    return shortest_path(cells(g), tuple(start), tuple(goal), kind)
+    nx, nz = _city_size(g.proc)
+    for c in (start, goal):
+        if not (0 <= c[0] < nx and 0 <= c[1] < nz):
+            raise NetworkError("cell %s is outside the city" % (tuple(c),))
+    if kind == "power_line":
+        return shortest_path(cells(g), tuple(start), tuple(goal), kind)
+    return shortest_path_pieces(piece_cells(g), tuple(start), tuple(goal), kind)
 
 
-def shortest_path(data: dict, start: tuple[int, int], goal: tuple[int, int], kind: str = "car") -> list:
-    """Breadth-first search over {(x, z): {network: side bits}}: a step needs the side on both cells."""
+def shortest_path_pieces(pieces: dict, start: tuple[int, int], goal: tuple[int, int], kind: str = "car") -> list:
+    """Breadth-first search over (cell, network): a step to a neighbour stays on one network and needs that side on
+    both cells; the network changes only inside a piece that holds both (a junction) - so an elevated highway does
+    not lead onto the road under it."""
     allowed = CAR if kind == "car" else {kind}
 
-    def links(c):
-        for k, bits in data.get(c, {}).items():
-            if k not in allowed:
-                continue
-            for side, (dx, dz) in STEP.items():
-                n = (c[0] + dx, c[1] + dz)
-                back = (side + 2) & 3
-                if bits >> side & 1 and any(nb >> back & 1 for kk, nb in data.get(n, {}).items() if kk in allowed):
-                    yield n
+    def bits_of(c, net):
+        b_ = 0
+        for nets in pieces.get(c, []):
+            b_ |= nets.get(net, 0)
+        return b_
 
-    if not any(k in allowed for k in data.get(start, {})):
+    starts = [(start, n) for nets in pieces.get(start, []) for n in nets if n in allowed]
+    if not starts:
         raise NetworkError("no %s network on the start cell %s" % (kind, start))
-    prev = {start: None}
-    q = collections.deque([start])
+    prev = {s_: None for s_ in starts}
+    q = collections.deque(starts)
     while q:
-        c = q.popleft()
+        state = q.popleft()
+        c, net = state
         if c == goal:
             path = []
-            while c is not None:
-                path.append(c)
-                c = prev[c]
+            while state is not None:
+                if not path or path[-1] != state[0]:
+                    path.append(state[0])
+                state = prev[state]
             return path[::-1]
-        for n in links(c):
-            if n not in prev:
-                prev[n] = c
-                q.append(n)
+        nxt = []
+        for side, (dx, dz) in STEP.items():
+            n = (c[0] + dx, c[1] + dz)
+            if bits_of(c, net) >> side & 1 and bits_of(n, net) >> ((side + 2) & 3) & 1:
+                nxt.append((n, net))
+        for nets in pieces.get(c, []):
+            if net in nets:
+                nxt += [(c, other) for other in nets if other != net and other in allowed]
+        for st in nxt:
+            if st not in prev:
+                prev[st] = state
+                q.append(st)
     raise NetworkError("no %s route from %s to %s" % (kind, start, goal))
 
 
-def unjoined_ends(g, points: list[tuple[int, int]], network: str) -> list[tuple[int, int]]:
-    """End cells of a new drag that touch another network piece on a side neither of them connects (a road built
-    beside a street's dead end, for instance)."""
-    if network not in NAMES:
+def shortest_path(data: dict, start: tuple[int, int], goal: tuple[int, int], kind: str = "car") -> list:
+    """The same over merged cells {(x, z): {network: side bits}} (each cell taken as one piece)."""
+    return shortest_path_pieces({c: [nets] for c, nets in data.items()}, start, goal, kind)
+
+
+def unjoined_ends(g, ends: list[tuple[int, int]], network: str) -> list[tuple[int, int]]:
+    """Built end cells of a drag that touch another network piece on a side neither of them connects (a road
+    built beside a street's dead end, for instance)."""
+    if network not in NAMES or not ends:
         return []
-    xs = [c[0] for c in points]
-    zs = [c[1] for c in points]
-    data = cells(g, max(0, min(xs) - 1), max(0, min(zs) - 1), max(xs) + 1, max(zs) + 1)
+    xs = [c[0] for c in ends]
+    zs = [c[1] for c in ends]
+    data = cells(g, min(xs) - 1, min(zs) - 1, max(xs) + 1, max(zs) + 1, power=network == "power_line")
     out = []
-    for end in (tuple(points[0]), tuple(points[-1])):
-        mine = data.get(end, {})
+    for end in ends:
+        end = tuple(end)
         bits = 0
-        for v in mine.values():
+        for v in data.get(end, {}).values():
             bits |= v
         for side, (dx, dz) in STEP.items():
             n = (end[0] + dx, end[1] + dz)
             other = data.get(n, {})
-            if not other or n in [tuple(p) for p in points]:
+            if not other:
                 continue
             back = 0
             for v in other.values():
                 back |= v
-            if not bits >> side & 1 and not back >> ((side + 2) & 3) & 1 and                     (set(other) & CAR if network in CAR else network in other):
+            if not bits >> side & 1 and not back >> ((side + 2) & 3) & 1 and \
+                    (set(other) & CAR if network in CAR else network in other):
                 out.append(end)
                 break
     return out

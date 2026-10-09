@@ -49,6 +49,8 @@ def check(expr: str) -> None:
     """Raise LuaError unless expr is a read-only expression of the allowed names."""
     if len(expr) > 400:
         raise LuaError("the expression is too long (400 characters at most)")
+    if "\n" in expr or "\r" in expr:
+        raise LuaError("the expression is one line")
     pos, prev = 0, None
     expr = expr.rstrip()
     while pos < len(expr):

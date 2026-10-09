@@ -204,12 +204,13 @@ class Bridge:
         msg = p.read(b + B_MSG, min(n, 2047)).decode("latin-1") if n else ""
         return BridgeResult(status, ret, msg)
 
-    def scratch(self, offset: int = 0) -> int:
-        """An address in the bridge's scratch area (8 KB the game never uses) for call arguments and outputs."""
+    def scratch(self, offset: int = 0, size: int = 1) -> int:
+        """An address in the bridge's scratch area (8 KB the game never uses) for call arguments and outputs;
+        `size` bytes from `offset` must fit (past the area lie the virtual pointer's fields)."""
         if not self.block:
             self.attach()
-        if not 0 <= offset < SCRATCH_SIZE:
-            raise BridgeError("scratch offset out of range")
+        if not (0 <= offset and size >= 0 and offset + size <= SCRATCH_SIZE):
+            raise BridgeError("scratch range out of bounds (%#x + %d)" % (offset, size))
         return self.block + B_SCRATCH + offset
 
     def pick_installed(self) -> bool:
@@ -284,7 +285,8 @@ class Bridge:
         return self.call(OP_CALL_SEQ, [len(calls)], raw=raw)
 
     def vcall(self, obj: int, slot: int, *args) -> BridgeResult:
-        """Call virtual method `slot` of `obj` (thiscall)."""
+        """Call virtual method `slot` of `obj` (thiscall). Never for a method that returns float / double: the
+        value would stay on the x87 stack (8 of them break the game's maths) - use vfloat for those."""
         return self.call_sequence([(slot, obj, list(args), 1 << 15)])
 
     def command_output(self) -> str:

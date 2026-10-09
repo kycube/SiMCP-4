@@ -34,3 +34,15 @@ def test_funding_curve_interpolation():
     fire = [[0, 10], [50, 25], [75, 45], [90, 75], [100, 100], [120, 110]]     # the game's fire curve
     assert services.on_curve(fire, 50) == 25 and services.on_curve(fire, 95) == 87.5
     assert services.on_curve(fire, -5) == 10 and services.on_curve(fire, 200) == 110
+
+
+def test_route_stays_on_one_network_between_pieces():
+    # an elevated highway runs west-east over a road running north-south at (1, 1): two pieces, no ramp
+    pieces = {(0, 1): [{"elevated_highway": E}], (1, 1): [{"elevated_highway": W | E}, {"road": N | S}],
+              (2, 1): [{"elevated_highway": W}], (1, 0): [{"road": S}], (1, 2): [{"road": N}]}
+    with pytest.raises(networks.NetworkError):                   # no way from the highway onto the road
+        networks.shortest_path_pieces(pieces, (0, 1), (1, 2))
+    assert networks.shortest_path_pieces(pieces, (1, 0), (1, 2)) == [(1, 0), (1, 1), (1, 2)]
+    # a junction piece holding both networks lets the route change network
+    pieces[(1, 1)] = [{"elevated_highway": W | E, "road": N | S}]
+    assert networks.shortest_path_pieces(pieces, (0, 1), (1, 2)) == [(0, 1), (1, 1), (1, 2)]

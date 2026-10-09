@@ -162,7 +162,7 @@ def new_region(name: str, water: bool = False) -> dict:
 def _reload_region(name: str) -> None:
     """The game reads config.bmp when a region loads; loading the same region again does nothing, so go through
     another region and back."""
-    others = [r["folder"] for r in regions.list_regions(launch.USER_DIR) if r["folder"] != name]
+    others = [r["folder"] for r in regions.list_regions(launch.USER_DIR) if r["folder"].lower() != name.lower()]
     if others:
         G.load_region(others[0])
     G.load_region(name)
@@ -189,10 +189,15 @@ def set_region_layout(region: str, width: int, height: int, tile: str = "small")
         out = heightmap.write_layout(region, width, height, tile)
     except heightmap.HeightmapError as e:
         return {"error": str(e), "hint": e.hint}
-    G.attach(10.0)
-    if G.status().get("view") == "region" and G.region_name() == region:
-        _reload_region(region)
-        out["reloaded"] = True
+    out["reloaded"] = False
+    try:
+        G.attach(10.0)
+        st = G.status()
+        if st.get("view") == "region" and (G.region_name() or "").lower() == region.lower():
+            _reload_region(region)
+            out["reloaded"] = True
+    except gamemod.GameError:
+        out["note"] = "the game is not running: the region shows the new layout when it is next loaded"
     return out
 
 
@@ -593,7 +598,7 @@ def find_route(x0: int, z0: int, x1: int, z1: int, kind: str = "car") -> dict:
     except networks.NetworkError as e:
         return {"error": str(e), "hint": "network_map shows which cells hold which network"}
     turns = [path[0]] + [b for a, b, c in zip(path, path[1:], path[2:])
-                         if (b[0] - a[0], b[1] - a[1]) != (c[0] - b[0], c[1] - b[1])] + [path[-1]]
+                         if (b[0] - a[0], b[1] - a[1]) != (c[0] - b[0], c[1] - b[1])] +         ([path[-1]] if len(path) > 1 else [])
     return {"kind": kind, "cells": len(path), "path": [list(c) for c in path], "turns": [list(c) for c in turns]}
 
 
@@ -868,7 +873,9 @@ def build_network(network: str, points: list[list[int]], build_it: bool = True, 
     out = _build(build.network, network, [tuple(q) for q in points], build_it, connect_neighbor, bridge)
     if build_it and isinstance(out, dict) and out.get("built"):
         try:
-            loose = networks.unjoined_ends(G, [tuple(q) for q in points], network)
+            legs = [leg for leg in out.get("legs", []) if leg.get("built")]
+            ends = [tuple(legs[0]["from"]), tuple(legs[-1]["to"])] if legs else []
+            loose = networks.unjoined_ends(G, ends, network)
         except Exception:  # noqa: BLE001 - only a hint
             loose = []
         if loose:

@@ -80,9 +80,9 @@ def connections(g) -> list[dict]:
 def _deal(p, d: int, i: int) -> dict:
     typ = DEAL_TYPES.get(p.u32(d + 0x20), "0x%08X" % p.u32(d + 0x20))
     fl = p.u32(d + 0x78)
-    goods = typ.split("_")[1]
+    goods = typ.split("_")[1] if "_" in typ else None      # an unknown type keeps its hex id
     return {"index": i, "deal": typ, "partner_tile": list(struct.unpack("<ii", p.read(d + 0x24, 8))),
-            "amount": p.u32(d + 0x34), "used": p.u32(d + 0x48), "unit": UNITS[goods],
+            "amount": p.u32(d + 0x34), "used": p.u32(d + 0x48), "unit": UNITS.get(goods),
             "monthly_money": struct.unpack("<q", p.read(d + 0x50, 8))[0],
             "money_is": "income" if typ.startswith(("sell", "import")) else "expense",
             "state": [n for b, n in FLAGS.items() if fl & b] or ["0x%X" % fl],
@@ -106,10 +106,12 @@ def open_deals(g) -> dict:
     lst, root = s, s + 0x10
     p.write(lst, struct.pack("<I", root))
     p.write(root, struct.pack("<III", root, root, 0))
-    _v(g, n, N_PROPOSE_DEALS, lst, 1)
-    if p.u32(root) != root:          # release what the call handed back (AddRef'd), as the panel's list does
-        om = p.u32(G_OM)
-        _v(g, om, OM_RELEASE_LIST, lst)
+    try:
+        _v(g, n, N_PROPOSE_DEALS, lst, 1)
+    finally:
+        if p.u32(root) != root:      # release what the call handed back (AddRef'd), as the panel's list does
+            om = p.u32(G_OM)
+            _v(g, om, OM_RELEASE_LIST, lst)
     out = deals(g)
     out["new_deals"] = len(out["deals"]) - before
     if not out["connections"]:

@@ -448,18 +448,26 @@ static void RemovePickHook(void) {
 	g_bridge.pickInstalled = 0;
 }
 
-// ---- crash log: a vectored exception handler notes faults raised in the game's own code (not inside the bridge's
-// guarded calls) in %USERPROFILE%\SiMCP-4\crash.log - the game exits silently on a crash, so this is the only trace.
+// ---- crash log: faults in the game's code go to <SiMCP home>\crash.log (SIMCP4_HOME, else %USERPROFILE%\SiMCP-4)
+// - the game exits silently on a crash, so this is the only trace. A vectored handler notes first-chance faults
+// raised outside the bridge's guarded calls (the game or a plugin may still handle them: "first-chance"); the
+// guards' own filters note the faults they catch ("caught").
 static PVOID g_veh;
 static volatile LONG g_inBridgeCall;
-static int g_crashLogged;
+static volatile LONG g_crashBusy;
+static int g_crashLogged, g_caughtLogged;
 
-static void CrashLog(EXCEPTION_POINTERS *ep) {
+static void CrashLog(EXCEPTION_POINTERS *ep, const char *kind) {
 	char path[MAX_PATH + 32];
-	DWORD n = GetEnvironmentVariableA("USERPROFILE", path, MAX_PATH);
-	if (!n || n >= MAX_PATH)
-		return;
-	lstrcatA(path, "\\SiMCP-4\\crash.log");
+	DWORD n = GetEnvironmentVariableA("SIMCP4_HOME", path, MAX_PATH);
+	if (n && n < MAX_PATH) {
+		lstrcatA(path, "\\crash.log");
+	} else {
+		n = GetEnvironmentVariableA("USERPROFILE", path, MAX_PATH);
+		if (!n || n >= MAX_PATH)
+			return;
+		lstrcatA(path, "\\SiMCP-4\\crash.log");
+	}
 	HANDLE h = CreateFileA(path, FILE_APPEND_DATA, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (h == INVALID_HANDLE_VALUE)
 		return;
@@ -469,22 +477,24 @@ static void CrashLog(EXCEPTION_POINTERS *ep) {
 	EXCEPTION_RECORD *er = ep->ExceptionRecord;
 	CONTEXT *c = ep->ContextRecord;
 	int len = _snprintf(buf, sizeof(buf) - 1,
-		"%04d-%02d-%02d %02d:%02d:%02d pid %lu exception 0x%08lX at 0x%08lX (%s 0x%08lX) eax %08lX ebx %08lX "
+		"%04d-%02d-%02d %02d:%02d:%02d pid %lu %s exception 0x%08lX at 0x%08lX (%s 0x%08lX) eax %08lX ebx %08lX "
 		"ecx %08lX edx %08lX esi %08lX edi %08lX ebp %08lX esp %08lX\r\n  stack:",
-		t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute, t.wSecond, GetCurrentProcessId(), er->ExceptionCode,
+		t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute, t.wSecond, GetCurrentProcessId(), kind, er->ExceptionCode,
 		(DWORD)(UINT_PTR)er->ExceptionAddress, er->NumberParameters >= 2 && er->ExceptionInformation[0] ? "writing" : "reading",
 		er->NumberParameters >= 2 ? (DWORD)er->ExceptionInformation[1] : 0, c->Eax, c->Ebx, c->Ecx, c->Edx, c->Esi, c->Edi,
 		c->Ebp, c->Esp);
-	DWORD *sp = (DWORD *)(UINT_PTR)c->Esp;
+	// scan the stack only within this thread's own stack (TEB StackLimit .. StackBase): no faulting reads here
+	NT_TIB *tib = (NT_TIB *)NtCurrentTeb();
+	DWORD lo = (DWORD)(UINT_PTR)tib->StackLimit, hi = (DWORD)(UINT_PTR)tib->StackBase;
+	DWORD sp = c->Esp;
 	int found = 0;
-	for (int i = 0; i < 256 && found < 16 && len < (int)sizeof(buf) - 16; i++) {
-		DWORD v;
-		if (IsBadReadPtr(sp + i, 4))
-			break;
-		v = sp[i];
-		if (v >= 0x401000 && v < 0xA80000) {     // a return address into SimCity 4.exe (probably)
-			len += _snprintf(buf + len, sizeof(buf) - 1 - len, " %08lX", v);
-			found++;
+	if (sp >= lo && sp < hi) {
+		for (DWORD a = sp & ~3u; a + 4 <= hi && a < sp + 1024 && found < 16 && len < (int)sizeof(buf) - 16; a += 4) {
+			DWORD v = *(DWORD *)(UINT_PTR)a;
+			if (v >= 0x401000 && v < 0xA80000) {     // a return address into SimCity 4.exe (probably)
+				len += _snprintf(buf + len, sizeof(buf) - 1 - len, " %08lX", v);
+				found++;
+			}
 		}
 	}
 	len += _snprintf(buf + len, sizeof(buf) - 1 - len, "\r\n");
@@ -493,15 +503,32 @@ static void CrashLog(EXCEPTION_POINTERS *ep) {
 	CloseHandle(h);
 }
 
+static bool IsFault(DWORD code) {
+	return code == EXCEPTION_ACCESS_VIOLATION || code == EXCEPTION_ILLEGAL_INSTRUCTION ||
+	       code == EXCEPTION_INT_DIVIDE_BY_ZERO || code == EXCEPTION_PRIV_INSTRUCTION ||
+	       code == EXCEPTION_ARRAY_BOUNDS_EXCEEDED || code == EXCEPTION_STACK_OVERFLOW;
+}
+
 static LONG CALLBACK CrashVeh(EXCEPTION_POINTERS *ep) {
 	DWORD code = ep->ExceptionRecord->ExceptionCode;
-	if ((code == EXCEPTION_ACCESS_VIOLATION || code == EXCEPTION_ILLEGAL_INSTRUCTION ||
-	     code == EXCEPTION_INT_DIVIDE_BY_ZERO || code == EXCEPTION_PRIV_INSTRUCTION ||
-	     code == EXCEPTION_ARRAY_BOUNDS_EXCEEDED) && !g_inBridgeCall && g_crashLogged < 20) {
+	if (IsFault(code) && code != EXCEPTION_STACK_OVERFLOW && !g_inBridgeCall && g_crashLogged < 20 &&
+	    !InterlockedExchange(&g_crashBusy, 1)) {
 		g_crashLogged++;
-		CrashLog(ep);
+		CrashLog(ep, "first-chance");
+		InterlockedExchange(&g_crashBusy, 0);
 	}
 	return EXCEPTION_CONTINUE_SEARCH;
+}
+
+// filter for the bridge's guards: note the fault (a few per load), then handle it
+static int LogCaught(EXCEPTION_POINTERS *ep, const char *kind) {
+	if (IsFault(ep->ExceptionRecord->ExceptionCode) && ep->ExceptionRecord->ExceptionCode != EXCEPTION_STACK_OVERFLOW &&
+	    g_caughtLogged < 50 && !InterlockedExchange(&g_crashBusy, 1)) {
+		g_caughtLogged++;
+		CrashLog(ep, kind);
+		InterlockedExchange(&g_crashBusy, 0);
+	}
+	return EXCEPTION_EXECUTE_HANDLER;
 }
 
 extern "C" __declspec(dllexport) DWORD __stdcall SimcpBridgeAttach(void *plug) {
@@ -523,7 +550,7 @@ extern "C" __declspec(dllexport) int __stdcall SimcpBridgeExecute(DWORD op) {
 	__try {
 		status = Execute(op);
 	}
-	__except (EXCEPTION_EXECUTE_HANDLER) {
+	__except (LogCaught(GetExceptionInformation(), "caught-in-call")) {
 		Msg("exception 0x%08X while executing op %u", GetExceptionCode(), op);
 		g_bridge.faults++;
 		status = -100;
@@ -536,18 +563,16 @@ extern "C" __declspec(dllexport) int __stdcall SimcpBridgeExecute(DWORD op) {
 
 extern "C" __declspec(dllexport) int __stdcall SimcpBridgeRunDeferred(DWORD) {
 	int status = 0;
-	InterlockedIncrement(&g_inBridgeCall);
 	__try {
 		if (g_defer.kind == 1)
 			g_bridge.state.deferRet = RunCommandText(g_defer.text);
 		else
 			g_bridge.state.deferRet = CallGeneric(g_defer.fn, g_defer.thisPtr, g_defer.nargs, g_defer.args);
 	}
-	__except (EXCEPTION_EXECUTE_HANDLER) {
+	__except (LogCaught(GetExceptionInformation(), "caught-in-deferred")) {
 		g_bridge.faults++;
 		status = -100;
 	}
-	InterlockedDecrement(&g_inBridgeCall);
 	g_bridge.state.deferStatus = status;
 	g_bridge.state.deferDone = g_bridge.state.deferPosted;
 	return status;

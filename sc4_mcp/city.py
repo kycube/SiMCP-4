@@ -125,7 +125,9 @@ def occupancy_many(g, items: list[tuple[int, str]]) -> list[dict]:
     out = [dict() for _ in items]
     for c in range(0, len(calls), 16):          # a call sequence reports 16 results
         r = b.call_sequence(calls[c:c + 16])
-        if not r.ok:
+        if not r.ok:                              # a fault in the game's code: say which lots are not known
+            for j in range(c, len(calls), 2):
+                out[keys[j // 2][0]]["unknown"] = True
             break
         for j in range(0, min(16, len(calls) - c), 2):
             i, dt = keys[(c + j) // 2]
@@ -197,6 +199,8 @@ def set_historical(g, x: int, z: int, on: bool = True) -> dict:
     d = _lot(g.proc, lot)
     if d["zone"] not in GROWABLE_ZONES:
         raise ValueError("only zoned buildings can be made historical (this lot is %s)" % d["zone"])
+    if not d["_iid"] or d["state"] not in ("occupied", "abandoned"):
+        raise ValueError("the lot has no building yet (%s)" % d["state"])
     g.bridge.vcall(lot, LOT_SET_HISTORICAL, 1 if on else 0)
     return lot_info(g, x, z)
 
@@ -246,6 +250,30 @@ CITY_SET_NAME, CITY_SET_NAME_CHANGED, CITY_SET_MAYOR = 13, 15, 17
 FN_RZSTRING_CTOR, RZSTRING_FROM_CHAR, RZSTRING_DELETE = 0x578390, 3, 28
 
 
+def _check_city_name_free(g, name: str) -> None:
+    """Saving names the file "City - <name>.sc4": refuse a name another city file of the region already has, or
+    another founded city's name (the save would overwrite it)."""
+    import os
+    from . import regions
+    current = os.path.normcase(os.path.abspath(g.city_file() or ""))
+    folder = os.path.dirname(current)
+    if not os.path.isdir(folder):
+        return
+    target = os.path.normcase(os.path.abspath(os.path.join(folder, "City - %s.sc4" % name)))
+    if os.path.exists(target) and target != current:
+        raise ValueError("another city of this region is saved as %s" % os.path.basename(target))
+    for f in os.listdir(folder):
+        path = os.path.normcase(os.path.abspath(os.path.join(folder, f)))
+        if not f.lower().endswith(".sc4") or path == current:
+            continue
+        try:
+            other = regions.read_city(path)
+        except Exception:  # noqa: BLE001 - unreadable: the file name check above covers it
+            continue
+        if other.get("established") and (other.get("name") or "").lower() == name.lower():
+            raise ValueError("%s is already the name of another city of this region (%s)" % (name, f))
+
+
 def rename(g, name: str = "", mayor: str = "") -> dict:
     """What the city name window in the control panel does: city slot 13 SetCityName (and slot 15 marks the name
     changed, so the next save names the file after it) and slot 17 SetMayorName, each from a cRZString."""
@@ -256,6 +284,8 @@ def rename(g, name: str = "", mayor: str = "") -> dict:
     for label, text in (("city name", name), ("mayor name", mayor)):
         if text and (len(text) > 31 or any(ord(ch) < 32 or ch in r'\/:*?"<>|' for ch in text)):
             raise ValueError(r'the %s is 1-31 characters, without \ / : * ? " < > |' % label)
+    if name:
+        _check_city_name_free(g, name)
     s = b.scratch(0x1D80)
     for text, slot in ((name, CITY_SET_NAME), (mayor, CITY_SET_MAYOR)):
         if not text:

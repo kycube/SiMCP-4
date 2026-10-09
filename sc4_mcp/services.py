@@ -125,7 +125,11 @@ def _building(g, x: int, z: int) -> tuple[int, dict]:
     occ = pointer.building_at(g, x, z)
     if not occ:
         raise ServiceError("no building on (%d, %d)" % (x, z), "lots() lists the buildings")
-    return occ, city.lot_info(g, x, z) or {}
+    try:
+        return occ, city.lot_info(g, x, z) or {}
+    except Exception:
+        pointer.release(g, occ)                  # building_at AddRef'd it
+        raise
 
 
 def _items(g, occ: int) -> dict[str, dict]:

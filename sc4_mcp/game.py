@@ -38,9 +38,11 @@ REGION_GET_NAME = 3          # cISC4Region::GetName -> SC4String* (a cRZString)
 CRASH_LOG = os.path.join(launch.ROOT, "crash.log")
 
 
-def crash_log(pid: int | None = None) -> list[str]:
-    """Faults the bridge saw in the game's own code (its vectored handler writes them to crash.log: time, pid,
-    exception, address, registers and return addresses into the game), for one game process or all."""
+def crash_log(pid: int | None = None, kinds: tuple[str, ...] | None = None) -> list[str]:
+    """Faults noted in crash.log by the bridge (time, pid, kind, exception, address, registers, return addresses
+    into the game) for one game process or all. Kinds: "first-chance" (a fault in the game's own code, outside
+    SiMCP's calls - it may still be handled), "caught-in-call" / "caught-in-deferred" (inside a SiMCP call, caught
+    by the bridge); older entries have no kind."""
     try:
         with open(CRASH_LOG, encoding="latin-1") as f:
             text = f.read().splitlines()
@@ -48,8 +50,13 @@ def crash_log(pid: int | None = None) -> list[str]:
         return []
     out = []
     for i, line in enumerate(text):
-        if " pid " in line and (pid is None or " pid %d " % pid in line):
-            out.append(line + (" |" + text[i + 1].strip() if i + 1 < len(text) and text[i + 1].startswith("  ") else ""))
+        m = re.search(r" pid (\d+) (?:(\S+) )?exception", line)
+        if not m or (pid is not None and int(m.group(1)) != pid):
+            continue
+        kind = m.group(2) or "first-chance"
+        if kinds and kind not in kinds:
+            continue
+        out.append(line + (" |" + text[i + 1].strip() if i + 1 < len(text) and text[i + 1].startswith("  ") else ""))
     return out
 
 
@@ -147,7 +154,7 @@ class Game:
         city = memory.city_basics(self.proc)
         if city:
             out["city"] = city
-        crashes = crash_log(self.proc.pid)
+        crashes = crash_log(self.proc.pid, ("first-chance",))
         if crashes:
             out["faults_in_game_code"] = crashes[-3:]
         faults = self.bridge.faults() if self.bridge and self.bridge.block else 0
@@ -510,6 +517,15 @@ class Game:
         folder = os.path.dirname(path)
         start = time.time() - 1
         own = ("city - %s.sc4" % memory.city_basics(self.proc)["name"]).lower()
+        target = os.path.join(folder, own)
+        if os.path.exists(target) and os.path.normcase(os.path.abspath(target)) != \
+                os.path.normcase(os.path.abspath(path)):
+            raise GameError("saving would overwrite another city's file (%s)" % os.path.basename(target),
+                            "rename_city to a name no other city of the region has")
+        trel = os.path.relpath(target, os.path.join(launch.USER_DIR, "Regions"))
+        if os.path.exists(os.path.join(identity.game_dir(), "Regions", trel)) and not allow_shipped:
+            raise GameError("saving would replace SiMCP's copy of a shipped city (%s)" % trel,
+                            "rename_city first, or pass allow_shipped=true")
 
         def newest():
             best = None

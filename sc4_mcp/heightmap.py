@@ -15,6 +15,7 @@ interface slot 49 SetText(char*, length, notify)) and presses OK, as a player wo
 from __future__ import annotations
 
 import os
+import re
 import struct
 import time
 
@@ -26,7 +27,10 @@ TILE_COLORS = {"small": (255, 0, 0), "medium": (0, 255, 0), "large": (0, 0, 255)
 TILE_SPAN = {"small": 1, "medium": 2, "large": 4}
 EDIT_SET_TEXT, EDIT_GET_TEXT, EDIT_TEXT_LENGTH = 49, 46, 47
 FILEWIN_INNER, INNER_EDIT, INNER_GET_SELECTION = 0xD8, 0x100, 18
-HOME = os.path.join(os.path.dirname(launch.USER_DIR.rstrip("\\/")), "heightmaps")
+INNER_VTABLE, EDIT_VTABLE = 0xADD190, 0xADFA68          # the file window's component and its File name edit
+HOME = os.path.join(launch.ROOT, "heightmaps")
+REGION_NAME = re.compile(r"[A-Za-z0-9 _'-]{1,32}")
+S_TEXT, TEXT_MAX = 0x1600, 0x300                          # scratch for the typed file name
 
 
 class HeightmapError(RuntimeError):
@@ -36,7 +40,13 @@ class HeightmapError(RuntimeError):
 
 
 def region_folder(name: str) -> str:
-    folder = os.path.join(launch.USER_DIR, "Regions", name)
+    """A region folder in SiMCP's own user folder - never anywhere else (names are plain folder names)."""
+    if not REGION_NAME.fullmatch(name or ""):
+        raise HeightmapError("a region name is 1-32 letters, digits, spaces, - ' _", "list_regions() lists them")
+    root = os.path.realpath(os.path.join(launch.USER_DIR, "Regions"))
+    folder = os.path.realpath(os.path.join(root, name))
+    if os.path.dirname(folder) != root:
+        raise HeightmapError("the region must be a folder of SiMCP's own Regions folder")
     if not os.path.isfile(os.path.join(folder, "region.ini")):
         raise HeightmapError("no region folder %r in SiMCP's user folder" % name, "list_regions() lists them")
     return folder
@@ -86,7 +96,7 @@ def make_bitmap(name: str, heights=None, image_path: str = "") -> tuple[str, dic
     os.makedirs(HOME, exist_ok=True)
     out = os.path.join(HOME, "%s.bmp" % name)
     im.save(out, "BMP")                       # mode L -> 8 bits with a grey palette
-    px = list(im.getdata())
+    px = im.tobytes()                         # one byte per pixel (mode L)
     return out, {"size": list(size), "lowest_m": min(px) * METRES_PER_GREY, "highest_m": max(px) * METRES_PER_GREY,
                  "below_sea_level_percent": round(100 * sum(1 for v in px if v * METRES_PER_GREY < SEA_LEVEL) / len(px), 1)}
 
@@ -107,23 +117,24 @@ def _established(name: str) -> list[str]:
 
 
 def _file_window(g, timeout: float = 10.0) -> int:
+    """The game's own file window (its component and File name edit checked by their vtables)."""
     p = g.proc
     end = time.time() + timeout
     while time.time() < end:
         for w in dialogs._modal_windows(g):
             inner = p.u32(w + FILEWIN_INNER)
-            if inner and p.u32(inner + INNER_EDIT):
+            if inner and p.u32(inner) == INNER_VTABLE and p.u32(p.u32(inner + INNER_EDIT)) == EDIT_VTABLE:
                 return w
         time.sleep(0.2)
     raise HeightmapError("the game's file window did not open")
 
 
-def import_terrain(g, name: str, bmp: str, replace_cities: bool = False, timeout: float = 1800.0) -> dict:
+def import_terrain(g, name: str, bmp: str, replace_cities: bool = False, timeout: float = 600.0) -> dict:
     """Run RegionBitmapLoad on the open region with our bitmap (the region view must show `name`)."""
     p, b = g.proc, g.bridge
-    if g.region_name() != name:
-        raise HeightmapError("the region view shows %r, not %r" % (g.region_name(), name),
-                             "load_region(%r) first" % name)
+    shown = g.region_name() or ""
+    if shown.lower() != name.lower():
+        raise HeightmapError("the region view shows %r, not %r" % (shown, name), "load_region(%r) first" % name)
     cities = _established(name)
     if cities and not replace_cities:
         raise HeightmapError("the import deletes every city of the region, and %d are founded: %s"
@@ -133,34 +144,53 @@ def import_terrain(g, name: str, bmp: str, replace_cities: bool = False, timeout
     def stamps():
         return {f: os.path.getmtime(os.path.join(folder, f)) for f in os.listdir(folder) if f.endswith(".sc4")}
     before = stamps()
-    b.command("RegionBitmapLoad", defer=True)
+    b.command("RegionBitmapLoad", defer=True, timeout_s=0.5)     # the file window keeps the call busy (modal)
     w = _file_window(g)
-    inner = p.u32(w + FILEWIN_INNER)
-    edit = p.u32(inner + INNER_EDIT)
-    out = b.scratch(0x1E80)
-    p.write(out, bytes(20))
-    b.vcall(inner, INNER_GET_SELECTION, out)
-    d_ptr = struct.unpack_from("<5I", p.read(out, 20))[3]
-    cur = p.read(p.u32(d_ptr + 4), 260).split(b"\0", 1)[0].decode("latin-1") or "c:\\"
     try:
-        rel = os.path.relpath(bmp, cur)
-    except ValueError:
-        dialogs.click(g, "Cancel")
-        raise HeightmapError("the file window is on another drive (%s)" % cur)
-    text = rel.encode("latin-1")
-    buf = b.scratch(0x1E00)
-    p.write(buf, text + b"\0")
-    b.vcall(edit, EDIT_SET_TEXT, buf, len(text), 1)
+        inner = p.u32(w + FILEWIN_INNER)
+        edit = p.u32(inner + INNER_EDIT)
+        out = b.scratch(0x1E80, 20)
+        p.write(out, bytes(20))
+        b.vcall(inner, INNER_GET_SELECTION, out)
+        d_ptr = struct.unpack_from("<5I", p.read(out, 20))[3]
+        cur = p.read(p.u32(d_ptr + 4), 260).split(bytes(1), 1)[0].decode("latin-1") or "c:\\"
+        try:
+            rel = os.path.relpath(bmp, cur)
+        except ValueError:
+            raise HeightmapError("the file window is on another drive (%s)" % cur)
+        try:
+            text = rel.encode("latin-1")
+        except UnicodeEncodeError:
+            raise HeightmapError("the bitmap's path has characters the game cannot take: %s" % bmp)
+        if len(text) >= TEXT_MAX:
+            raise HeightmapError("the bitmap's path is too long")
+        buf = b.scratch(S_TEXT, len(text) + 1)
+        p.write(buf, text + bytes(1))
+        b.vcall(edit, EDIT_SET_TEXT, buf, len(text), 1)
+    except Exception:
+        try:
+            dialogs.click(g, "Cancel")                          # never leave the modal window open
+        except Exception:  # noqa: BLE001
+            pass
+        raise
     t0 = time.time()
     dialogs.click(g, "OK")
+    other = None
     while time.time() - t0 < timeout and b.deferred_state()["busy"]:
         time.sleep(1.0)
+        st = dialogs.status(g)                                  # an error or a question stops the wait
+        if st.get("open") and st["dialogs"] and st["dialogs"][0].get("texts") and                 not any("File name" in t for t in st["dialogs"][0]["texts"]):
+            other = st["dialogs"][0]
+            break
     made = sorted(f for f, t in stamps().items() if before.get(f) != t)
     res = {"region": name, "bitmap": bmp, "seconds": round(time.time() - t0, 1),
            "finished": not b.deferred_state()["busy"], "city_files_written": made}
     st = dialogs.status(g)
-    if st.get("open"):
-        res["dialog"] = st["dialogs"][0]
-    if not made and res["finished"]:
-        res["hint"] = "the game generated nothing: check the bitmap size and format (dialog above, if any)"
+    if other or st.get("open"):
+        res["dialog"] = other or st["dialogs"][0]
+        res["hint"] = "the game asks or reports something: dialog_status / close_dialog"
+    elif not res["finished"]:
+        res["hint"] = "the game is still generating tiles: game_status shows the region view again when it is done"
+    elif not made:
+        res["hint"] = "the game generated nothing: check the bitmap size and format"
     return res

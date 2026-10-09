@@ -172,6 +172,7 @@ def launch(user_dir: str | None = USER_DIR, mirror: bool = True, beside_other: b
     env = dict(os.environ)
     # Our own environment may carry __COMPAT_LAYER (e.g. DetectorsAppHealth); give the game GOG's DPI flag only.
     env["__COMPAT_LAYER"] = "HIGHDPIAWARE"
+    env["SIMCP4_HOME"] = ROOT                 # the bridge writes its crash log there
     flags = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
     cmd = [exe] + command_line(user_dir, **kw)
     if beside_other:

@@ -512,3 +512,21 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   preference byte video+3 = 1 and the reopened dialog shows Low; shadows High + waves off -> video+3 = 3, +6 = 0,
   SimCity 4.cfg rewritten; music volume 50 -> 30 -> reread 30; all restored. Custom Tunes is disabled without
   custom music files (refused; the dialog is cancelled, no modal left open).
+- **Seaport zones** (throwaway city "MCP Harbor" on tile (0, 0) of MCP Island, never saved): the imported island
+  slopes 4-6 m per cell to the sea; before founding, god mode's level brush held 3 s from (14, 40) flattened
+  everything west of x ~32 to 258.3 m (the god brushes have a very wide reach: 1656 -> 1060 water cells), leaving
+  a straight shore at rows 19-20 with 15-39 m of water off it. After founding: a road along row 26 (210), then
+  zone("seaport", 18, 20, 26, 25) charged 54 and the zone map reads 12 on all 9x6 cells; no lots are made until
+  something develops (seaport demand comes from freight). The zone tool takes a seaport zone inland too (preview
+  ok on (10..15, 30..34)): the water rule is the developer's, not the zone tool's.
+- **Edge reconcile prompts**: opening a tile whose edges differ from its neighbours' (here the unsaved, levelled
+  neighbour and the tile whose city was moved aside) asks once per mismatch; Cancel closes each (dialog_status /
+  close_dialog), then the advisors' popups follow (set_popups(false) stops those).
+- **One game crash, not reproduced**: in the first try the game died right after close_dialog("Close") on an
+  advisor message: 0xC0000005 at 0x7E6C9F reading 0x108. That is the city view's message handler 0x7F3E50
+  (window interface vtable 0xABCBC0 = view+0xC) on GZ message type 16 with a city open: it clears the view's
+  edge-scroll vectors and calls 0x7E6C60, which reads the zoom of the camera control [view+0xF0] - null in that
+  view. Retried after a restart four ways (the same sequence; a city switch then a modal dialog; camera moves and
+  snapshots under a modal dialog; the Civic -> Parks menu open in a city that is then left): no fault. The view's
+  camera control was non-null throughout (view 0x2CF2814 / 0x1AE57014, one city view in the window tree after a
+  leave and reopen).

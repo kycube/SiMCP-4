@@ -9,7 +9,7 @@ L = a day or more, XL = several days.
 - [x] Small upkeep: Pillow deprecation in heightmap, retire the test advice designs (S)
 - [x] Menu icons for designs (S)
 - [x] Creating My Sims: name, sign and one of the 21 faces (the face sets the gender; the dialog has no description field) (S)
-- [ ] Seaport zones on a city with water (S)
+- [x] Seaport zones on a city with water (S)
 - [x] Strikes and jailbreaks status (S)
 - [x] Region housekeeping: rename a region, delete a city / region (confirmed), back up a region (S)
 - [x] Graphics and sound settings through the options dialogs' path (S-M)

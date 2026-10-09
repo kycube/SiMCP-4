@@ -32,9 +32,15 @@ def _shade(c, k: float) -> tuple[int, int, int, int]:
     return tuple(max(0, min(255, int(v * k))) for v in c) + (255,)
 
 
-def paint(shape: str, leaf, trunk, seed: int):
+AUTUMN = [(205, 85, 30), (225, 145, 40), (175, 45, 30), (230, 185, 60), (150, 95, 40)]
+BLOSSOM = [(255, 222, 232), (250, 245, 245), (240, 180, 205)]
+
+
+def paint(shape: str, leaf, trunk, seed: int, season: str = "summer"):
     """An RGBA picture (Pillow image, TEX_W x TEX_H) of a tree on a transparent background, trunk at the bottom
-    centre. Transparent pixels carry the leaf colour so the edges do not darken when the game filters them."""
+    centre. Transparent pixels carry the leaf colour so the edges do not darken when the game filters them.
+    season: summer (the colours given), spring (fresh green with blossom), autumn (oranges, reds, yellows), winter
+    (a broadleaf's bare branches, a conifer under snow; palms do not change)."""
     from PIL import Image, ImageDraw
     rnd = random.Random(seed)
     W, H = TEX_W, TEX_H
@@ -79,11 +85,31 @@ def paint(shape: str, leaf, trunk, seed: int):
             pts.append((cx, apex))
             d.polygon(pts, fill=_shade(leaf, 0.75 + 0.25 * t))
             d.polygon([(cx, apex), (cx + half, y_base), (cx + half * 0.3, y_base)], fill=_shade(leaf, 0.6 + 0.2 * t))
+            if season == "winter":                               # snow lying on the tier's upper slope
+                for j in range(14):
+                    f = rnd.uniform(0.15, 0.85)
+                    sx = cx + (rnd.choice((-1, 1)) * half * f * 0.8)
+                    sy = apex + (y_base - apex) * f * 0.9
+                    d.ellipse([sx - 3, sy - 1.5, sx + 3, sy + 1.5], fill=(245, 248, 252, 255))
         d.line([(cx, 2), (cx, 10)], fill=_shade(leaf, 0.9), width=3)
         return im
     # broadleaf
     d.polygon([(cx - 6, H - 1), (cx + 6, H - 1), (cx + 3, H * 0.5), (cx - 3, H * 0.5)], fill=_shade(trunk, 1.0))
     d.polygon([(cx + 1, H - 1), (cx + 6, H - 1), (cx + 3, H * 0.5), (cx + 1, H * 0.5)], fill=_shade(trunk, 0.72))
+    if season == "winter":                                       # bare: a branching crown, a dusting of snow
+        def branch(x, y, ang, length, width, depth):
+            if depth == 0 or length < 3:
+                return
+            x2, y2 = x + math.cos(ang) * length, y - math.sin(ang) * length
+            d.line([(x, y), (x2, y2)], fill=_shade(trunk, 0.8 + 0.05 * depth), width=max(1, int(width)))
+            if depth <= 2 and rnd.random() < 0.5:
+                d.point((x2, y2 - 1), fill=(240, 244, 250, 255))
+            for k in (-1, 1):
+                branch(x2, y2, ang + k * rnd.uniform(0.25, 0.6), length * rnd.uniform(0.62, 0.78), width * 0.7,
+                       depth - 1)
+        for a0 in (math.pi / 2, math.pi / 2 - 0.5, math.pi / 2 + 0.5):
+            branch(cx, H * 0.52, a0, H * 0.14, 5, 7)
+        return im
     for _ in range(5):                                           # branches into the crown
         y = rnd.uniform(H * 0.45, H * 0.6)
         d.line([(cx, y), (cx + rnd.uniform(-30, 30), y - rnd.uniform(20, 40))], fill=_shade(trunk, 0.85), width=3)
@@ -95,7 +121,14 @@ def paint(shape: str, leaf, trunk, seed: int):
         blobs.append((y, x, rnd.uniform(9, 17)))
     for y, x, rad in sorted(blobs):                             # back to front, lit from the upper left
         light = 1.12 - 0.35 * ((x - (ccx - rx)) / (2 * rx)) * 0.6 - 0.35 * ((y - (ccy - ry)) / (2 * ry))
-        d.ellipse([x - rad, y - rad, x + rad, y + rad], fill=_shade(leaf, light * rnd.uniform(0.9, 1.05)))
+        colour = rnd.choice(AUTUMN) if season == "autumn" else (
+            tuple(min(255, int(c * 1.15 + 18)) for c in leaf) if season == "spring" else leaf)
+        d.ellipse([x - rad, y - rad, x + rad, y + rad], fill=_shade(colour, light * rnd.uniform(0.9, 1.05)))
+    if season == "spring":                                       # blossom
+        for _ in range(90):
+            a, r = rnd.uniform(0, 2 * math.pi), math.sqrt(rnd.uniform(0, 1))
+            x, y = ccx + math.cos(a) * r * (rx - 10), ccy + math.sin(a) * r * (ry - 10)
+            d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=rnd.choice(BLOSSOM) + (255,))
     for _ in range(22):                                          # sunlit leaves, upper left
         a, r = rnd.uniform(math.pi * 0.9, math.pi * 1.6), math.sqrt(rnd.uniform(0.2, 1))
         x, y = ccx + math.cos(a) * r * (rx - 14), ccy + math.sin(a) * r * (ry - 14)

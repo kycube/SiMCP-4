@@ -1538,7 +1538,8 @@ def game_props(query: str = "", limit: int = 40) -> dict:
 @tool(mcp, "act")
 @guarded
 def design_prop(name: str, shape: str = "box", width_m: float = 2.0, depth_m: float = 2.0, height_m: float = 2.0,
-                rgb: list[int] | None = None, image_path: str = "", model_path: str = "", model_scale: float = 1.0):
+                rgb: list[int] | None = None, image_path: str = "", model_path: str = "", model_scale: float = 1.0,
+                animation: str = "", hours: list[float] | None = None, dates: dict | None = None):
     """Design a new prop - a box, cylinder, cone or sign (a board on a post; image_path puts a picture on its
     street side) in one colour - to place on lots with design_park or design_model_building. Written as a plugin;
     the game loads it at start-up. Returns the design and its texture.
@@ -1554,10 +1555,40 @@ def design_prop(name: str, shape: str = "box", width_m: float = 2.0, depth_m: fl
         model_path: your own 3D model (Wavefront OBJ with MTL and textures, as for design_model_building) instead
             of a shape; its size times model_scale replaces width, depth and height.
         model_scale: metres per model unit.
+        animation: spin (turns about its vertical axis) or sway (rocks gently), as the game's animated props.
+        hours: [from, to]: shown only at these hours of the game's day (may wrap midnight: [19, 6] = at night).
+        dates: {"start": [month, day], "days": n, "every": 365}: shown only then (holiday decorations...).
     """
     try:
         d = lotdesign.design_prop(name, shape, width_m, depth_m, height_m, tuple(rgb or (150, 150, 150)), image_path,
-                                  model_path=model_path, model_scale=model_scale)
+                                  model_path=model_path, model_scale=model_scale, animation=animation, hours=hours,
+                                  dates=dates)
+    except content.ContentError as e:
+        return {"error": str(e), "hint": e.hint}
+    png = d.pop("texture_png")
+    return [json.dumps(d), Image(data=png, format="png")]
+
+
+@tool(mcp, "act")
+@guarded
+def design_seasonal_tree(name: str, shape: str = "broadleaf", height_m: float = 12.0, width_m: float = 8.0,
+                         leaf_rgb: list[int] | None = None, trunk_rgb: list[int] | None = None):
+    """Design a tree that follows the seasons, for lots (design_park / design_model_building objects
+    {"seasonal_tree": name, ...}): spring blossom from 1 March, summer from 1 June, autumn colours from 1 September,
+    bare branches (a broadleaf) or snow (a conifer) from 1 December. The game shows each season's picture on its
+    dates. (Trees planted with plant_trees cannot change: the game runs no growth or succession for flora.)
+
+    Args:
+        name: the tree's name.
+        shape: broadleaf, conifer or palm (palms stay the same all year).
+        height_m: height in metres (2..40).
+        width_m: crown width in metres (1..16).
+        leaf_rgb: the summer foliage colour.
+        trunk_rgb: the trunk colour.
+    """
+    try:
+        d = lotdesign.design_seasonal_tree(name, shape, height_m, width_m, tuple(leaf_rgb or (70, 125, 55)),
+                                           tuple(trunk_rgb or (95, 70, 45)))
     except content.ContentError as e:
         return {"error": str(e), "hint": e.hint}
     png = d.pop("texture_png")
@@ -1575,7 +1606,8 @@ def design_park(name: str, objects: list[dict], lot_cells: int = 1, ground: str 
     Args:
         name: the park's name, shown in the menu.
         objects: what stands on it: [{"prop": id or name, "x": m, "z": m, "rotation": 0-3},
-            {"tree": name or id, "x": m, "z": m}, {"ground": texture name, "x": m, "z": m} (that cell's ground)].
+            {"tree": name or id, "x": m, "z": m}, {"seasonal_tree": name, "x": m, "z": m},
+            {"ground": texture name, "x": m, "z": m} (that cell's ground)].
         lot_cells: the lot's size in cells a side (1..6; a cell is 16 m).
         ground: the ground texture of every cell: paving, plaza, concrete, asphalt, grass, lawn, meadow, gravel,
             garden, sand or parking.

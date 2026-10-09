@@ -38,7 +38,7 @@ L = a day or more, XL = several days.
 ## Phase 9 - harder
 
 - [x] God-mode fire torch (L)
-- [ ] Animated content: seasonal trees, animated props (L)
+- [x] Animated content: seasonal trees, props by hours and dates (L) - animation frames are written as the game's animated props have them, but neither a Maxis animated prop nor ours was seen to move in snapshots
 - [ ] Sims and pedestrians as models (L)
 - [ ] Custom My Sim faces (L)
 - [ ] Terrain looks (global) (L)

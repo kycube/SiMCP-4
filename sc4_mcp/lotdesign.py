@@ -24,6 +24,10 @@ from . import content, dbpf
 
 G_PROPS = 0xC977C536
 PROP_TEMPLATE = 0x29010000                  # APzPark3x1x2_StoneBench
+TIMED_TEMPLATE = 0x2BF20000                 # LM1x1x3_Gnome_BankofAmerica: a date-timed prop (the bench's own
+                                            # properties keep a prop always shown: its dates / hours are ignored)
+ANIMATED_TEMPLATE = 0x29430000              # ACSign7x7x1_pizza: a 3D prop with animation frames
+P_RKT4 = 0x27812824
 GROUNDS = {"paving": 0x258F2000, "plaza": 0x258E3000, "concrete": 0x258D1000, "asphalt": 0x258C2000,
            "grass": 0x25D60000, "lawn": 0x252B3000, "meadow": 0x25F40000, "gravel": 0x25FB1000,
            "garden": 0x26213000, "sand": 0x25901000, "parking": 0x25A32000}
@@ -154,6 +158,18 @@ def rows(lot_cells: int, building_row: list[int] | None, ground="plaza", objects
             out.append([ROW_PROP, 0, rot, fx(x), 0, fx(z), fx(x - w / 2), fx(z - d / 2), fx(x + w / 2), fx(z + d / 2),
                         0, oid, int(p["id"], 16)])
             placed.append({"prop": p["name"] or p["exemplar"], "id": p["id"], "at": [x, z], "rotation": rot})
+        elif "seasonal_tree" in o:
+            hit = [d for d in content._manifest() if d.get("kind") == "seasonal_tree" and not d.get("disabled")
+                   and d["name"].lower() == str(o["seasonal_tree"]).strip().lower()]
+            if not hit:
+                raise LotError("no seasonal tree %r" % o["seasonal_tree"], "design_seasonal_tree makes one")
+            w, h, d_ = hit[0]["size_m"]
+            for pid in hit[0]["props"]:                         # four props, each shown in its season
+                out.append([ROW_PROP, 0, rot, fx(x), 0, fx(z), fx(x - w / 2), fx(z - d_ / 2), fx(x + w / 2),
+                            fx(z + d_ / 2), 0, oid, int(pid, 16)])
+                oid += 1
+            placed.append({"seasonal_tree": hit[0]["name"], "at": [x, z]})
+            continue
         elif "tree" in o:
             t = _tree(o["tree"])
             out.append([ROW_FLORA, 0, rot, fx(x), 0, fx(z), fx(x - 1), fx(z - 1), fx(x + 1), fx(z + 1), 0, oid,
@@ -268,10 +284,14 @@ def prop_mesh(shape: str, w: float, d: float, h: float, texture: int):
 
 def design_prop(name: str, shape: str = "box", width: float = 2.0, depth: float = 2.0, height: float = 2.0,
                 rgb=(150, 150, 150), image_path: str = "", taken: set[int] | None = None, model_path: str = "",
-                model_scale: float = 1.0) -> dict:
-    """Write a new prop as a plugin; place it on a lot with design_park / design_model_building objects."""
+                model_scale: float = 1.0, animation: str = "", hours: list | None = None,
+                dates: dict | None = None) -> dict:
+    """Write a new prop as a plugin; place it on a lot with design_park / design_model_building objects.
+    animation: spin or sway (model frames, as the game's animated props); hours: [from, to] when it shows (the
+    game's 24-hour clock, may wrap midnight); dates: {"start": [month, day], "days": n, "every": 365}."""
     from . import fsh, meshimport, s3d
     content._check_name(name)
+    timing = timing_props(animation, hours, dates)
     mesh = meshimport.load(model_path, model_scale) if model_path else None
     if mesh:
         width, height, depth = mesh["size_m"]
@@ -284,9 +304,11 @@ def design_prop(name: str, shape: str = "box", width: float = 2.0, depth: float 
         raise LotError("colours are [r, g, b] with values 0..255")
     if not mesh and shape == "sign" and depth > 1:
         depth = 0.3
-    _, tpl = content._find_exemplar(dbpf.T_EXEMPLAR, PROP_TEMPLATE, G_PROPS)
+    template = TIMED_TEMPLATE if (hours is not None or dates is not None) else (
+        ANIMATED_TEMPLATE if animation else PROP_TEMPLATE)
+    _, tpl = content._find_exemplar(dbpf.T_EXEMPLAR, template, G_PROPS)
     if tpl is None:
-        raise LotError("the game's template prop (0x29010000) is not in SimCity_1.dat")
+        raise LotError("the game's template prop (0x%08X) is not in SimCity_1.dat" % template)
     taken = taken or set()
     prop_iid = content._new_ids(taken, 1)[0]
     model_iid = content._free(dbpf.T_S3D, content.G_MODELS, 0xFFFF0000, taken)
@@ -298,14 +320,21 @@ def design_prop(name: str, shape: str = "box", width: float = 2.0, depth: float 
     else:
         image = _picture(image_path) if image_path else None
         tex = prop_texture(tuple(rgb), image)
-        model = s3d.write(prop_mesh(shape, width, depth, height, tex_iid))
+        mobj = prop_mesh(shape, width, depth, height, tex_iid)
+        if animation:
+            animate(mobj, animation)
+        model = s3d.write(mobj)
         textures = [(tex_iid, fsh.write_argb(PT, PT, tex.tobytes()))]
     props = content._drop([dbpf.Property(p.id, p.ptype, list(p.values) if isinstance(p.values, list) else p.values,
-                                         p.multi) for p in tpl.props], content.P_RKT1, content.P_NAME_KEY)
+                                         p.multi) for p in tpl.props], content.P_RKT1, P_RKT4, content.P_NAME_KEY,
+                          P_DATE_START, P_DATE_DAYS, P_DATE_EVERY, P_HOURS)
     content._set(props, content.P_NAME, dbpf.PT_STRING, "SiMCP_prop_" + content._slug(name))
     content._set(props, content.P_SIZE, dbpf.PT_FLOAT32, [float(width), float(height), float(depth)], multi=True)
-    content._set(props, content.P_RKT0, dbpf.PT_UINT32, [dbpf.T_S3D, content.G_MODELS, model_iid], multi=True)
+    for pr in model_key_props(model_iid, hours is not None or dates is not None):
+        content._set(props, pr.id, pr.ptype, pr.values, pr.multi)
     content._set(props, content.P_NAME_KEY, dbpf.PT_UINT32, [dbpf.T_LTEXT, content.G_SIMCP_NAMES, prop_iid], multi=True)
+    for pr in timing:
+        content._set(props, pr.id, pr.ptype, pr.values, pr.multi)
     records = [(dbpf.T_EXEMPLAR, G_PROPS, prop_iid, dbpf.build_exemplar(props, tpl.parent)),
                (dbpf.T_S3D, content.G_MODELS, model_iid, model),
                (dbpf.T_LTEXT, content.G_SIMCP_NAMES, prop_iid, dbpf.build_ltext(name))] + \
@@ -315,6 +344,7 @@ def design_prop(name: str, shape: str = "box", width: float = 2.0, depth: float 
     dbpf.write_dbpf(path, records)
     entry = {"name": name, "kind": "prop", "file": path, "prop": "0x%08X" % prop_iid, "model": "0x%08X" % model_iid,
              "texture": "0x%08X" % tex_iid, "shape": shape, "size_m": [width, height, depth],
+             "animation": animation or None, "hours": hours, "dates": dates,
              "created": time.strftime("%Y-%m-%d %H:%M:%S")}
     items = content._manifest()
     items.append(entry)
@@ -324,6 +354,131 @@ def design_prop(name: str, shape: str = "box", width: float = 2.0, depth: float 
     return dict(entry, texture_png=buf.getvalue(),
                 note="props stand on lots: place it with design_park or design_model_building (objects); the game "
                      "loads plugins at start-up")
+
+
+P_ANIMATED, P_HOURS = 0xE83A081D, 0x4A149631
+P_DATE_START, P_DATE_DAYS, P_DATE_EVERY = 0xCA7515CC, 0x4A764564, 0x0A751675
+ANIMATIONS = ("spin", "sway")
+SEASONS = {"spring": ([3, 1], 92), "summer": ([6, 1], 92), "autumn": ([9, 1], 91), "winter": ([12, 1], 90)}
+
+
+def model_key_props(model_iid: int, timed: bool) -> list:
+    """The prop's model key: RKT0 for an ordinary prop; a timed prop (hours / dates) needs RKT4 with two states as
+    the game's timed props have - state 0 the model, state 1 an RKT0 with instance 0 (no model): the game hides a
+    timed prop by switching it to state 1, so a prop with only RKT0 stays shown."""
+    if not timed:
+        return [dbpf.Property(content.P_RKT0, dbpf.PT_UINT32, [dbpf.T_S3D, content.G_MODELS, model_iid], True)]
+    return [dbpf.Property(P_RKT4, dbpf.PT_UINT32,
+                          [0, 0, 0, 0, content.P_RKT0, dbpf.T_S3D, content.G_MODELS, model_iid,
+                           1, 0, 0, 0, content.P_RKT0, dbpf.T_S3D, content.G_MODELS, 0], True)]
+
+
+def timing_props(animation: str = "", hours=None, dates=None) -> list:
+    """The game's prop properties for an animated model (0xE83A081D), hours of the day (0x4A149631 [from, to]) and
+    dates (0xCA7515CC [month, day] start, 0x4A764564 days shown, 0x0A751675 repeat every n days)."""
+    out = []
+    if animation:
+        if animation not in ANIMATIONS:
+            raise LotError("animation is %s" % ", ".join(ANIMATIONS))
+        out.append(dbpf.Property(P_ANIMATED, dbpf.PT_BOOL, [1]))
+    if hours is not None:
+        if len(hours) != 2 or not all(0 <= float(h) <= 24 for h in hours):
+            raise LotError("hours is [from, to] in 0..24")
+        out.append(dbpf.Property(P_HOURS, dbpf.PT_FLOAT32, [float(h) for h in hours], True))
+    if dates is not None:
+        try:
+            month, day = (int(v) for v in dates["start"])
+            days, every = int(dates.get("days", 30)), int(dates.get("every", 365))
+        except (KeyError, TypeError, ValueError):
+            raise LotError('dates is {"start": [month, day], "days": n, "every": 365}')
+        if not (1 <= month <= 12 and 1 <= day <= 31 and 1 <= days <= every <= 3650):
+            raise LotError("dates: month 1-12, day 1-31, 1 <= days <= every <= 3650")
+        out += [dbpf.Property(P_DATE_START, dbpf.PT_UINT8, [month, day], True),
+                dbpf.Property(P_DATE_DAYS, dbpf.PT_UINT32, [days]),
+                dbpf.Property(P_DATE_EVERY, dbpf.PT_UINT32, [every])]
+    return out
+
+
+def animate(m, kind: str, frames: int = 24, fps: int = 12):
+    """Give a one-block model `frames` vertex blocks (spin: a full turn about the vertical axis; sway: a gentle rock
+    about its base), as the game's animated props have one block per frame."""
+    from . import s3d
+    vb = m.verts[0]
+    verts = [struct.unpack_from("<5f", vb.data, i * 20) for i in range(vb.count)]
+    blocks = []
+    for k in range(frames):
+        t = 2 * math.pi * k / frames
+        out = []
+        for x, y, z, u, v in verts:
+            if kind == "spin":
+                x, z = x * math.cos(t) - z * math.sin(t), x * math.sin(t) + z * math.cos(t)
+            else:
+                a = 0.12 * math.sin(t)
+                x, y = x * math.cos(a) - y * math.sin(a), x * math.sin(a) + y * math.cos(a)
+            out.append(struct.pack("<5f", x, y, z, u, v))
+        blocks.append(s3d.VertBlock(0, s3d.FMT_XYZ_UV, b"".join(out)))
+    m.verts = blocks
+    m.frames, m.fps = frames, fps
+    m.meshes[0].frames = [(k, 0, 0, 0) for k in range(frames)]
+    return m
+
+
+def design_seasonal_tree(name: str, shape: str = "broadleaf", height: float = 12.0, width: float = 8.0,
+                         leaf=(70, 125, 55), trunk=(95, 70, 45)) -> dict:
+    """A tree that follows the seasons on lots: four props at one spot, each shown in its season (spring blossom
+    from 1 March, summer from 1 June, autumn colours from 1 September, bare or snowy from 1 December, every year).
+    Planted trees cannot change: the game does not run growth or succession for flora in normal play."""
+    from . import fsh, s3d, trees
+    import zlib
+    content._check_name(name)
+    if shape not in trees.SHAPES:
+        raise LotError("shape is %s" % ", ".join(trees.SHAPES))
+    if not (2 <= height <= 40 and 1 <= width <= 16):
+        raise LotError("a tree is 2..40 m tall and 1..16 m wide")
+    _, tpl = content._find_exemplar(dbpf.T_EXEMPLAR, TIMED_TEMPLATE, G_PROPS)
+    taken: set[int] = set()
+    records, prop_ids, pictures = [], [], []
+    name_iid = content._new_ids(taken, 1)[0]
+    for season, (start, days) in SEASONS.items():
+        prop_iid = content._new_ids(taken, 1)[0]
+        taken.add(prop_iid)
+        model_iid = content._free(dbpf.T_S3D, content.G_MODELS, 0xFFFF0000, taken)
+        tex_iid = content._free(dbpf.T_FSH, content.G_TEXTURES, 0xFFFFFF00, taken)
+        taken |= {model_iid, tex_iid}
+        im = trees.paint(shape, tuple(leaf), tuple(trunk), zlib.crc32(name.encode()), season)
+        pictures.append(im)
+        props = content._drop([dbpf.Property(p.id, p.ptype, list(p.values) if isinstance(p.values, list) else
+                                             p.values, p.multi) for p in tpl.props], content.P_RKT1, P_RKT4,
+                              content.P_NAME_KEY)
+        content._set(props, content.P_NAME, dbpf.PT_STRING, "SiMCP_tree_%s_%s" % (content._slug(name), season))
+        content._set(props, content.P_SIZE, dbpf.PT_FLOAT32, [float(width), float(height), float(width)], multi=True)
+        for pr in model_key_props(model_iid, True):
+            content._set(props, pr.id, pr.ptype, pr.values, pr.multi)
+        content._set(props, content.P_NAME_KEY, dbpf.PT_UINT32, [dbpf.T_LTEXT, content.G_SIMCP_NAMES, name_iid], True)
+        for pr in timing_props(dates={"start": start, "days": days, "every": 365}):
+            content._set(props, pr.id, pr.ptype, pr.values, pr.multi)
+        records += [(dbpf.T_EXEMPLAR, G_PROPS, prop_iid, dbpf.build_exemplar(props, tpl.parent)),
+                    (dbpf.T_S3D, content.G_MODELS, model_iid, s3d.write(trees.crossed_planes(width, height, tex_iid))),
+                    (dbpf.T_FSH, content.G_TEXTURES, tex_iid, fsh.write_argb(trees.TEX_W, trees.TEX_H, im.tobytes()))]
+        prop_ids.append("0x%08X" % prop_iid)
+    records.append((dbpf.T_LTEXT, content.G_SIMCP_NAMES, name_iid, dbpf.build_ltext(name)))
+    os.makedirs(content.FOLDER, exist_ok=True)
+    path = content._design_path("SiMCP_seasonal_", name)
+    dbpf.write_dbpf(path, records)
+    entry = {"name": name, "kind": "seasonal_tree", "file": path, "props": prop_ids, "shape": shape,
+             "size_m": [width, height, width], "seasons": {k: v[0] for k, v in SEASONS.items()},
+             "created": time.strftime("%Y-%m-%d %H:%M:%S")}
+    items = content._manifest()
+    items.append(entry)
+    content._save_manifest(items)
+    from PIL import Image
+    sheet = Image.new("RGBA", (trees.TEX_W * 4, trees.TEX_H), (150, 190, 230, 255))
+    for k, im in enumerate(pictures):
+        sheet.alpha_composite(im, (k * trees.TEX_W, 0))
+    buf = io.BytesIO()
+    sheet.convert("RGB").save(buf, "PNG")
+    return dict(entry, texture_png=buf.getvalue(),
+                note="place it on lots: {\"seasonal_tree\": name, \"x\": m, \"z\": m} in design_park objects")
 
 
 # ---------------------------------------------------------------- parks: a lot of objects

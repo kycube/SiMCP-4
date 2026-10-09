@@ -204,6 +204,14 @@ there is demand.
 - `design_brush(name, base, radius_scale, strength_scale)` makes a god-mode terrain brush from one of the game's
   (a wider mountain, a gentler valley...); after a restart `terraform("simcp_<name>", ...)` uses it before a
   city is founded.
+- Things that change: `design_seasonal_tree(name, shape)` makes a tree for lots that follows the seasons
+  (blossom from 1 March, summer from 1 June, autumn colours from 1 September, bare or snowy from 1 December):
+  place it with {"seasonal_tree": name, "x", "z"}. Each season appears at its start date, so a lot placed
+  mid-season shows that tree from the next season change on. `design_prop(..., hours=[19, 6])` shows a prop
+  only at those hours of the game's day (at night here; the game's day / night cycle must run - forced day or
+  night freezes it), `dates={"start": [12, 1], "days": 31}` only on those dates every year, and
+  `animation="spin"` / `"sway"` gives it animation frames like the game's animated props. Flora planted with
+  plant_trees never changes: the game runs no growth or succession for trees.
 - `design_advice(name, advisor, title, message, trigger)` writes advice or a news headline for the advisors (a
   Lua package like the game's own): it appears when its trigger - a read-only expression such as
   `game.g_city_r_population > 1000` - is true. #city# in the text becomes the city's name.

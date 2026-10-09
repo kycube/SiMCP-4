@@ -307,3 +307,31 @@ def test_brush_design(tmp_path, monkeypatch):
     assert terrain.god_table()["simcp_wide_hill"] == int(r["brush"], 16)
     with pytest.raises(content.ContentError):
         brushdesign.design_brush("Odd", "volcano_of_doom")
+
+
+def test_timed_animated_and_seasonal_props(tmp_path, monkeypatch):
+    """Timed props carry the game's timing properties and a two-state RKT4; animated props one block per frame;
+    a seasonal tree is four date-timed props placed together."""
+    import pytest
+    from sc4_mcp import dbpf, gamedata, lotdesign, trees
+    t = {p.id: p.values for p in lotdesign.timing_props("spin", [19, 6], {"start": [12, 1], "days": 90})}
+    assert t[lotdesign.P_HOURS] == [19.0, 6.0] and t[lotdesign.P_DATE_START] == [12, 1] and t[lotdesign.P_DATE_EVERY] == [365]
+    with pytest.raises(content.ContentError):
+        lotdesign.timing_props(hours=[25, 3])
+    rk = lotdesign.model_key_props(0x1234, True)[0]
+    assert rk.id == lotdesign.P_RKT4 and rk.values[7] == 0x1234 and rk.values[8] == 1 and rk.values[15] == 0
+    m = lotdesign.animate(lotdesign.prop_mesh("box", 2, 1, 3, 0x10), "spin", frames=8)
+    assert len(m.verts) == 8 and [f[0] for f in m.meshes[0].frames] == list(range(8))
+    for season in ("spring", "summer", "autumn", "winter"):
+        assert trees.paint("broadleaf", (60, 120, 50), (90, 60, 40), 3, season).getextrema()[3] == (0, 255)
+    if gamedata._main_dat() is None:
+        pytest.skip("the game's data files are not installed")
+    monkeypatch.setattr(content, "FOLDER", str(tmp_path))
+    monkeypatch.setattr(content, "MANIFEST", str(tmp_path / "content.json"))
+    r = lotdesign.design_seasonal_tree("Test Birch", "broadleaf")
+    d = dbpf.DBPF(r["file"])
+    exs = [dbpf.parse_exemplar(d.read(e)) for e in d if e.type == dbpf.T_EXEMPLAR]
+    assert sorted(tuple(x.get(lotdesign.P_DATE_START)) for x in exs) == [(3, 1), (6, 1), (9, 1), (12, 1)]
+    assert all(x.get(lotdesign.P_RKT4) and x.get(content.P_RKT0) is None for x in exs)
+    rows, _ = lotdesign.rows(1, None, "lawn", [{"seasonal_tree": "Test Birch", "x": 8, "z": 8}])
+    assert len([r_ for r_ in rows if r_[0] == lotdesign.ROW_PROP]) == 4

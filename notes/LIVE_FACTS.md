@@ -677,3 +677,23 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   view's camera control null after an advisor dialog closed, a cancelled reconcile prompt just before), objects
   of the city were half torn down. Not reproduced: the Phase 5 run cancelled the prompt and left the city cleanly.
   Until it is understood, avoid leaving a city right after cancelling that prompt (let a few days run first).
+- **Flora never changes in normal play**: two test flora pointing at each other as successors (0x2A0348BA, duration
+  0x2A0348BB = 30, spread 0x2A0348BC = 0; the wild "clump" chains use 18-24 / 7-10) were planted in MCP Village and
+  stayed the same type, growth byte +0x2E = 1, through 3 years of exact days and 4 years at fast speed. The flora
+  simulator's growth is off unless the "Flora" debug cheat turns it on (re/agents/cheats), which is also why menu
+  trees stay saplings (their RKT5 states 0-2 are growth stages; 3+ share sprite atlases; no seasons).
+- **Timed props**: a prop can show only at some hours (0x4A149631 Float32 [from, to], may wrap midnight: parked cars
+  [19, 6], skate park [8, 19]) or on some dates (0xCA7515CC Uint8 [month, day], 0x4A764564 days, 0x0A751675 repeat
+  every n days: the landmark gnomes [4, 15] 4 / 365). The prop simulator (0x6F3C60) registers such props and
+  keeps, per date-timed prop, {every, days, next start day, next end day}. A timed prop must have the RKT4 model key
+  with two states as the game's do: state 0 the model, state 1 RKT0 with instance 0 (no model) - the game hides
+  it by switching to state 1. SiMCP's first props had RKT0 only and stayed shown (the bench template's properties
+  were not the cause); with RKT4 they hide. Live in MCP Village ("MCP Seasons Park", placed 19 July 2018): no tree
+  shown (each season prop waits for its next start date), 22 September the autumn props, 12 December bare oaks and
+  snowy spruces, 1 May 2019 blossom; a [19, 6] beacon hidden in daylight and shown at night, a [7, 18] one the
+  other way round, switching at dusk with the day / night cycle running (forced day or night freezes the clock: no
+  switch). The Maxis gnome and night sedan were hidden as expected when plopped.
+- **Animated props**: the game's have RKT0 models with one vertex block per frame (pizza sign 15 frames, graffiti
+  55, billboard arm 60, an animated tree 20 at 10 fps) and 0xE83A081D true (occupant flag byte +0x2F 0x27 instead
+  of 0x07). SiMCP writes spin / sway frames the same way (the pinwheel's occupant gets 0x27), but neither it nor
+  the Maxis pizza sign changed between snapshots up to 4 s apart while cars moved: not confirmed.

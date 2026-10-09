@@ -906,3 +906,17 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   find cars in MCP Village. The live vehicle list: [[0xB43D44] + 0x44] is a list head (nodes: next +0, vehicle +8),
   a vehicle's model key at +0x11C (type) / +0x120 (group) / +0x124 (instance) - the earlier note had the key one
   field off - and its position at +0x40 / +0x44 / +0x48.
+- **Walker sprites decoded** (ed_male-med01 0x07101600; not made yet): the walker's model key [0x29A5D1EC, 0x49A593E7,
+  i] names a 48-byte descriptor [0x29A5D1EC, FSH type, group, atlas instance, 0x09ADCD75, group, 0, 0, 0, table 1,
+  table 2, 11]; the atlas is an FSH of 256 x 256 DXT3 pages ("TB2 " / "TB3 ") holding pre-rendered frames with their
+  ground shadow; the two frame tables (0x09ADCD75, 100 bytes) are the two closest zooms (frames about 13 x 26 and
+  25 x 50 px): a 32-byte header (type, 8, 1, 1, zeros) then a count 8 and one 8-byte entry per direction - page,
+  frame count (8), x, y, width, height, anchor x, anchor y - with the direction's frames left to right from (x, y),
+  wrapping to x = 0, y + height at the page's edge. Animals (dog, horse, llama) are animated S3D models instead.
+  Which direction index is which heading is open (a probe walker would show it).
+- **MCP Flatiron Building** (after two public-domain Commons photographs - c1903 from the street and 2010 from the
+  Empire State Building - and public facts: 22 storeys, 87 m, sides 26.5 / 58 / 65 m): extruded triangular plan with
+  a rounded tip on a 2 x 4 lot, a rusticated four-storey base with shop windows, a 14-storey shaft of paired
+  windows and floor bands, shallow oriels, an arched crown, a cornice grown 1.3 m from the plan, a set-back
+  penthouse; generated facades at 14 px per metre (216 triangles; 81 s to render 20 views; 620 KB). Plopped at
+  (20, 2) in MCP Town it drew in all four rotations with its own cast shadow, crisp at the closest zoom.

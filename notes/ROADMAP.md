@@ -39,8 +39,8 @@ L = a day or more, XL = several days.
 
 - [x] God-mode fire torch (L)
 - [x] Animated content: seasonal trees, props by hours and dates (L) - animation frames are written as the game's animated props have them, but neither a Maxis animated prop nor ours was seen to move in snapshots
-- [ ] Sims and pedestrians as models (L)
-- [ ] Custom My Sim faces (L)
+- [ ] Sims and pedestrians as models (L) - format read (LIVE_FACTS); making new ones moved to Phase 11
+- [x] Custom My Sim faces (L) - MySims.dat and 36 x 36 pictures in the MySim folder
 - [ ] Terrain looks (global) (L)
 - [ ] The old simulator stall (L, needs a reproduction)
 
@@ -62,6 +62,7 @@ them.
 - [ ] Buildings: homes, shops, parks, landmarks - massing, roofs, windows, materials, lots that read as real
 - [ ] Props: street furniture, signs, statues
 - [ ] Vegetation: trees (broadleaf, conifer, palm, seasonal) and shrubs, hedges, flower beds
+- [ ] Pedestrians: new walkers as sprite atlases (the format is in LIVE_FACTS, Phase 9)
 - [ ] A written guide of what worked (scale, texture size and detail, colour against the game's palette, shading,
       silhouettes at each zoom) for agents designing content
 

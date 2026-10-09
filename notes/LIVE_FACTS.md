@@ -697,3 +697,22 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   55, billboard arm 60, an animated tree 20 at 10 fps) and 0xE83A081D true (occupant flag byte +0x2F 0x27 instead
   of 0x07). SiMCP writes spin / sway frames the same way (the pinwheel's occupant gets 0x27), but neither it nor
   the Maxis pizza sign changed between snapshots up to 4 s apart while cars moved: not confirmed.
+- **My Sim faces of one's own**: the Select A My Sim dialog lists the game's 21 faces and then the Sims in
+  <user folder>\MySim\MySims.dat (std::string at 0xB20E70, read by 0x43B860 each time the dialog opens): u32
+  0x4A32E4AA, then per Sim a byte length + name, a byte male, a byte sign (ZodiacSign order), a byte length +
+  picture file name without ".bmp" (a BMP in the same folder). Loose BMPs alone are not listed. The game writes
+  the file only through its "import from The Sims" button (0x2A243DF9, the computer icon), disabled here because
+  The Sims is not installed (0x43BC40 looks it up in the registry). A 36 x 36 24-bit BMP draws at the same size as
+  the game's faces. The dialog object is the root window's command listener (+0x10C) - 8: entries at +0x50 (0x30
+  bytes: +0 picture instance, 0 for one's own; +8 picture file; +0x1C name; +0x2C male; +0x2D sign), its sort
+  order at +0x14, count +0x40, first shown +0x3C, first page button +0x44. Face button i (table 0xAB5208) shows
+  order[first + i]; page buttons 0x12345000 + k set first = page * 21, the last page ending at the last face. The
+  order is not fixed - adding one face of one's own reshuffled the game's 21 against the buttons - so SiMCP reads
+  it, pages, clicks and checks the name box (the edit window's text at +0xE0 / +0xE4). Live in MCP Town: "MCP Face
+  Sim" (a 36 x 36 BMP) and "Rosa Test" (a drawn face, renamed, Leo) moved in beside stock Agnes Liu; all three kept
+  their faces through save and reload; with Rosa's picture moved away the city loaded fine and showed her face
+  blank. While one Sim's own panel shows, the first ToggleMySimPanel only closes it: move_in toggles again.
+- **Pedestrians (read, not made yet)**: walkers are exemplars of type 0x17 in group 0xC96E6806 with a model key of
+  type 0x29A5D1EC: a 48-byte descriptor pointing at an FSH sprite atlas in group 0x49A593E7 (DXT3, 256 x 256
+  pages) and frame tables of type 0x09ADCD75 (two per animation, 8 entries each: the frame's rectangle in the
+  atlas and its anchor). New walkers are left for Phase 11 (realism), with the art.

@@ -1328,7 +1328,8 @@ def move_in_sim(x: int, z: int, face: str = "", name: str = "", sign: str = "") 
     Args:
         x: a cell of the house (west-east).
         z: a cell of the house (north-south).
-        face: one of the dialog's 21 faces, by number or preset name (my_sim_faces lists them); "" = the default.
+        face: one of the dialog's faces - the game's 21 or one's own (design_my_sim_face) - by number or preset
+            name (my_sim_faces lists them); "" = the default.
         name: the Sim's name (1-31 characters; "" = the face's preset name).
         sign: capricorn, aquarius, pisces, aries, taurus, gemini, cancer, leo, virgo, libra, scorpio or
             sagittarius ("" = the face's).
@@ -1339,8 +1340,51 @@ def move_in_sim(x: int, z: int, face: str = "", name: str = "", sign: str = "") 
 @tool(mcp, "read")
 @guarded
 def my_sim_faces() -> dict:
-    """The faces the Select A My Sim dialog offers: number, preset name, sign and gender."""
+    """The faces the Select A My Sim dialog offers: number, preset name, sign and gender (the game's 21, then faces
+    of one's own)."""
     return {"faces": mysim.faces()}
+
+
+@tool(mcp, "act")
+@guarded
+def design_my_sim_face(name: str, gender: str = "male", sign: str = "aries", image_path: str = "",
+                       skin_rgb: list[int] | None = None, hair_rgb: list[int] | None = None,
+                       shirt_rgb: list[int] | None = None):
+    """Add a face of one's own to the Select A My Sim dialog (as the game's "import from The Sims" does): a 36 x 36
+    picture in the MySim folder of SiMCP's user folder and its entry (name, gender, sign) in MySims.dat. The dialog
+    reads them each time it opens; move_in_sim(x, z, face=name) then moves a Sim with it in.
+
+    Args:
+        name: the face's preset name (1-31 characters; not one of the game's faces). The same name replaces it.
+        gender: male or female.
+        sign: capricorn, aquarius, pisces, aries, taurus, gemini, cancer, leo, virgo, libra, scorpio or
+            sagittarius.
+        image_path: a photo or picture (cropped to its centre square, scaled to 36 x 36); "" draws a simple face.
+        skin_rgb: the drawn face's skin colour.
+        hair_rgb: the drawn face's hair colour.
+        shirt_rgb: the drawn face's shirt colour.
+    """
+    try:
+        d = mysim.design_face(name, gender, sign, image_path, skin_rgb, hair_rgb, shirt_rgb)
+    except mysim.MySimError as e:
+        return {"error": str(e), "hint": e.hint}
+    png = d.pop("png")
+    return [json.dumps(d), Image(data=png, format="png")]
+
+
+@tool(mcp, "destructive")
+@guarded
+def remove_my_sim_face(name: str) -> dict:
+    """Take a face of one's own out of the Select A My Sim dialog; its picture moves to SiMCP's backups. Sims
+    already living with it show a blank face until the picture is back in the MySim folder.
+
+    Args:
+        name: the face's preset name (my_sim_faces).
+    """
+    try:
+        return mysim.remove_face(name)
+    except mysim.MySimError as e:
+        return {"error": str(e), "hint": e.hint}
 
 
 def _terrain(fn, *a):

@@ -154,6 +154,9 @@ there is demand.
   - the game must be running; `missions()` gives the vehicle's cell and heading and the target's cell.
   `stop_driving()` leaves the vehicle.
 - `move_in_sim(x, z)` moves a My Sim into the house on a cell; `my_sims()` follows them (home, job, where they are).
+- `design_my_sim_face(name, gender, sign, image_path)` adds a face of one's own to the Select A My Sim dialog (a
+  photo cropped and scaled to 36 x 36, or a simple drawn face); `move_in_sim(x, z, face=name)` uses it. A city
+  keeps the picture's file name: if the picture goes (`remove_my_sim_face`), that Sim shows a blank face.
 
 ## Making new buildings
 

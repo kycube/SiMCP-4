@@ -486,3 +486,89 @@ def growable_building(name: str, purpose: str, wealth: int, width: float, depth:
     _save_manifest(items)
     return dict(entry, note="the game loads plugins at start-up: quit_game and game_launch; the design then grows on "
                             "zoned land of its zone and wealth when demand calls for it")
+
+
+# ---- advice and news (stage 4): the advisors' Lua system, extended the way plugins do it
+G_LUA_ADVICE = 0x4A5E8EF6               # the advisor and automata scripts
+G_ADVICE_TEXT = 0x6A231EA4              # the advice texts (LTEXT)
+ADVISORS = {"utilities": "utilities", "health_education": "hq", "city_planning": "cityplanning",
+            "transportation": "transportation", "environment": "environemt", "finances": "finances",
+            "safety": "safety", "news": "fluff"}
+MOODS = {"alarm": "ALARM", "bad": "BAD_JOB", "neutral": "NEUTRAL", "good": "GREAT_JOB", "fluff": "FLUFF"}
+_ALLOWED_TAGS = re.compile(r"</?(b|i|u|br|p)\s*/?>", re.I)
+
+
+def _advice_text(s: str, what: str, limit: int) -> str:
+    if not s or len(s) > limit:
+        raise ContentError("the %s is 1-%d characters" % (what, limit))
+    if "]]" in s or "#link_id#" in s or "<a" in s.lower():
+        raise ContentError("the %s may not contain ']]', links or '#link_id#' (links run game actions)" % what)
+    if re.sub(_ALLOWED_TAGS, "", s).count("<"):
+        raise ContentError("the %s may use only <b>, <i>, <u>, <br> and <p> tags" % what)
+    return s
+
+
+def advice_design(name: str, advisor: str, title: str, message: str, trigger: str = "1", mood: str = "neutral",
+                  priority: int = 50, once: bool = True, news_only: bool = False, timeout_days: int = 30,
+                  frequency_days: int = 0) -> dict:
+    """A new piece of advice (or news) for the advisors, written as a Lua plugin like the game's own: it appears
+    when its trigger - a read-only expression of the city's values (game.g_*, game.trend_value...) - is true."""
+    from . import luaquery
+    if advisor not in ADVISORS:
+        raise ContentError("advisor is one of %s" % ", ".join(ADVISORS))
+    if mood not in MOODS:
+        raise ContentError("mood is one of %s" % ", ".join(MOODS))
+    if not 1 <= len(name) <= 60 or any(ord(c) < 32 for c in name):
+        raise ContentError("give the advice a name (1-60 characters)")
+    if any(d["name"].lower() == name.lower() and not d.get("disabled") for d in _manifest()):
+        raise ContentError("a design named %r exists" % name, "content_designs lists them")
+    try:
+        luaquery.check(trigger)
+    except luaquery.LuaError as e:
+        raise ContentError("trigger: %s" % e, getattr(e, "hint", ""))
+    if '"' in trigger or "\\" in trigger:
+        raise ContentError("the trigger may not contain quotes or backslashes")
+    title = _advice_text(title, "title", 120)
+    message = _advice_text(message, "message", 2000)
+    guid = "%08x" % random.getrandbits(32)
+    # The game runs "package" scripts - Lua records whose first line is "--#-package:<hex>#" - in number order
+    # (0x2000 the advice system, 0x3000 the advisors, 0x4000 the tutorial, 0x01001000 Rush Hour; scripts without
+    # the header run only when a package dofile()s them by name). Each design is a package of its own, numbered
+    # after the game's.
+    package = 0x5C4D0000 | random.getrandbits(16)
+    # texts are LTEXT records ("text@<instance> fallback", group 0x6A231EA4 like the game's advice); plain text
+    # shows with a "NOT_IN_TEXT_DATABASE" mark
+    title_iid, message_iid = _new_ids(set(), 2)
+    lua = "\n".join([
+        "--#-package:%08X# -- package signature" % package,
+        "-- SiMCP advice design: %s" % re.sub(r"[\r\n]", " ", name),
+        'dofile("_adv_sys.lua")', 'dofile("_adv_advice.lua")', 'dofile("adv_game_data.lua")',
+        'dofile("adv_fluffnews.lua")', "",
+        "a = create_advice_%s('%s')" % (ADVISORS[advisor], guid),
+        'a.trigger  = "%s"' % trigger,
+        "a.title    = [[text@%08x %s]]" % (title_iid, title),
+        "a.message  = [[text@%08x %s]]" % (message_iid, message),
+        "a.mood     = advice_moods.%s" % MOODS[mood],
+        "a.priority = %d" % max(0, min(int(priority), 100)),
+        "a.timeout  = %d" % max(1, int(timeout_days)),
+    ] + (["a.frequency = %d" % int(frequency_days)] if frequency_days else []) + (["a.once = 1"] if once else []) +
+        (["a.news_only = 1", "a.persist = 1"] if news_only else []) + [
+        "", "if (_sys.config_run == 0)", "then", "   advices : run_triggers()", "end", ""])
+    taken = {e.instance for e in (gamedata._main_dat() or [])} if gamedata._main_dat() else set()
+    inst = 0xFF000000 | random.getrandbits(24)
+    while inst in taken:
+        inst = 0xFF000000 | random.getrandbits(24)
+    os.makedirs(FOLDER, exist_ok=True)
+    path = os.path.join(FOLDER, "SiMCP_advice_%s.dat" % _slug(name))
+    dbpf.write_dbpf(path, [(dbpf.T_LUA, G_LUA_ADVICE, inst, lua.encode("latin-1", "replace")),
+                           (dbpf.T_LTEXT, G_ADVICE_TEXT, title_iid, dbpf.build_ltext(title)),
+                           (dbpf.T_LTEXT, G_ADVICE_TEXT, message_iid, dbpf.build_ltext(message))], compress=False)
+    entry = {"name": name, "kind": "advice", "file": path, "advisor": advisor, "guid": guid,
+             "package": "0x%08X" % package,
+             "lua": "0x%08X" % inst, "trigger": trigger, "title": title, "mood": mood, "once": once,
+             "news_only": news_only, "created": time.strftime("%Y-%m-%d %H:%M:%S")}
+    items = _manifest()
+    items.append(entry)
+    _save_manifest(items)
+    return dict(entry, note="the game loads plugins at start-up: quit_game and game_launch; advisors() then shows "
+                            "the advice once its trigger is true (the advisors check every few days)")

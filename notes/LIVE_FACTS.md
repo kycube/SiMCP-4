@@ -429,3 +429,15 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   days the city's garbage mean fell 9.4 -> 1.1 and a trash pile grew - landfill trash is occupants (type
   0x6A11BD2B), not lots. Network reader fix: the primary network type at +0x10C is one byte (the u32 read gave
   garbage, dropping those pieces' sides).
+- **Advice and news designs** (Lua content): the advisor system's scripts (Lua, group 0x4A5E8EF6) run only as
+  "packages": SCLuaHelp_LoadPackageScripts (0x5FBA20) takes the records whose first line is `--#-package:<hex>#`
+  and runs them in number order (0x2000 advice system, 0x3000 advisors, 0x4000 tutorial, 0x01001000 Rush Hour, the
+  game's own Living Mall add-on 0x5000); other scripts run only when a package dofile()s them by name. A first
+  design without the header never ran (the same text run through the Lua state registered fine). As packages
+  numbered 0x5C4Dxxxx: "A note from SiMCP about water" (utilities, trigger "1") opened as an advisor popup and the
+  news item "SiMCP Gazette: #city# grows" (trigger game.g_city_r_population > 10) reached the news advisor within
+  20 days. Plain texts show with a "***_NOT_IN_TEXT_DATABASE_***" mark; as `text@<instance>` references to LTEXT
+  records in group 0x6A231EA4 (the game's advice texts) they read cleanly; #city# becomes the city's name.
+  Triggers pass SiMCP's read-only Lua whitelist; links (`#link_id#game...`) are refused (they run actions).
+- **Airport zone**: zone("airport") laid zone 11 over 8x6 cells for 48 (development needs airport demand, which
+  the small village does not have).

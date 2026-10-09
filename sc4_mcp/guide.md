@@ -148,6 +148,9 @@ there is demand.
   carries every building style). Zone 2-cell-deep strips: 1-deep lots rarely develop. It competes with the game's
   own buildings, so expect a share of the new lots, not all. A saved city whose lots hold a design needs that
   design: bulldoze those buildings before disabling it.
+- `design_advice(name, advisor, title, message, trigger)` writes advice or a news headline for the advisors (a
+  Lua package like the game's own): it appears when its trigger - a read-only expression such as
+  `game.g_city_r_population > 1000` - is true. #city# in the text becomes the city's name.
 - Designs are plugin files in SiMCP's own Plugins folder (`content_designs()`); the game loads them at start-up, so
   `quit_game()` and `game_launch()` before they appear in `build_menu()`. `disable_design(name)` (with the game
   closed) moves a design's file aside.

@@ -72,3 +72,28 @@ def test_growable_design(tmp_path, monkeypatch):
     assert {0x2000, 0x2001, 0x2002, 0x2003} <= set(bld[content.P_GROUPS])            # every building style
     assert bld[content.P_NAME_KEY] == [dbpf.T_LTEXT, content.G_SIMCP_NAMES, int(r["building"], 16)]
     assert any(e.type == dbpf.T_LTEXT for e in d)
+
+
+def test_advice_design(tmp_path, monkeypatch):
+    import pytest
+    from sc4_mcp import dbpf
+    monkeypatch.setattr(content, "FOLDER", str(tmp_path))
+    monkeypatch.setattr(content, "MANIFEST", str(tmp_path / "content.json"))
+    r = content.advice_design("Hello", "news", "Welcome to #city#", "A <b>fine</b> day.",
+                              "game.g_city_r_population > 10", "good", news_only=True)
+    d = dbpf.DBPF(r["file"])
+    entries = list(d)
+    e = [x for x in entries if x.type == dbpf.T_LUA][0]
+    assert e.group == content.G_LUA_ADVICE and e.instance >> 24 == 0xFF
+    texts = {x.instance: dbpf.parse_ltext(d.read(x)) for x in entries if x.type == dbpf.T_LTEXT}
+    assert sorted(texts.values()) == ["A <b>fine</b> day.", "Welcome to #city#"]
+    lua = d.read(e).decode("latin-1")
+    assert all("text@%08x" % i in lua for i in texts)
+    assert "create_advice_fluff('%s')" % r["guid"] in lua and 'a.trigger  = "game.g_city_r_population > 10"' in lua
+    assert "advice_moods.GREAT_JOB" in lua and "a.news_only = 1" in lua
+    assert lua.startswith("--#-package:5C4D") and r["package"].startswith("0x5C4D")      # run as a package
+    for bad in ('<a href="#link_id#game.x()">x</a>', "end]]", "<script>"):
+        with pytest.raises(content.ContentError):
+            content.advice_design("Bad", "news", "t", bad)
+    with pytest.raises(content.ContentError):                          # triggers are read-only expressions
+        content.advice_design("Bad2", "news", "t", "m", "game.deposit_funds(100)")

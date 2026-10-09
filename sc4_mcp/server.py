@@ -1285,6 +1285,32 @@ def design_model_building(name: str, width_m: float, depth_m: float, height_m: f
 
 @tool(mcp, "act")
 @guarded
+def design_advice(name: str, advisor: str, title: str, message: str, trigger: str = "1", mood: str = "neutral",
+                  priority: int = 50, once: bool = True, news_only: bool = False, timeout_days: int = 30) -> dict:
+    """Write a new piece of advice or a news headline for the game's advisors, as a Lua plugin like the game's own
+    advice scripts: the advisor shows it when its trigger is true. The game loads it at start-up (quit_game,
+    game_launch); advisors() then lists it.
+
+    Args:
+        name: a name for the design (content_designs lists it).
+        advisor: utilities, health_education, city_planning, transportation, environment, finances, safety, or news
+            (the news ticker).
+        title: the headline (plain text; <b>, <i> allowed; #city# becomes the city's name).
+        message: the advice text (plain text with <b>, <i>, <u>, <br>, <p>; no links).
+        trigger: when to show it - a read-only expression of the city's values, e.g.
+            "game.g_city_r_population > 1000" or "game.g_funds < 5000"; "1" = at once. lua_query lists the values.
+        mood: alarm, bad, neutral, good or fluff.
+        priority: 0-100 (higher shows first).
+        once: show it only the first time the trigger is true.
+        news_only: only in the news ticker, not as an advisor message.
+        timeout_days: how long it stays.
+    """
+    return _content(content.advice_design, name, advisor, title, message, trigger, mood, priority, once, news_only,
+                    timeout_days)
+
+
+@tool(mcp, "act")
+@guarded
 def design_growable_building(name: str, purpose: str, wealth: int, width_m: float, depth_m: float, height_m: float,
                              wall_rgb: list[int], roof_rgb: list[int], windows: bool = True, lot_width: int = 1,
                              lot_depth: int = 2, stage: int = 0, capacity: int = 0, description: str = "") -> dict:

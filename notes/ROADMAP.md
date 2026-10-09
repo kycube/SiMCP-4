@@ -41,7 +41,7 @@ L = a day or more, XL = several days.
 - [x] Animated content: seasonal trees, props by hours and dates (L) - animation frames are written as the game's animated props have them, but neither a Maxis animated prop nor ours was seen to move in snapshots
 - [ ] Sims and pedestrians as models (L) - format read (LIVE_FACTS); making new ones moved to Phase 11
 - [x] Custom My Sim faces (L) - MySims.dat and 36 x 36 pictures in the MySim folder
-- [ ] Terrain looks (global) (L)
+- [x] Terrain looks (global) (L) - recoloured ground / beach / cliff textures and a drier or wetter texture table, as one plugin
 - [ ] The old simulator stall (L, needs a reproduction)
 
 ## Phase 10 - hardest

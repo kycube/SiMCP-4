@@ -207,6 +207,11 @@ there is demand.
 - `design_brush(name, base, radius_scale, strength_scale)` makes a god-mode terrain brush from one of the game's
   (a wider mountain, a gentler valley...); after a restart `terraform("simcp_<name>", ...)` uses it before a
   city is founded.
+- `terrain_look(look)` changes how all terrain looks, in every city: `lush`, `arid`, `arctic` (snow), `autumn`,
+  or `custom` values (moisture_shift moves the game's texture table drier or wetter; saturation, brightness,
+  tint, snow, autumn recolour the game's own textures); `default` goes back. The running game keeps the file
+  open: `quit_game()`, `terrain_look(...)`, `game_launch()`. Look in daylight (`day_night("day")`): evening
+  light turns snow beige.
 - Things that change: `design_seasonal_tree(name, shape)` makes a tree for lots that follows the seasons
   (blossom from 1 March, summer from 1 June, autumn colours from 1 September, bare or snowy from 1 December):
   place it with {"seasonal_tree": name, "x", "z"}. Each season appears at its start date, so a lot placed

@@ -10,7 +10,7 @@ import os
 from mcp.server.fastmcp import FastMCP, Image
 
 from . import game as gamemod
-from . import brushdesign, build, catalog, cheats, city, content, disasters, economy, heightmap, history, launch, layers, lotdesign, luaquery, orddesign, housekeeping, memory, mysim, neighbors, networks, options, pointer, regions, services, terrain, trees, udi, vehicles, view
+from . import brushdesign, build, catalog, cheats, city, content, disasters, economy, heightmap, history, launch, layers, lotdesign, luaquery, orddesign, housekeeping, memory, mysim, neighbors, networks, options, pointer, regions, services, terrain, terrainlook, trees, udi, vehicles, view
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -1784,6 +1784,39 @@ def design_brush(name: str, base: str = "mountain_default", radius_scale: float 
         return brushdesign.design_brush(name, base, radius_scale, strength_scale)
     except content.ContentError as e:
         return {"error": str(e), "hint": e.hint}
+
+
+@tool(mcp, "act")
+@guarded
+def terrain_look(look: str = "", moisture_shift: int | None = None, saturation: float | None = None,
+                 brightness: float | None = None, tint_rgb: list[int] | None = None,
+                 tint_strength: float | None = None, snow: float | None = None, autumn: float | None = None):
+    """The look of all terrain (global, every city): the game's own ground, beach and cliff textures recoloured, and
+    its texture table moved drier or wetter, as one plugin. Plugins load at start, and the running game keeps it
+    open: quit_game, set the look, then game_launch. Saved cities take the new look.
+
+    Args:
+        look: "" = the current look; default (the game's own), lush, arid, arctic, autumn, or custom (only the
+            values below).
+        moisture_shift: move the table's ground textures this many steps along sand -> grass -> dark grass
+            (-7..7; + greener, - drier).
+        saturation: colour saturation (0..2, 1 = unchanged).
+        brightness: brightness (0.5..1.5).
+        tint_rgb: a colour the textures' average moves towards (their pattern stays).
+        tint_strength: how far (0..1).
+        snow: snow cover (0..1; beach and cliffs take less).
+        autumn: turn green parts orange-brown (0..1).
+    """
+    if not look:
+        return terrainlook.current()
+    try:
+        d = terrainlook.design(look, moisture_shift, saturation, brightness, tint_rgb, tint_strength, snow, autumn)
+    except (terrainlook.TerrainLookError, content.ContentError) as e:
+        return {"error": str(e), "hint": e.hint}
+    if "png" not in d:
+        return d
+    png = d.pop("png")
+    return [json.dumps(d), Image(data=png, format="png")]
 
 
 @tool(mcp, "act")

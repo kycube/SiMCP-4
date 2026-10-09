@@ -716,3 +716,17 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   type 0x29A5D1EC: a 48-byte descriptor pointing at an FSH sprite atlas in group 0x49A593E7 (DXT3, 256 x 256
   pages) and frame tables of type 0x09ADCD75 (two per animation, 8 entries each: the frame's rectangle in the
   atlas and its anchor). New walkers are left for Phase 11 (realism), with the art.
+- **Terrain looks**: the ground is drawn with textures of group 0x891B0E1A in SimCity_2.dat (instance = zoom <<
+  8 | texture id, zooms 0-4, DXT1 256 x 256, *stored uncompressed*; the closest zoom holds two variants). Which
+  texture a spot gets comes from the terrain INI (type 0, group 0x8A5971C5, instance 0xAA597172, in SimCity_1.dat,
+  read by 0x74DC30 through the resource manager): [TropicalTextureMapTable], 32 rows of temperature (cold to warm)
+  by 16 columns of moisture (dry to wet), plus [TropicalMiscTextures] (beach 0x39, cliffs 0x43 / 0x44) and the
+  erosion / hydrology tunables. "Tropical" is the only climate string in the exe (0xAB4218); the Desert /
+  Temperate / Arctic tables in the file are commented out and their texture ids (0x01-0x0F, 0x17-0x23) were never
+  shipped. The table's ground textures from dry to lush: 0x32 sand, 0x33, 0x36, 0x37, 0x38, 0x35, 0x34, 0x31 dark
+  grass. A plugin with the same keys overrides both (after a restart; the running game keeps the plugin open, so
+  it cannot be replaced then). *Compressed* terrain textures drew the whole map one flat brown (close to texture
+  0x2A): the loader reads the records raw - SiMCP writes them uncompressed, in the game's DXT1 layout (entries at
+  16-byte boundaries). Live in MCP Town, in daylight: arctic (snow over the textures) white-grey, arid (table
+  shifted 3 steps drier, sandy tint) tan with dry patches, default dark green again after the plugin was moved
+  aside. The day / night light colours the ground strongly: at dusk the snow look showed beige (150, 122, 96).

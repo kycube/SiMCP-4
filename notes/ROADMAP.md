@@ -58,12 +58,13 @@ The aim, as with SiMCP 3000: learn and write down best practices for realistic c
 style of the game, working from photographs of real things as references, and bring SiMCP's own content up to
 them.
 
-- [ ] Cars and trucks: real proportions, paint, glass, lights, wheels; the game's look at every zoom
-- [ ] Buildings: homes, shops, parks, landmarks - massing, roofs, windows, materials, lots that read as real
-- [ ] Props: street furniture, signs, statues
-- [ ] Vegetation: trees (broadleaf, conifer, palm, seasonal) and shrubs, hedges, flower beds
-- [ ] Pedestrians: new walkers as sprite atlases (the format is in LIVE_FACTS, Phase 9)
-- [ ] A written guide of what worked (scale, texture size and detail, colour against the game's palette, shading,
-      silhouettes at each zoom) for agents designing content
+- [x] Cars and trucks: real side profiles, glass cabin, wheels with rims, painted texture (sedan, hatchback, SUV,
+      van, pickup); seen in traffic
+- [x] Buildings: rendered as the game's own (batrender: camera, sun, shadows, night lights, weathering); a
+      Craftsman bungalow (ploppable and growable), a pocket park, the Flatiron Building
+- [x] Props: rendered per view (bench, acorn lamp, statue, paths), scaled as the game's
+- [x] Vegetation: broadleaf, conifer, palm, shrub of rendered leaf clumps (seasonal trees still painted)
+- [ ] Pedestrians: new walkers as sprite atlases (format decoded, LIVE_FACTS; direction order open)
+- [x] A written guide of what worked: guide topic "realism" (best practices 1 - 16)
 
 U-Drive-It (drivable vehicles, missions) is left out for now, at the user's request.

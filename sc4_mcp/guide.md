@@ -325,6 +325,30 @@ The lot
     maple or two, a walk from the street to the door and a driveway (patch parts, a dark grey). The game draws
     the building's shadow on the ground itself; nothing to paint.
 
+Landmarks and tall buildings
+11. Work from two photographs if you can: one from the street (facade, storeys, ornament) and one from above (the
+    roof, the plan - the game's camera is above). Extrude the plan ("extrude" with the footprint's points) in
+    sections - base, shaft, crown - each with facades generated per edge (a script: bays, floor bands, windows);
+    a cornice is the plan grown by a metre or so; an offset plan's sharp corners grow fast, so check the lot.
+12. Big facades: 12 - 16 px per metre ("px_per_m") is enough at the game's 7 px per metre and keeps renders fast.
+
+Trees and shrubs
+13. design_tree draws broadleaf, conifer, palm and shrub as the game's own trees are made: leaf clumps with
+    see-through leaf textures, lit by the sun with their own shadows, the light wrapping through the leaves. Keep
+    foliage olive and a little muted (the default); bright pure greens look plastic. Dense models are laid on a
+    low-poly shell automatically (the game does not draw tree models with thousands of vertices).
+
+Props
+14. Props are seen from far above: make them 1.5 - 2 times life size ("scale": 1.7), as the game's own benches
+    (3 - 4 m) and lamp posts (7 - 8 m) are, with members at least 0.15 m thick; at life size they vanish.
+15. Trees on lots: use the game's tree props (game_props("deciduous"), "pine", "palm": full-size at once) rather
+    than flora on the lot, which stays a sapling.
+
+Cars
+16. Cars are lit by the game per face; what makes them real is the side profile (raked glass, hood, deck), a
+    cabin narrower than the body, wheels with rims, and real paint colours - silver, white, black, greys, dark
+    blue, deep red. Pure saturated colours look like toys.
+
 ## Cheats
 
 `cheat(name, argument)` runs one of the game's player cheats. Cheats are not honest play: SiMCP runs only vetted

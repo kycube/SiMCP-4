@@ -136,6 +136,25 @@ def lot_info(g, x: int, z: int) -> dict | None:
     return d
 
 
+LOT_SET_HISTORICAL = 44
+GROWABLE_ZONES = {"residential_low", "residential_medium", "residential_high", "commercial_low",
+                  "commercial_medium", "commercial_high", "agriculture", "industrial_medium", "industrial_high"}
+
+
+def set_historical(g, x: int, z: int, on: bool = True) -> dict:
+    """The query window's "Make Historical" button (R / C / I query windows, button 0x107A): lot slot 44
+    SetHistorical sets bit 0x20 of lot +0x79. A historical building is kept as it is - not redeveloped - and the
+    game charges nothing. Only zoned (growable) buildings have the button."""
+    lot = layers.lot_at(g.proc, x, z)
+    if not lot:
+        raise ValueError("no lot on (%d, %d)" % (x, z))
+    d = _lot(g.proc, lot)
+    if d["zone"] not in GROWABLE_ZONES:
+        raise ValueError("only zoned buildings can be made historical (this lot is %s)" % d["zone"])
+    g.bridge.vcall(lot, LOT_SET_HISTORICAL, 1 if on else 0)
+    return lot_info(g, x, z)
+
+
 def _text(html: str) -> str:
     import html as htmlmod
     t = re.sub(r"<[^>]+>", " ", html)

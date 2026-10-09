@@ -373,3 +373,8 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   0x231BBF91) sent through `[0xB43CCC]` slot 4, app slot 17 SavePreferences: expanded tooltips off then on, SimCity
   4.cfg in SiMCP's UserDir rewritten (276 -> 275 bytes and back), no faults. Video prefs +0xF0C: effects 3, shadows
   3, textures 3, city detail 3, 1024x768x32 windowed; music and sound on.
+- **Make Historical**: the R / C / I query windows (layouts 2A567DC1, 4A5672BF, CA56783A) have only "Make
+  Historical" (button 0x107A) and Close; lot slot 44 SetHistorical(bool) sets bit 0x20 of lot +0x79 (slot 43
+  reads it). The White Modular House at (2, 35): historical true, then false again; the coal plant (plopped) is
+  refused by the tool, as the plopped buildings' query windows have no such button. The button's handler is not
+  traced (the id is not an immediate in the code; probably a switch).

@@ -695,6 +695,23 @@ def lots(zone: str = "", x0: int = 0, z0: int = 0, x1: int = -1, z1: int = -1, l
                      limit=limit)
 
 
+@tool(mcp, "act")
+@guarded
+def make_historical(x: int, z: int, historical: bool = True) -> dict:
+    """Make a zoned building historical (or not), as the "Make Historical" button of its query window does: the
+    game will not redevelop or replace it (it can still be abandoned or bulldozed). Free.
+
+    Args:
+        x: a cell of the building's lot (column).
+        z: a cell of the building's lot (row).
+        historical: true to protect it, false to lift the protection.
+    """
+    try:
+        return city.set_historical(_city(), x, z, historical)
+    except ValueError as e:
+        return {"error": str(e), "hint": "lots() lists the lots with their zone"}
+
+
 @tool(mcp, "read")
 @guarded
 def advisors(include_fluff: bool = False) -> dict:

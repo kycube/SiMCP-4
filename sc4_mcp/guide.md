@@ -98,6 +98,7 @@ game's own cost, charged to the city's funds (nothing is built that the city can
   locked rewards or need more population, a later era, or are excluded. `build_menu(menu="trees")` lists trees.
 - `plop(building, x, z, facing)` - a building from the menus with its north-west corner at (x, z).
 - `bulldoze(x0, z0, x1, z1)` and `plant_trees(tree, x0, z0, x1, z1)`.
+- `make_historical(x, z)`: keep a zoned building as it is (the game will not redevelop it).
 
 Growth is the game's: zone land next to roads, give it power and water, and advance time; buildings grow when
 there is demand.

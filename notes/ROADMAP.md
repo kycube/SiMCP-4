@@ -42,7 +42,7 @@ L = a day or more, XL = several days.
 - [ ] Sims and pedestrians as models (L) - format read (LIVE_FACTS); making new ones moved to Phase 11
 - [x] Custom My Sim faces (L) - MySims.dat and 36 x 36 pictures in the MySim folder
 - [x] Terrain looks (global) (L) - recoloured ground / beach / cliff textures and a drier or wetter texture table, as one plugin
-- [ ] The old simulator stall (L, needs a reproduction)
+- [ ] The old simulator stall (L, needs a reproduction) - not reproduced; the crash log now names the op behind every caught fault, and the faults seen so far are recorded in LIVE_FACTS
 
 ## Phase 10 - hardest
 

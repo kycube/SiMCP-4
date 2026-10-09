@@ -456,6 +456,9 @@ static PVOID g_veh;
 static volatile LONG g_inBridgeCall;
 static volatile LONG g_crashBusy;
 static int g_crashLogged, g_caughtLogged;
+// what the bridge was running when a fault was caught: the op, and its command line or call target
+static volatile DWORD g_curOp, g_curFn;
+static const char *volatile g_curText;
 
 static void CrashLog(EXCEPTION_POINTERS *ep, const char *kind) {
 	char path[MAX_PATH + 32];
@@ -498,6 +501,10 @@ static void CrashLog(EXCEPTION_POINTERS *ep, const char *kind) {
 		}
 	}
 	len += _snprintf(buf + len, sizeof(buf) - 1 - len, "\r\n");
+	if (kind[0] == 'c' && len < (int)sizeof(buf) - 200) {      // caught-in-call / caught-in-deferred: what ran
+		len += _snprintf(buf + len, sizeof(buf) - 1 - len, "  op %lu fn %08lX%s%.120s\r\n", g_curOp, g_curFn,
+		                 g_curText ? " command " : "", g_curText ? g_curText : "");
+	}
 	DWORD w;
 	WriteFile(h, buf, len, &w, NULL);
 	CloseHandle(h);
@@ -547,6 +554,10 @@ extern "C" __declspec(dllexport) int __stdcall SimcpBridgeExecute(DWORD op) {
 	memset(g_bridge.ret, 0, sizeof(g_bridge.ret));
 	int status;
 	InterlockedIncrement(&g_inBridgeCall);
+	g_curOp = op;
+	g_curFn = (op == OP_CALL) ? (DWORD)g_bridge.args[0] : 0;
+	g_bridge.str[sizeof(g_bridge.str) - 1] = 0;
+	g_curText = (op == OP_COMMAND) ? g_bridge.str : NULL;
 	__try {
 		status = Execute(op);
 	}
@@ -563,6 +574,9 @@ extern "C" __declspec(dllexport) int __stdcall SimcpBridgeExecute(DWORD op) {
 
 extern "C" __declspec(dllexport) int __stdcall SimcpBridgeRunDeferred(DWORD) {
 	int status = 0;
+	g_curOp = g_defer.kind == 1 ? OP_COMMAND : OP_DEFER;
+	g_curFn = g_defer.kind == 1 ? 0 : g_defer.fn;
+	g_curText = g_defer.kind == 1 ? g_defer.text : NULL;
 	__try {
 		if (g_defer.kind == 1)
 			g_bridge.state.deferRet = RunCommandText(g_defer.text);

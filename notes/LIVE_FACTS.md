@@ -730,3 +730,16 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   16-byte boundaries). Live in MCP Town, in daylight: arctic (snow over the textures) white-grey, arid (table
   shifted 3 steps drier, sandy tint) tan with dry patches, default dark green again after the plugin was moved
   aside. The day / night light colours the ground strongly: at dusk the snow look showed beige (150, 122, 96).
+- **Caught faults and the old stall (Phase 9 look)**: the power / water stall of Phase 3 was not seen again.
+  Two fresh processes each caught one fault about 4 s after load_city, on the first view command (a snapshot's
+  camera move; day_night("day")): a call through a garbage pointer in 0x4E5670, slot 21 of the class whose
+  vtable is 0xA934A8 (the ambient audio layer: "cSC4AudioAmbienceLayer" follows it), releasing an interface it
+  got with QueryInterface 0xCA400753 from one of its emitter lists. Two other identical runs had none: it
+  depends on timing. One of those processes then ran MCP Town 90 days: power and water history kept going -
+  this fault is not the stall. The framework's tick (vtable 0xAC3090 slot 16, 0x87A812) keeps a depth counter
+  (+0xD8) that defers listener removals (slot 12) into a release queue (+0xAC) flushed when it drops back to 1;
+  a fault unwinding through it would leave the counter up and leak every removed listener - but no bridge op
+  runs the tick (StepDays calls the simulator's AdvanceTime / RunAgents / RunIdle directly), and the bridge's
+  guard only unwinds frames below its own. A fault caught inside a simulator step (an agent mid-update) remains
+  the likeliest cause. The bridge's crash log now adds, under each caught fault, the op, the call target or the
+  command line that was running ("op 17 fn 00000010" for a deliberate bad call).

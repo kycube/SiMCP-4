@@ -898,3 +898,11 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   their shadows; a 330-vertex palm drew. With the picture on a low-poly shell (stacked octagonal bands, about 220
   vertices: batrender.shell, as the BAT's LOD) "MCP Oak", "MCP Spruce" and "MCP Palm" drew, with tree-shaped
   shadows, among the game's trees at (43..48, 6..7).
+- **Cars, version 2**: real side profiles (hood, raked windscreen, roof, back window, deck), a narrower glass cabin,
+  octagonal wheels with rims and a 128 px texture (paint lit from above, a shoulder highlight, seams, trim, lights,
+  grille, plate); sedan, hatchback, SUV, van, pickup, 112 - 116 triangles. "MCP Red Hatchback" (cheap) was caught
+  in MCP Village's traffic 21 s after unpausing (26 car models, 558 sightings) at (702, 486) m and drew lit by the
+  game, its glass, wheels and lights in place. MCP Town (stalled growth) showed only one car model in 7 minutes;
+  find cars in MCP Village. The live vehicle list: [[0xB43D44] + 0x44] is a list head (nodes: next +0, vehicle +8),
+  a vehicle's model key at +0x11C (type) / +0x120 (group) / +0x124 (instance) - the earlier note had the key one
+  field off - and its position at +0x40 / +0x44 / +0x48.

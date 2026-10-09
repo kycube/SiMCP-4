@@ -105,7 +105,7 @@ All tools have openWorldHint false (they act on the local game only).
 | [`design_building`](#design_building) | act | Design a new building for the build menus from one of the game's own menu items (its models, props and textures) under a new name, description and costs; it is written as a plugin file into SiMCP's own Plugins folder. |
 | [`design_model_building`](#design_model_building) | act | Design a new building with its own 3D model and textures on its own lot, for the Parks menu: a block with a window grid and a flat roof, your OBJ model, or a building made of parts (parts_model - walls, roofs, towers, trim, authored facades; guide topic "parts"). |
 | [`design_tree`](#design_tree) | act | Design a new tree type for the game's tree menu (planted with plant_trees or the player's tree tool): a broadleaf, conifer, palm or shrub built of leaf clumps and rendered per view as the game's own trees are (lit crown, inner shade, ragged edge), or a picture you supply on crossed planes. |
-| [`design_car`](#design_car) | act | Design a new car for the city's traffic: its own 3D model (a sedan, van or pickup body with a painted texture, head and tail lights, the game's shadow and night lights), driven by the commuters of one wealth class. |
+| [`design_car`](#design_car) | act | Design a new car for the city's traffic: its own 3D model (a sedan, hatchback, SUV, van or pickup with a real side profile, glass cabin, wheels with rims and a painted texture - paint lit from above, trim, head and tail lights - the game's shadow and night lights), driven by the commuters of one wealth class. |
 | [`game_props`](#game_props) | read | The props that can stand on a lot (benches, fountains, signs, lamps, statues... |
 | [`design_prop`](#design_prop) | act | Design a new prop - a box, cylinder, cone or sign (a board on a post; image_path puts a picture on its street side) in one colour, or a realistic one made of parts (parts_model: benches, lamps, statues, planters, rendered per view as the game's own) - to place on lots with design_park or design_model_building. |
 | [`design_seasonal_tree`](#design_seasonal_tree) | act | Design a tree that follows the seasons, for lots (design_park / design_model_building objects {"seasonal_tree": name, ...}): spring blossom from 1 March, summer from 1 June, autumn colours from 1 September, bare branches (a broadleaf) or snow (a conifer) from 1 December. |
@@ -1099,13 +1099,13 @@ Design a new tree type for the game's tree menu (planted with plant_trees or the
 
 *act*
 
-Design a new car for the city's traffic: its own 3D model (a sedan, van or pickup body with a painted texture, head and tail lights, the game's shadow and night lights), driven by the commuters of one wealth class. Written as a plugin into SiMCP's own Plugins folder; the game loads it at start-up (quit_game, game_launch). Returns the design and its texture.
+Design a new car for the city's traffic: its own 3D model (a sedan, hatchback, SUV, van or pickup with a real side profile, glass cabin, wheels with rims and a painted texture - paint lit from above, trim, head and tail lights - the game's shadow and night lights), driven by the commuters of one wealth class. Written as a plugin into SiMCP's own Plugins folder; the game loads it at start-up (quit_game, game_launch). Returns the design and its texture.
 
 | parameter | type | default | description |
 |---|---|---|---|
 | `name` | string | required | the car's name (shown when a car is queried). |
-| `kind` | string | `'sedan'` | sedan, van or pickup. |
-| `body_rgb` | array of integer or null | `null` | the paint colour [r, g, b] (default blue). |
+| `kind` | string | `'sedan'` | sedan, hatchback, suv, van or pickup. |
+| `body_rgb` | array of integer or null | `null` | the paint colour [r, g, b] (default a slate blue); real paints read best - silver, white, black, dark grey, dark blue, deep red (pure saturated colours look like toys). |
 | `wealth` | string | `'cheap'` | who drives it: cheap, middle or rich (the game's three commuter car classes). |
 
 ## game_props

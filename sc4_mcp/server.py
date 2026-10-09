@@ -1571,19 +1571,21 @@ def design_tree(name: str, shape: str = "broadleaf", height_m: float = 12.0, wid
 @tool(mcp, "act")
 @guarded
 def design_car(name: str, kind: str = "sedan", body_rgb: list[int] | None = None, wealth: str = "cheap"):
-    """Design a new car for the city's traffic: its own 3D model (a sedan, van or pickup body with a painted texture,
-    head and tail lights, the game's shadow and night lights), driven by the commuters of one wealth class. Written
+    """Design a new car for the city's traffic: its own 3D model (a sedan, hatchback, SUV, van or pickup with a real
+    side profile, glass cabin, wheels with rims and a painted texture - paint lit from above, trim, head and tail
+    lights - the game's shadow and night lights), driven by the commuters of one wealth class. Written
     as a plugin into SiMCP's own Plugins folder; the game loads it at start-up (quit_game, game_launch). Returns the
     design and its texture.
 
     Args:
         name: the car's name (shown when a car is queried).
-        kind: sedan, van or pickup.
-        body_rgb: the paint colour [r, g, b] (default blue).
+        kind: sedan, hatchback, suv, van or pickup.
+        body_rgb: the paint colour [r, g, b] (default a slate blue); real paints read best - silver, white, black,
+            dark grey, dark blue, deep red (pure saturated colours look like toys).
         wealth: who drives it: cheap, middle or rich (the game's three commuter car classes).
     """
     try:
-        d = vehicles.design_car(name, kind, tuple(body_rgb or (40, 90, 170)), wealth)
+        d = vehicles.design_car(name, kind, tuple(body_rgb or (58, 72, 96)), wealth)
     except content.ContentError as e:
         return {"error": str(e), "hint": e.hint}
     png = d.pop("texture_png")

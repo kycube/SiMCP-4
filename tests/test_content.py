@@ -140,7 +140,8 @@ def test_car_design(tmp_path, monkeypatch):
     for kind in vehicles.KINDS:
         verts, tris = vehicles.body_mesh(kind)
         assert not {(a, c, b) for a, b, c in tris} & set(tris)
-        top = [t for t in tris if all(abs(verts[i][1] - vehicles.KINDS[kind][2]) < 1e-6 for i in t)]
+        top = [t for t in tris if all(abs(verts[i][1] - vehicles.KINDS[kind]["H"]) < 1e-6 for i in t)]
+        assert top
         for a, b, c in top:                                     # the roof faces up
             p, q, r = verts[a], verts[b], verts[c]
             e1, e2 = [q[i] - p[i] for i in range(3)], [r[i] - p[i] for i in range(3)]

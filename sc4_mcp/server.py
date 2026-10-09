@@ -1622,6 +1622,44 @@ def design_civic_building(name: str, kind: str, radius_m: float | None = None, s
 
 @tool(mcp, "act")
 @guarded
+def design_reward(name: str, condition: str, requirement: str = "", title: str = "", message: str = "",
+                  template: str = "statue", width_m: float = 6.0, depth_m: float = 6.0, height_m: float = 10.0,
+                  wall_rgb: list[int] | None = None, roof_rgb: list[int] | None = None, lot_cells: int = 1,
+                  description: str = "", plop_cost: int = 2000, monthly_cost: int = 0, ground: str = "plaza",
+                  objects: list[dict] | None = None, model_path: str = "", model_scale: float = 1.0):
+    """Design a reward for the Rewards menu that the city earns: it stays locked (greyed, with your requirement
+    text) until `condition` is true, then the advisors announce it - the game's own reward mechanism. Its effects
+    (mayor rating, land value...) come from the template reward; its model is a block or your OBJ.
+
+    Args:
+        name: the reward's name.
+        condition: when it unlocks: a read-only expression like an advice trigger, e.g.
+            "game.g_city_r_population > 5000 and game.g_mayor_rating > 60".
+        requirement: the text shown while it is locked.
+        title: the announcement's title when it unlocks.
+        message: the announcement (#city# and #mayor# allowed).
+        template: whose effects it takes: statue (the mayor's statue) or mayors_house.
+        width_m: the block's west-east size (ignored with model_path).
+        depth_m: the block's north-south size.
+        height_m: the block's height.
+        wall_rgb: the block's wall colour.
+        roof_rgb: the block's roof colour.
+        lot_cells: the lot's size in cells a side.
+        description: the menu description.
+        plop_cost: the plop cost.
+        monthly_cost: the monthly cost.
+        ground: the lot's ground texture.
+        objects: props, trees and grounds on the lot, as for design_park.
+        model_path: your OBJ model instead of the block.
+        model_scale: metres per model unit.
+    """
+    return _content(content.reward_building, name, condition, requirement, title, message, template, width_m,
+                    depth_m, height_m, tuple(wall_rgb or (220, 210, 190)), tuple(roof_rgb or (150, 120, 60)),
+                    lot_cells, description, plop_cost, monthly_cost, ground, objects, model_path, model_scale)
+
+
+@tool(mcp, "act")
+@guarded
 def design_advice(name: str, advisor: str, title: str, message: str, trigger: str = "1", mood: str = "neutral",
                   priority: int = 50, once: bool = True, news_only: bool = False, timeout_days: int = 30) -> dict:
     """Write a new piece of advice or a news headline for the game's advisors, as a Lua plugin like the game's own

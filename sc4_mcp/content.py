@@ -353,7 +353,7 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
                    monthly_cost: int = 20, template_building: int = 0x4A635AD2, taken: set[int] | None = None,
                    ground="plaza", objects: list[dict] | None = None, invisible: bool = False,
                    model_path: str = "", model_scale: float = 1.0, overrides: dict | None = None,
-                   kind: str = "", template_group: int | None = None) -> dict:
+                   kind: str = "", template_group: int | None = None, extra=None) -> dict:
     """A new building with its own model and texture on its own lot (Parks / landmarks properties of the template
     building), written as a plugin into SiMCP's Plugins folder. `ground` covers every cell of the lot (a name from
     lotdesign.GROUNDS or a lot texture id) and `objects` adds props, trees and grounds (lotdesign.rows). invisible:
@@ -424,7 +424,10 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
         cur = [p for p in bprops if p.id == pid]
         if not cur:
             raise ContentError("the template building has no property 0x%08X" % pid)
-        cur[0].values = [type(cur[0].values[0])(value)] if isinstance(cur[0].values, list) else value
+        if isinstance(value, list):
+            cur[0].values = list(value)
+        else:
+            cur[0].values = [type(cur[0].values[0])(value)] if isinstance(cur[0].values, list) else value
     old = [p for p in bprops if p.id == P_MONTHLY]
     _set(bprops, P_MONTHLY, dbpf.PT_SINT64, [int(monthly_cost)], multi=old[0].multi if old else True)
     icon_iid = _free(dbpf.T_PNG, G_ICONS, 0xFFFFFFFF, taken or set())
@@ -434,6 +437,10 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
                (dbpf.T_S3D, G_MODELS, model_iid, model),
                (dbpf.T_PNG, G_ICONS, icon_iid, icon_png)] + \
               [(dbpf.T_FSH, G_TEXTURES, inst, data) for inst, data in textures]
+    extra_entry = {}
+    if extra:                                  # more records that need the building's id (a reward's advice)
+        more, extra_entry = extra(bld_iid)
+        records += more
     os.makedirs(FOLDER, exist_ok=True)
     path = _design_path("SiMCP_park_" if invisible else "SiMCP_", name)
     dbpf.write_dbpf(path, records)
@@ -445,6 +452,7 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
         entry["service"] = {"0x%08X" % k: v for k, v in (overrides or {}).items()}
     if invisible:
         entry["kind"] = "park"
+    entry.update(extra_entry)
     if mesh:
         entry["model_file"] = os.path.basename(model_path)
         entry["size_m"] = [width, depth, height]
@@ -757,3 +765,68 @@ def civic_building(name: str, kind: str, width: float = 10.0, depth: float = 10.
                           int(monthly), template_building=template, ground=ground, objects=objects,
                           model_path=model_path, model_scale=model_scale, overrides=overrides, kind=kind,
                           template_group=0x07BDDF1C)
+
+
+# ---- rewards: a reward building with its own unlock condition (a reward advice, as adv_rewards.lua writes them)
+REWARDS = {"statue": 0x03730000, "mayors_house": 0x031F0000}    # templates in group 0x8A3858D8: effects kept
+G_REWARDS = 0x8A3858D8
+P_CONDITIONAL, P_EXCLUSION = 0xEA3209F8, 0xEA2E078B
+MENU_REWARDS = 0x150B
+
+
+def reward_building(name: str, condition: str, requirement: str = "", title: str = "", message: str = "",
+                    template: str = "statue", width: float = 6.0, depth: float = 6.0, height: float = 10.0,
+                    wall=(220, 210, 190), roof=(150, 120, 60), lot_cells: int = 1, description: str = "",
+                    plop_cost: int = 2000, monthly_cost: int = 0, ground: str = "plaza",
+                    objects: list[dict] | None = None, model_path: str = "", model_scale: float = 1.0) -> dict:
+    """A reward for the Rewards menu that unlocks when `condition` (a read-only expression of the city's values,
+    like an advice trigger) is true: the building is conditional (0xEA3209F8) and a reward advice named after it
+    (create_reward_cityplanning) returns its requirement text until then, reward_state.AVAILABLE after - the
+    game's own mechanism. Effects (mayor rating and so on) come from the template reward."""
+    from . import luaquery
+    if template not in REWARDS:
+        raise ContentError("template is %s" % ", ".join(REWARDS))
+    if "\r" in condition or "\n" in condition or '"' in condition or "\\" in condition or "]]" in condition:
+        raise ContentError("the condition is one line without quotes, backslashes or ']]'")
+    try:
+        luaquery.check(condition)
+    except luaquery.LuaError as e:
+        raise ContentError("condition: %s" % e, getattr(e, "hint", ""))
+    requirement = _advice_text(requirement or "Unlocks when the city is ready", "requirement", 200)
+    title = _advice_text(title or "%s is now available" % name, "title", 120)
+    message = _advice_text(message or "Mayor, #city# has earned a %s. Find it in the Rewards menu." % name,
+                           "message", 1000)
+    exclusion = random.getrandbits(32) | 0x10000000
+
+    def extra(bld_iid):
+        req_iid, title_iid, msg_iid = _new_ids({bld_iid}, 3)
+        package = 0x5C4D0000 | random.getrandbits(16)
+        lua = "\n".join([
+            "--#-package:%08X# -- package signature" % package,
+            "-- SiMCP reward design: %s" % re.sub(r"[\r\n]", " ", name),
+            'dofile("_adv_sys.lua")', 'dofile("_adv_advice.lua")', 'dofile("adv_game_data.lua")', "",
+            "a = create_reward_cityplanning('%08x')" % bld_iid,
+            "function a.condition()",
+            "   if (%s) then" % condition,
+            "      return reward_state.AVAILABLE",
+            "   end",
+            "   return [[text@%08x %s]]" % (req_iid, requirement),
+            "end",
+            "a.once = 1", "a.persist = 1", "a.timeout = 60", "a.priority = 80",
+            "a.title   = [[text@%08x %s]]" % (title_iid, title),
+            "a.message = [[text@%08x %s]]" % (msg_iid, message),
+            "a.mood = advice_moods.GREAT_JOB",
+            "", "if (_sys.config_run == 0)", "then", "   advices : run_triggers()", "end", ""])
+        inst = 0xFF000000 | random.getrandbits(24)
+        records = [(dbpf.T_LUA, G_LUA_ADVICE, inst, lua.encode("latin-1", "replace")),
+                   (dbpf.T_LTEXT, G_ADVICE_TEXT, req_iid, dbpf.build_ltext(requirement)),
+                   (dbpf.T_LTEXT, G_ADVICE_TEXT, title_iid, dbpf.build_ltext(title)),
+                   (dbpf.T_LTEXT, G_ADVICE_TEXT, msg_iid, dbpf.build_ltext(message))]
+        return records, {"condition": condition, "requirement": requirement, "lua": "0x%08X" % inst,
+                         "package": "0x%08X" % package}
+
+    return model_building(name, width, depth, height, wall, roof, True, lot_cells, description, plop_cost,
+                          monthly_cost, template_building=REWARDS[template], template_group=G_REWARDS,
+                          ground=ground, objects=objects, model_path=model_path, model_scale=model_scale,
+                          overrides={P_GROUPS: [MENU_REWARDS], P_EXCLUSION: exclusion, P_CONDITIONAL: 1},
+                          kind="reward", extra=extra)

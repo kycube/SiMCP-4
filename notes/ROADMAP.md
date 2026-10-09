@@ -32,7 +32,7 @@ L = a day or more, XL = several days.
 - [ ] Night lights for designs (how the game lights a 3D model's windows at night is not found yet)
 - [x] Working civic designs: police, fire, clinic, school with their own coverage, strength / capacity and costs (M) - power plants not yet (their output property is not pinned down)
 - [ ] Custom ordinances and budget departments (the installed host DLLs) (M)
-- [ ] Rewards and landmarks with unlock conditions (M)
+- [x] Rewards with unlock conditions (M) - landmarks are plain ploppables already (design_model_building)
 - [ ] New terrain brushes (M)
 
 ## Phase 9 - harder

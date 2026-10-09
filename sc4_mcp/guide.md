@@ -191,6 +191,10 @@ there is demand.
   station, clinic or school: it serves the city as the game's own (its service is copied from the game's
   building) with its own model (block or OBJ), name, costs, coverage radius and strength or capacity, and
   appears in its service's menu. Fund it like any other (set_building_funding).
+- `design_reward(name, condition, requirement, ...)` makes a reward the city earns: locked (greyed, with your
+  requirement text) until `condition` - a read-only expression like an advice trigger, e.g.
+  `game.g_city_r_population > 5000 and game.g_mayor_rating > 60` - is true, then available in the Rewards menu,
+  with the effects of the game's statue or Mayor's House.
 - `design_advice(name, advisor, title, message, trigger)` writes advice or a news headline for the advisors (a
   Lua package like the game's own): it appears when its trigger - a read-only expression such as
   `game.g_city_r_population > 1000` - is true. #city# in the text becomes the city's name.

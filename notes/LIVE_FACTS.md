@@ -623,3 +623,14 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   coverage map (2-cell tracts) rose on 295 tracts out to 23.5 cells from the precinct (95 % within 22.5): the
   radius is in metres (384 m = 24 cells; the kiosk's 192 m reaches 12). Coverage at the precinct 152 -> 252. The
   fire, clinic and school numbers follow the same pattern in the data but were not each measured.
+- **Rewards** (the game's mechanism): 70 buildings in SimCity_1.dat carry Conditional Building 0xEA3209F8; reward
+  templates live in group 0x8A3858D8 (Mayor's House 0x031F0000: groups 0x150B Rewards menu + 0x1938 the MAYOR_HOUSE
+  target group for missions, exclusion group 0xEA2E078B one per city, effect curve 0xAA60E745 [-100, 0, 100, 135],
+  0xCA5B9305 / 0x2781284F / 0x27812850 effect pairs). What unlocks a reward is a *reward advice* named after the
+  building (adv_rewards.lua and the Rush Hour record 0xFF3AFAA5: `a = create_reward_cityplanning('03840000')` with
+  `function a.condition()` returning a requirement text while locked and `reward_state.AVAILABLE` when earned;
+  missions unlock theirs through `s.reward_guid`). Lua also has game.unlock_reward_building (unused by the game).
+- **design_reward**: "MCP Monument" (condition game.g_city_r_population > 10) and "MCP Far Monument" (> 1,000,000),
+  identical statue-template buildings (groups [0x150B] only, a new exclusion group each) with a reward advice
+  package each. After a restart build_menu("rewards") lists the Monument available and the Far Monument locked,
+  still so after 10 more days: the game runs each design's condition itself.

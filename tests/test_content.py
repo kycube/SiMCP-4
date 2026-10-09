@@ -235,3 +235,24 @@ def test_civic_design(tmp_path, monkeypatch):
         content.civic_building("Bad", "fire", capacity=10)         # fire has no capacity knob
     with pytest.raises(content.ContentError):
         content.civic_building("Bad", "bakery")
+
+
+def test_reward_design(tmp_path, monkeypatch):
+    """A reward: conditional, in the Rewards menu only, its own exclusion group, a reward advice named after it."""
+    import pytest
+    from sc4_mcp import dbpf, gamedata
+    if gamedata._main_dat() is None:
+        pytest.skip("the game's data files are not installed")
+    monkeypatch.setattr(content, "FOLDER", str(tmp_path))
+    monkeypatch.setattr(content, "MANIFEST", str(tmp_path / "content.json"))
+    r = content.reward_building("Test Arch", "game.g_city_r_population > 500", "Needs 500 residents")
+    d = dbpf.DBPF(r["file"])
+    ex = [dbpf.parse_exemplar(d.read(e)) for e in d if e.type == dbpf.T_EXEMPLAR and e.group == content.G_SIMCP_BUILDINGS][0]
+    assert ex.get(content.P_CONDITIONAL) == 1 and ex.get(content.P_GROUPS) == [content.MENU_REWARDS]
+    assert ex.get(content.P_EXCLUSION) not in (0xAA9AE59F, 0xAA9EE012)          # not the game's statue / house group
+    lua = [d.read(e).decode("latin-1") for e in d if e.type == dbpf.T_LUA][0]
+    assert "create_reward_cityplanning('%s')" % r["building"][2:].lower() in lua
+    assert "if (game.g_city_r_population > 500) then" in lua and lua.startswith("--#-package:")
+    for bad in ('game.g_city_r_population > 5"', "sc4game.budget.deposit_funds(5)", "x = 1\ny = 2"):
+        with pytest.raises(content.ContentError):
+            content.reward_building("Bad", bad)

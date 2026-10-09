@@ -761,3 +761,23 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   Rotate / Transpose) take their source's name. NAM's FLEX pieces (AutoTileBase 0x55387000) lose the static cell at
   their origin (the NAM DLL) and land on the nearest real cell: the single-tile roundabout 0x7C11 lands one cell
   west of its handle.
+- **New puzzle pieces**: SiMCP merges its pieces into the active RUL0 at game_launch (zzz_SiMCP\SiMCP_RUL0.dat:
+  NAM's controller text + SiMCP's sections, rotation rings added under [Ordering]; NAM's RUL files are stored
+  uncompressed and so is SiMCP's). Proof: a CopyFrom of NAM's avenue roundabout under 0x5C4D0000 with Costs 123
+  loaded (25,552 rules) and cost 483 instead of 440 (its Costs 80 plus the tiles). A static cell's tile is
+  AutoTileBase + x * 0x100 + z * 0x10, (x, z) from the north-west of the rule's static cells (x east, z south -
+  seen live; the first try with x and z swapped drew only the tiles on the diagonal). Puzzle-piece tiles are 3D:
+  exemplar type 0x0B in group 0xA8434037 with RKT3 [S3D, 0xBADB57F1, T..T+4], paths in group 0xA966883F; ground
+  network tiles are DXT3 textures with alpha (group 0x1ABE787D, T+zoom) and paths in 0x69668828. SiMCP copies a
+  captured ground tile as a flat quad per zoom (y 0.0001, v = 0 north, material 0x2B: NAM's 0x2A plus alpha test -
+  without it the road's transparent margins drew grey) with the texture turned to the tile's rotation (rotation r
+  turns side k to k + r: west to north; image a quarter turn clockwise; path points (x, z) -> (z, -x)) and the path
+  turned the same way (SC4PATHS 1.0 / 1.1 / 1.2 and stop paths). A placed piece's static tiles are reserved: a road
+  dragged into them is refused ("Cannot place on top of reserved tiles") even where their edges match, so the
+  cells whose networks leave the captured rectangle become "check" cells (edges, mask 0xFFFFFFFF), which the tool
+  lays as ordinary network (the stub at (40, 46) became road tile 0x4B00): a road from the town joined there. Live
+  in MCP Town: "MCP T Corner" (10 cells) placed at (40, 52) looking exactly like the roads it came from; "MCP Open
+  T 2" placed at (40, 46) and rotated (0x5C4D0011) at (50, 46); with power and zones beside it, after ten months 8
+  cars a month crossed its copied T tile and 4 its copied straight - the turned paths carry traffic.
+- **save_city right after a capture** once failed with SendMessageTimeout (error 5) while its "City Saved" notice
+  was open; the save itself had finished.

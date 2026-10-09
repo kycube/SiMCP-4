@@ -158,6 +158,12 @@ there is demand.
   `place_puzzle_piece(hid, x, z)` places it with its handle on that cell, charged like the player's tool.
   Check first with build=false: the result's cells are where it lands (NAM's FLEX pieces sit a cell off their
   handle). auto_fit tries neighbouring cells and other rotations, as the tool does under the pointer.
+- New puzzle pieces: lay ground networks (roads, streets, avenues, one-way, dirt, rail...) in an empty corner
+  with build_network, then `design_puzzle_piece(name, x0, z0, x1, z1)` makes them a piece: the cells keep the
+  tiles they show and their traffic paths, and the cells whose networks leave the rectangle stay ordinary
+  network so roads can join the piece there (capture a little past a junction to give it open ends). It joins
+  the game at the next start (quit_game, game_launch); `place_puzzle_piece(hid, x, z)` puts its north-west cell
+  on (x, z), with three more rotations. Keep a piece while saved cities use it.
 - `move_in_sim(x, z)` moves a My Sim into the house on a cell; `my_sims()` follows them (home, job, where they are).
 - `design_my_sim_face(name, gender, sign, image_path)` adds a face of one's own to the Select A My Sim dialog (a
   photo cropped and scaled to 36 x 36, or a simple drawn face); `move_in_sim(x, z, face=name)` uses it. A city

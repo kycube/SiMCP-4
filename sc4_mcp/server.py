@@ -11,7 +11,7 @@ import os
 from mcp.server.fastmcp import FastMCP, Image
 
 from . import game as gamemod
-from . import brushdesign, build, catalog, cheats, city, content, disasters, economy, heightmap, history, launch, layers, lotdesign, luaquery, orddesign, housekeeping, memory, mysim, neighbors, networks, options, pointer, puzzle, regions, services, terrain, terrainlook, trees, udi, vehicles, view
+from . import brushdesign, build, catalog, cheats, city, content, disasters, economy, heightmap, history, launch, layers, lotdesign, luaquery, netdesign, orddesign, housekeeping, memory, mysim, neighbors, networks, options, pointer, puzzle, regions, services, terrain, terrainlook, trees, udi, vehicles, view
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -1848,6 +1848,34 @@ def place_puzzle_piece(hid: str, x: int, z: int, build: bool = True, auto_fit: b
     if h < 0:
         return {"error": "hid is a hex id such as 0x1020", "hint": "puzzle_pieces finds ids"}
     return _puzzle(puzzle.place, h, x, z, build, auto_fit)
+
+
+@tool(mcp, "act")
+@guarded
+def design_puzzle_piece(name: str, x0: int, z0: int, x1: int, z1: int, cost: int = -1, open_ends: bool = True) -> dict:
+    """Make a new puzzle piece from ground networks laid in the open city (build_network them first, as a
+    template): every network cell of the rectangle becomes part of the piece, its tiles copied as they look now and
+    their traffic paths with them. open_ends lays the cells whose networks leave the rectangle as ordinary network,
+    so other networks can join the piece there (a placed piece's own tiles cannot be built over). The piece joins
+    the game when SiMCP next starts it (quit_game, game_launch); place_puzzle_piece(hid, x, z) then puts its
+    north-west cell on (x, z), in four rotations. Keep a piece while saved cities use it.
+
+    Args:
+        name: the piece's name (puzzle_pieces(group="SiMCP") lists SiMCP's pieces).
+        x0: the rectangle's west cell.
+        z0: its north cell.
+        x1: its east cell (at most 16 cells across).
+        z1: its south cell.
+        cost: what placing it costs (-1: 10 per cell).
+        open_ends: lay the ends as ordinary network (true), or keep every cell fixed (false).
+    """
+    try:
+        d = netdesign.design_piece(_city(), name, x0, z0, x1, z1, None if cost < 0 else cost, open_ends)
+    except (netdesign.NetDesignError, content.ContentError, puzzle.PuzzleError) as e:
+        return {"error": str(e), "hint": e.hint}
+    d.pop("rul0", None)
+    d.pop("ring", None)
+    return d
 
 
 @tool(mcp, "act")

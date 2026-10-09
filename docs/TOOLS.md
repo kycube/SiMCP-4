@@ -109,7 +109,7 @@ All tools have openWorldHint false (they act on the local game only).
 | [`game_props`](#game_props) | read | The props that can stand on a lot (benches, fountains, signs, lamps, statues... |
 | [`design_prop`](#design_prop) | act | Design a new prop - a box, cylinder, cone or sign (a board on a post; image_path puts a picture on its street side) in one colour, or a realistic one made of parts (parts_model: benches, lamps, statues, planters, rendered per view as the game's own) - to place on lots with design_park or design_model_building. |
 | [`design_walker`](#design_walker) | act | Design a new pedestrian for the city's sidewalks: a person drawn the way the game's own walkers are - pre-rendered with the game's camera and light, walking (legs and arms swinging) in 8 directions, at the two closest zooms, with a shadow - who joins the city's pedestrians (men or women). |
-| [`design_seasonal_tree`](#design_seasonal_tree) | act | Design a tree that follows the seasons, for lots (design_park / design_model_building objects {"seasonal_tree": name, ...}): spring blossom from 1 March, summer from 1 June, autumn colours from 1 September, bare branches (a broadleaf) or snow (a conifer) from 1 December. |
+| [`design_seasonal_tree`](#design_seasonal_tree) | act | Design a tree that follows the seasons, for lots (design_park / design_model_building objects {"seasonal_tree": name, ...}): spring blossom from 1 March, summer from 1 June, autumn colours from 1 September, bare branches (a broadleaf) or snow (a conifer) from 1 December - each season rendered as the game's own trees are (leaf clumps, blossom, autumn colours, bare limbs, snow). |
 | [`design_park`](#design_park) | act | Design a park (or plaza, garden, sculpture court...) for the Parks menu: a lot laid out with the game's props, SiMCP's prop designs, trees and ground textures. |
 | [`design_civic_building`](#design_civic_building) | act | Design a working police station, fire station, clinic or school: it serves the city as the game's own does (its service comes from the game's police kiosk, small fire station, urgent care clinic or K-8 school), with its own model (a block, or your OBJ), name, costs and service numbers. |
 | [`design_reward`](#design_reward) | act | Design a reward for the Rewards menu that the city earns: it stays locked (greyed, with your requirement text) until `condition` is true, then the advisors announce it - the game's own reward mechanism. |
@@ -1140,7 +1140,8 @@ Design a new prop - a box, cylinder, cone or sign (a board on a post; image_path
 | `animation` | string | `''` | spin (turns about its vertical axis) or sway (rocks gently), as the game's animated props. |
 | `hours` | array of number or null | `null` | [from, to]: shown only at these hours of the game's day (may wrap midnight: [19, 6] = at night). |
 | `dates` | object or null | `null` | {"start": [month, day], "days": n, "every": 365}: shown only then (holiday decorations...). |
-| `parts_model` | object or null | `null` | a prop made of parts, as design_model_building's (guide topic "parts"): x 0..width, y 0..depth in metres from its corner, its +y side its front (toward the street at rotation 0), z up; its size replaces width, depth and height. Lamps on a facade ({"type": "lamp"}) light up at night. |
+| `parts_model` | object or null | `null` | a prop made of parts, as design_model_building's (guide topic "parts"): x 0..width, y 0..depth in metres from its corner, its +y side its front (toward the street at rotation 0), z up; its size replaces width, depth and height. Materials with "glow" are lamps: they shine at night, with the game's light flare at each, as its lamp posts. |
+| `replace` | boolean | `false` | rebuild an existing prop design of this name under its own ids (quit_game first): lots that hold it show the new one after game_launch. |
 
 ## design_walker
 
@@ -1162,16 +1163,17 @@ Design a new pedestrian for the city's sidewalks: a person drawn the way the gam
 
 *act*
 
-Design a tree that follows the seasons, for lots (design_park / design_model_building objects {"seasonal_tree": name, ...}): spring blossom from 1 March, summer from 1 June, autumn colours from 1 September, bare branches (a broadleaf) or snow (a conifer) from 1 December. The game shows each season's picture on its dates. (Trees planted with plant_trees cannot change: the game runs no growth or succession for flora.)
+Design a tree that follows the seasons, for lots (design_park / design_model_building objects {"seasonal_tree": name, ...}): spring blossom from 1 March, summer from 1 June, autumn colours from 1 September, bare branches (a broadleaf) or snow (a conifer) from 1 December - each season rendered as the game's own trees are (leaf clumps, blossom, autumn colours, bare limbs, snow). The game shows each season's tree on its dates. Takes a minute or two. (Trees planted with plant_trees cannot change: the game runs no growth for flora.)
 
 | parameter | type | default | description |
 |---|---|---|---|
 | `name` | string | required | the tree's name. |
-| `shape` | string | `'broadleaf'` | broadleaf, conifer or palm (palms stay the same all year). |
+| `shape` | string | `'broadleaf'` | broadleaf, conifer, shrub or palm (palms stay the same all year). |
 | `height_m` | number | `12.0` | height in metres (2..40). |
 | `width_m` | number | `8.0` | crown width in metres (1..16). |
-| `leaf_rgb` | array of integer or null | `null` | the summer foliage colour. |
-| `trunk_rgb` | array of integer or null | `null` | the trunk colour. |
+| `leaf_rgb` | array of integer or null | `null` | the summer foliage colour (default: the kind's own olive green). |
+| `trunk_rgb` | array of integer or null | `null` | the trunk colour (default: the kind's own). |
+| `replace` | boolean | `false` | rebuild an existing seasonal tree of this name under its own ids (quit_game first). |
 
 ## design_park
 

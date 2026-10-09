@@ -13,8 +13,10 @@ and from judging the results in the game beside Maxis' own (guide topic "realism
 - **Buildings from parts and photos**: `photo_add` / `photo_view` / `photo_rectify`, `parts_preview` (the game's
   own views), `design_model_building(parts_model=..., lot_depth=..., replace=true)`,
   `design_growable_building(parts_model=..., objects=...)`; a Craftsman bungalow, the Flatiron Building.
-- **Trees and shrubs** (`design_tree`): broadleaf, conifer, palm and shrub built of rendered leaf clumps.
-- **Props** (`design_prop(parts_model=...)`): rendered per view; a bench, an acorn lamp, a statue, park paths.
+- **Trees and shrubs** (`design_tree`): broadleaf, conifer, palm and shrub built of rendered leaf clumps;
+  `design_seasonal_tree` renders each season (blossom, autumn colours, bare limbs, snow).
+- **Props** (`design_prop(parts_model=...)`): rendered per view; a bench, an acorn lamp, a statue, park paths;
+  lamps ("glow" materials) light up at night with the game's light flare.
 - **Cars** (`design_car`): sedan, hatchback, SUV, van and pickup with real side profiles, glass cabins, rimmed
   wheels and painted textures.
 - **Pedestrians** (`design_walker`): sprite atlases rendered from a posed figure, 8 directions x 8 walk frames.

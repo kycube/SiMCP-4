@@ -289,14 +289,24 @@ def prop_mesh(shape: str, w: float, d: float, h: float, texture: int):
 def design_prop(name: str, shape: str = "box", width: float = 2.0, depth: float = 2.0, height: float = 2.0,
                 rgb=(150, 150, 150), image_path: str = "", taken: set[int] | None = None, model_path: str = "",
                 model_scale: float = 1.0, animation: str = "", hours: list | None = None,
-                dates: dict | None = None, parts_model: dict | None = None) -> dict:
+                dates: dict | None = None, parts_model: dict | None = None, replace: bool = False) -> dict:
     """Write a new prop as a plugin; place it on a lot with design_park / design_model_building objects.
     animation: spin or sway (model frames, as the game's animated props); hours: [from, to] when it shows (the
     game's 24-hour clock, may wrap midnight); dates: {"start": [month, day], "days": n, "every": 365}.
     parts_model: a prop made of parts (partmodel), rendered per view as the game's own props are (batrender, RKT1):
-    x 0..width, y 0..depth (its +y side its front: toward the street at rotation 0), z up; its size the model's."""
+    x 0..width, y 0..depth (its +y side its front: toward the street at rotation 0), z up; its size the model's.
+    Its lamps (materials with "glow") light up at night as the game's lamp posts do: a day and a night state (RKT4),
+    the night one with the game's light flare at each lamp. replace: rebuild the prop design of that name under
+    its own ids (lots that hold it show the new one after a restart)."""
     from . import fsh, meshimport, s3d
-    content._check_name(name)
+    prior = None
+    if replace:
+        hit = [d for d in content._manifest() if d.get("kind") == "prop" and not d.get("disabled")
+               and d["name"].lower() == name.lower()]
+        if not hit:
+            raise LotError("no prop design named %r to replace" % name)
+        prior = hit[0]
+    content._check_name(name, existing=prior is not None)
     timing = timing_props(animation, hours, dates)
     mesh = meshimport.load(model_path, model_scale) if model_path else None
     built = None
@@ -320,6 +330,7 @@ def design_prop(name: str, shape: str = "box", width: float = 2.0, depth: float 
         width, depth = x1 - x0, y1 - y0
         height = float(P[:, :, 2].max())
         shape = "parts"
+        lights = lamp_points(built[0], built[1], origin)
     if not mesh and not built and shape not in SHAPES:
         raise LotError("shape is %s" % ", ".join(SHAPES))
     if not (0.2 <= width <= 32 and 0.2 <= depth <= 32 and (0.02 if built else 0.2) <= height <= 60):
@@ -334,8 +345,11 @@ def design_prop(name: str, shape: str = "box", width: float = 2.0, depth: float 
     if tpl is None:
         raise LotError("the game's template prop (0x%08X) is not in SimCity_1.dat" % template)
     taken = taken or set()
-    prop_iid = content._new_ids(taken, 1)[0]
-    model_iid = content._free(dbpf.T_S3D, content.G_MODELS, 0xFFFF0000, taken)
+    if prior:
+        prop_iid, model_iid = int(prior["prop"], 16), int(prior["model"], 16)
+    else:
+        prop_iid = content._new_ids(taken, 1)[0]
+        model_iid = content._free(dbpf.T_S3D, content.G_MODELS, 0xFFFF0000, taken)
     tex_iid = content._free(dbpf.T_FSH, content.G_TEXTURES, 0xFFFF0000 if built else 0xFFFFFF00, taken)
     baked = None
     if built:                               # a picture per view, as the game's props (batrender)
@@ -361,7 +375,9 @@ def design_prop(name: str, shape: str = "box", width: float = 2.0, depth: float 
                           P_DATE_START, P_DATE_DAYS, P_DATE_EVERY, P_HOURS)
     content._set(props, content.P_NAME, dbpf.PT_STRING, "SiMCP_prop_" + content._slug(name))
     content._set(props, content.P_SIZE, dbpf.PT_FLOAT32, [float(width), float(height), float(depth)], multi=True)
-    for pr in model_key_props(model_iid, hours is not None or dates is not None, views=baked is not None):
+    timed = hours is not None or dates is not None
+    lamps = lights if (built and not timed) else []
+    for pr in model_key_props(model_iid, timed, views=baked is not None, lights=lamps):
         content._set(props, pr.id, pr.ptype, pr.values, pr.multi)
     content._set(props, content.P_NAME_KEY, dbpf.PT_UINT32, [dbpf.T_LTEXT, content.G_SIMCP_NAMES, prop_iid], multi=True)
     for pr in timing:
@@ -374,14 +390,22 @@ def design_prop(name: str, shape: str = "box", width: float = 2.0, depth: float 
     else:
         records.append((dbpf.T_S3D, content.G_MODELS, model_iid, model))
     os.makedirs(content.FOLDER, exist_ok=True)
-    path = content._design_path("SiMCP_prop_", name)
+    path = prior["file"] if prior else content._design_path("SiMCP_prop_", name)
     dbpf.write_dbpf(path, records)
     entry = {"name": name, "kind": "prop", "file": path, "prop": "0x%08X" % prop_iid, "model": "0x%08X" % model_iid,
              "texture": "0x%08X" % tex_iid, "shape": shape, "size_m": [width, height, depth],
              "animation": animation or None, "hours": hours, "dates": dates,
              "created": time.strftime("%Y-%m-%d %H:%M:%S")}
+    if lamps:
+        entry["lights"] = [[round(v, 2) for v in q] for q in lamps]
     items = content._manifest()
-    items.append(entry)
+    if prior:
+        entry["created"] = prior.get("created", entry["created"])
+        entry["replaced"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        items = [entry if (d.get("kind") == "prop" and d["name"] == prior["name"] and not d.get("disabled")) else d
+                 for d in items]
+    else:
+        items.append(entry)
     content._save_manifest(items)
     buf = io.BytesIO()
     tex.save(buf, "PNG")
@@ -396,12 +420,56 @@ ANIMATIONS = ("spin", "sway")
 SEASONS = {"spring": ([3, 1], 92), "summer": ([6, 1], 92), "autumn": ([9, 1], 91), "winter": ([12, 1], 90)}
 
 
-def model_key_props(model_iid: int, timed: bool, views: bool = False) -> list:
+LIGHT_FLARE = 0x29DA0000                    # the game's lamp-post light flare (S3D in group 0xBADB57F1)
+P_LIGHT_STATE, P_LIGHT_ON, P_LIGHT_COUNT = 0x49A1E05A, 0x49C9C93C, 0xE9A316EB   # as the game's lamp post 0x1DFC0000
+
+
+def lamp_points(mesh, mats, origin, join: float = 0.8) -> list:
+    """The prop's lamps: the centres of its glowing ("glow") materials' surfaces, joined within `join` metres, in
+    the model's frame (X = -(x - origin x), Y up, Z = y - origin y)."""
+    import numpy as np
+    P, N, UV, M, E = mesh.arrays()
+    lamp = [i for i, m in enumerate(mats) if getattr(m, "lamp", False)]
+    if not lamp or not len(P):
+        return []
+    C = P[np.isin(M, lamp)].mean(axis=1)
+    groups = []
+    for c in C:
+        for g in groups:
+            if np.linalg.norm(g[0] / g[1] - c) < join:
+                g[0] += c
+                g[1] += 1
+                break
+        else:
+            groups.append([c.copy(), 1])
+    out = []
+    for s, n in groups[:8]:
+        x, y, z = s / n
+        out.append((-(float(x) - origin[0]), float(z), float(y) - origin[1]))
+    return out
+
+
+def _fx16(v: float) -> int:
+    return int(round(v * 65536)) & 0xFFFFFFFF
+
+
+def model_key_props(model_iid: int, timed: bool, views: bool = False, lights=()) -> list:
     """The prop's model key: RKT0 for an ordinary prop (RKT1 for one with a model per view: base + zoom * 0x100 +
     view * 0x10); a timed prop (hours / dates) needs RKT4 with two states as the game's timed props have - state 0
     the model, state 1 an RKT0 with instance 0 (no model): the game hides a timed prop by switching it to state 1,
-    so a prop with only RKT0 stays shown."""
+    so a prop with only RKT0 stays shown. A prop with lights (model frame points) gets the game's lamp-post states:
+    state 1 (night) the model and a light flare at each light, state 0 (day) the model alone, and the lamp post's
+    light properties. RKT4 entries are [state, x, y, z (16.16 metres), key, type, group, instance]."""
     key = content.P_RKT1 if views else content.P_RKT0
+    if lights and not timed:
+        vals = [1, 0, 0, 0, key, dbpf.T_S3D, content.G_MODELS, model_iid]
+        for X, Y, Z in lights:
+            vals += [1, _fx16(X), _fx16(Y), _fx16(Z), content.P_RKT0, dbpf.T_S3D, content.G_MODELS, LIGHT_FLARE]
+        vals += [0, 0, 0, 0, key, dbpf.T_S3D, content.G_MODELS, model_iid]
+        return [dbpf.Property(P_RKT4, dbpf.PT_UINT32, vals, True),
+                dbpf.Property(P_LIGHT_STATE, dbpf.PT_UINT32, [0x49A1E995]),
+                dbpf.Property(P_LIGHT_ON, dbpf.PT_UINT32, [1]),
+                dbpf.Property(P_LIGHT_COUNT, dbpf.PT_UINT32, [len(lights)])]
     if not timed:
         return [dbpf.Property(key, dbpf.PT_UINT32, [dbpf.T_S3D, content.G_MODELS, model_iid], True)]
     return [dbpf.Property(P_RKT4, dbpf.PT_UINT32,
@@ -460,57 +528,83 @@ def animate(m, kind: str, frames: int = 24, fps: int = 12):
 
 
 def design_seasonal_tree(name: str, shape: str = "broadleaf", height: float = 12.0, width: float = 8.0,
-                         leaf=(70, 125, 55), trunk=(95, 70, 45)) -> dict:
+                         leaf=None, trunk=None, replace: bool = False) -> dict:
     """A tree that follows the seasons on lots: four props at one spot, each shown in its season (spring blossom
-    from 1 March, summer from 1 June, autumn colours from 1 September, bare or snowy from 1 December, every year).
-    Planted trees cannot change: the game does not run growth or succession for flora in normal play."""
-    from . import fsh, s3d, trees
+    from 1 March, summer from 1 June, autumn colours from 1 September, bare or snowy from 1 December, every year),
+    each rendered per view as the game's own trees are (vegetation, batrender). Planted trees cannot change: the
+    game does not run growth or succession for flora in normal play."""
+    from . import batrender, partmodel, trees, vegetation
     import zlib
-    content._check_name(name)
+    import math as _m
+    prior = None
+    if replace:                              # rebuilt under its own prop ids: lots holding it keep it
+        hit = [d for d in content._manifest() if d.get("kind") == "seasonal_tree" and not d.get("disabled")
+               and d["name"].lower() == name.lower()]
+        if not hit:
+            raise LotError("no seasonal tree named %r to replace" % name)
+        prior = hit[0]
+    content._check_name(name, existing=prior is not None)
     if shape not in trees.SHAPES:
         raise LotError("shape is %s" % ", ".join(trees.SHAPES))
     if not (2 <= height <= 40 and 1 <= width <= 16):
         raise LotError("a tree is 2..40 m tall and 1..16 m wide")
+    for c in (leaf, trunk):
+        if c is not None and (len(c) != 3 or not all(0 <= v <= 255 for v in c)):
+            raise LotError("colours are [r, g, b] with values 0..255")
     _, tpl = content._find_exemplar(dbpf.T_EXEMPLAR, TIMED_TEMPLATE, G_PROPS)
     taken: set[int] = set()
     records, prop_ids, pictures = [], [], []
     name_iid = content._new_ids(taken, 1)[0]
-    for season, (start, days) in SEASONS.items():
-        prop_iid = content._new_ids(taken, 1)[0]
+    seed = zlib.crc32(name.encode()) & 0xFFFF
+    for k_season, (season, (start_day, days)) in enumerate(SEASONS.items()):
+        prop_iid = int(prior["props"][k_season], 16) if prior else content._new_ids(taken, 1)[0]
         taken.add(prop_iid)
         model_iid = content._free(dbpf.T_S3D, content.G_MODELS, 0xFFFF0000, taken)
-        tex_iid = content._free(dbpf.T_FSH, content.G_TEXTURES, 0xFFFFFF00, taken)
+        tex_iid = content._free(dbpf.T_FSH, content.G_TEXTURES, 0xFFFF0000, taken)
         taken |= {model_iid, tex_iid}
-        im = trees.paint(shape, tuple(leaf), tuple(trunk), zlib.crc32(name.encode()), season)
-        pictures.append(im)
+        pm = vegetation.model(shape, height, width, leaf, trunk, seed, season)
+        pm["lot"] = max(1, min(6, _m.ceil((width * 1.3 + 2) / 16)))
+        mesh, mats = partmodel.Builder(pm).build()
+        scene = batrender.Scene(mesh, mats, 1, origin=(width / 2, width / 2))
+        baked, textures = batrender.bake(scene, model_iid, tex_iid)
+        pictures.append(scene.picture(4, 2))
         props = content._drop([dbpf.Property(p.id, p.ptype, list(p.values) if isinstance(p.values, list) else
                                              p.values, p.multi) for p in tpl.props], content.P_RKT1, P_RKT4,
                               content.P_NAME_KEY)
         content._set(props, content.P_NAME, dbpf.PT_STRING, "SiMCP_tree_%s_%s" % (content._slug(name), season))
         content._set(props, content.P_SIZE, dbpf.PT_FLOAT32, [float(width), float(height), float(width)], multi=True)
-        for pr in model_key_props(model_iid, True):
+        for pr in model_key_props(model_iid, True, views=True):
             content._set(props, pr.id, pr.ptype, pr.values, pr.multi)
         content._set(props, content.P_NAME_KEY, dbpf.PT_UINT32, [dbpf.T_LTEXT, content.G_SIMCP_NAMES, name_iid], True)
-        for pr in timing_props(dates={"start": start, "days": days, "every": 365}):
+        for pr in timing_props(dates={"start": start_day, "days": days, "every": 365}):
             content._set(props, pr.id, pr.ptype, pr.values, pr.multi)
-        records += [(dbpf.T_EXEMPLAR, G_PROPS, prop_iid, dbpf.build_exemplar(props, tpl.parent)),
-                    (dbpf.T_S3D, content.G_MODELS, model_iid, s3d.write(trees.crossed_planes(width, height, tex_iid))),
-                    (dbpf.T_FSH, content.G_TEXTURES, tex_iid, fsh.write_argb(trees.TEX_W, trees.TEX_H, im.tobytes()))]
+        records.append((dbpf.T_EXEMPLAR, G_PROPS, prop_iid, dbpf.build_exemplar(props, tpl.parent)))
+        records += [(dbpf.T_S3D, content.G_MODELS, i, b) for i, b in baked]
+        records += [(dbpf.T_FSH, content.G_TEXTURES, i, b) for i, b in textures]
         prop_ids.append("0x%08X" % prop_iid)
     records.append((dbpf.T_LTEXT, content.G_SIMCP_NAMES, name_iid, dbpf.build_ltext(name)))
     os.makedirs(content.FOLDER, exist_ok=True)
-    path = content._design_path("SiMCP_seasonal_", name)
+    path = prior["file"] if prior else content._design_path("SiMCP_seasonal_", name)
     dbpf.write_dbpf(path, records)
     entry = {"name": name, "kind": "seasonal_tree", "file": path, "props": prop_ids, "shape": shape,
              "size_m": [width, height, width], "seasons": {k: v[0] for k, v in SEASONS.items()},
              "created": time.strftime("%Y-%m-%d %H:%M:%S")}
     items = content._manifest()
-    items.append(entry)
+    if prior:
+        entry["created"] = prior.get("created", entry["created"])
+        entry["replaced"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        items = [entry if (d.get("kind") == "seasonal_tree" and d["name"] == prior["name"] and not d.get("disabled"))
+                 else d for d in items]
+    else:
+        items.append(entry)
     content._save_manifest(items)
     from PIL import Image
-    sheet = Image.new("RGBA", (trees.TEX_W * 4, trees.TEX_H), (150, 190, 230, 255))
-    for k, im in enumerate(pictures):
-        sheet.alpha_composite(im, (k * trees.TEX_W, 0))
+    W = sum(im.width for im in pictures) + 8 * 3
+    sheet = Image.new("RGBA", (W, max(im.height for im in pictures)), (150, 190, 230, 255))
+    x = 0
+    for im in pictures:
+        sheet.alpha_composite(im, (x, sheet.height - im.height))
+        x += im.width + 8
     buf = io.BytesIO()
     sheet.convert("RGB").save(buf, "PNG")
     return dict(entry, texture_png=buf.getvalue(),

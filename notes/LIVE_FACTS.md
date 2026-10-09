@@ -930,3 +930,24 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   Walker Man" / "MCP Walker Woman" (8 directions x 8 frames, legs and arms swinging, a half-length shadow; one
   DXT3 page) walked the sidewalks at the closest zoom showing their fronts or backs along the street. The test
   plugin went to SiMCP's backups folder afterwards.
+
+## Session 2026-10-09 (Phase 11 close-out: lamps, seasonal trees, grown houses)
+
+- **Lamp posts light up by state**: the game's lamp post (0x1DFC0000) keys its models with RKT4 entries
+  [state, x, y, z (16.16 metres), key, type, group, instance]: state 1 (night) the post (RKT1) and a light flare
+  (0x29DA0000, RKT0) at each head 8.3 m up, state 0 (day) the post alone; with 0x49A1E05A = 0x49A1E995,
+  0x49C9C93C = 1 and 0xE9A316EB = the number of lights. At night in MCP Village its heads glowed with a pool of
+  light below. SiMCP's lamps (materials with "glow") now get the same: "MCP Acorn Lamp" showed the game's flare at
+  its globe at night - on a lot plopped after the lamp had its lights; the copy plopped before stayed dark (a prop
+  takes its day / night states when it is placed: re-plop lots after adding lights).
+- **Seasonal trees rendered**: "MCP Seasonal Maple" (four timed props, each an RKT4 with per-view RKT1 models: leaf
+  clumps with blossom, summer green, autumn colours, bare limbs with a twig haze) placed on 17 September showed
+  nothing until 1 December (a dated prop appears at its season's start), then its winter tree; after 1 March its
+  spring blossom.
+- **A rendered house grows**: "MCP Workers Bungalow" (the Craftsman model as a $ house, 1 x 2, growth stage 1)
+  took one of 36 lots zoned along two new streets in MCP Village within a game month, and two of 18 in MCP Town.
+  New streets must start on the road they branch from (a street drawn from the next cell is not joined: the lots
+  showed "no car access"), and zone() with streets laid inside a zone along an existing road left one-cell-deep
+  lots that never developed in MCP Town - its "growth stall" was that: zoned two deep with streets=false beside a
+  joined street, MCP Town grew in a month. MCP Town's clock reached 2049 during the long traffic watches at fast
+  speed (funds 86,000).

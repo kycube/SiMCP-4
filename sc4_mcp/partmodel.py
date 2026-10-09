@@ -57,7 +57,8 @@ Materials (one of):
    shingle fields drawn at measured positions in clean colours; stretched over the whole face. The recommended way
    to use a photo: measure from it, draw the facade (crisp, lit consistently) rather than pasting its pixels.
 Options on any material: "glow": true or "#rrggbb" (it shines at night - lamps, lit signs, shop windows; facades
-light their windows themselves), "grain": 0.06 (weathering), "tint": "#rrggbb" (multiplies), "brightness": 1.0 (photos of walls in shade usually need
+light their windows themselves), "grain": 0.06 (weathering), "snow": 0..1 (snow on what faces up: winter trees and
+roofs), "wrap": 0..1 (light passing through: foliage), "tint": "#rrggbb" (multiplies), "brightness": 1.0 (photos of walls in shade usually need
 1.2 - 1.5: the renderer lights them again), "remove_color": "#rrggbb" + "tolerance" (photo texels near that colour,
 e.g. the sky beside a narrow turret, are filled from the surrounding wall).
 """
@@ -345,8 +346,10 @@ def make_material(name: str, spec: dict, rect_px_per_m: float = 48.0) -> Materia
         c = parse_color("#ffd38a" if g is True else g)
         im = Image.new("RGBA", (4, 4), tuple(c[:3]) + (int(255 * float(spec.get("glow_alpha", 0.95))),))
         mat.glow = Material(name + " light", im, fit=True)
+        mat.lamp = True                      # a light source: lamp props get the game's light flare there
     try:
         mat.wrap = float(spec.get("wrap", 0.0))         # foliage: light wraps past the shaded side (0..1)
+        mat.snow = float(spec.get("snow", 0.0))         # snow on its upward faces (0..1): winter trees, roofs
         mat.grain = float(spec.get("grain", GRAIN))
     except (TypeError, ValueError):
         raise GameError(f"material {name!r}: grain is a number (0 = clean, 0.06 default, 0.2 strong)")

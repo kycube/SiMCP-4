@@ -15,6 +15,10 @@ import math
 import numpy as np
 
 KINDS = ("broadleaf", "conifer", "palm", "shrub")
+SEASONS = ("spring", "summer", "autumn", "winter")
+# leaf colours per season (summer: the tree's own): (colour, weight) - clumps pick one each
+SPRING = [((122, 152, 74), 0.55), ((238, 196, 210), 0.3), ((248, 236, 238), 0.15)]
+AUTUMN = [((198, 112, 42), 0.35), ((168, 52, 34), 0.25), ((210, 164, 60), 0.25), ((120, 104, 48), 0.15)]
 
 
 def _hex(rgb) -> str:
@@ -25,9 +29,64 @@ def _shade(rgb, k):
     return tuple(v * k for v in rgb)
 
 
+def _leaf_mats(mats: dict, palette, seed: int, size: float = 3.2, density: float = 0.62) -> list:
+    """Leaf materials for a palette [(colour, weight)]: their names and weights."""
+    names, weights = [], []
+    for k, (col, w) in enumerate(palette):
+        nm = "leaves" if k == 0 else "leaves%d" % k
+        mats[nm] = {"pattern": "leaves", "color": _hex(col), "color2": _hex(_shade(col, 0.62)), "density": density,
+                    "seed": seed + 13 * k, "size_m": [size, size], "grain": 0.1, "wrap": 0.6}
+        names.append(nm)
+        weights.append(w)
+    w = np.array(weights, float)
+    return names, w / w.sum()
+
+
+def bare(height: float = 13.0, width: float = 8.5, trunk=(78, 64, 52), seed: int = 1) -> dict:
+    """A broadleaf in winter: trunk, limbs and branches in three orders, and a fine haze of twigs at their ends."""
+    rnd = np.random.default_rng(seed)
+    c = width / 2
+    trunk_h = height * 0.32
+    tr = 0.018 * height + 0.08
+    mats = {"bark": {"color": _hex(trunk), "grain": 0.15},
+            "twigs": {"pattern": "needles", "color": "#8a8075", "color2": "#675d54",
+                      "density": 0.07, "seed": seed, "size_m": [1.6, 1.6], "grain": 0.1}}
+    parts = [{"type": "prism", "cx": c, "cy": c, "z": 0, "r": tr, "h": trunk_h + 0.4, "sides": 0, "mat": "bark"}]
+    reach = (height - trunk_h) * 0.55
+
+    def branch(p, d, L, w, depth):
+        q = p + d * L
+        parts.append({"type": "beam", "from": list(map(float, p)), "to": list(map(float, q)), "w": w, "h": w,
+                      "offset": -w / 2, "mat": "bark"})
+        if depth == 0:
+            s = rnd.uniform(0.45, 0.7) * width / 8.5
+            parts.append({"type": "blob", "cx": float(q[0]), "cy": float(q[1]), "z": float(q[2]), "r": s,
+                          "rz": s * 0.8, "jitter": 0.45, "seed": int(rnd.integers(1 << 20)), "detail": 1,
+                          "mat": "twigs"})
+            return
+        for _ in range(int(rnd.integers(2, 4))):
+            start = p + d * L * rnd.uniform(0.55, 1.0)
+            side = np.cross(d, rnd.normal(size=3))
+            side /= max(np.linalg.norm(side), 1e-6)
+            ang = math.radians(rnd.uniform(25, 48))
+            nd = d * math.cos(ang) + side * math.sin(ang)
+            nd[2] = abs(nd[2]) * 0.8 + 0.15                # branches keep reaching up and out
+            nd /= np.linalg.norm(nd)
+            branch(start, nd, L * rnd.uniform(0.55, 0.7), max(0.07, w * 0.62), depth - 1)
+    for k in range(5):                                  # the main limbs
+        a = 2 * math.pi * (k / 5 + rnd.uniform(-0.07, 0.07))
+        d = np.array([math.cos(a) * 0.62, math.sin(a) * 0.62, 0.78])
+        d /= np.linalg.norm(d)
+        branch(np.array([c, c, trunk_h]), d, reach * rnd.uniform(0.75, 0.95), tr * 0.72, 3)
+    return {"materials": mats, "parts": parts}
+
+
 def broadleaf(height: float = 13.0, width: float = 8.5, leaf=(90, 114, 58), trunk=(78, 64, 52), seed: int = 1,
-              clumps: int = 0) -> dict:
-    """A deciduous tree (maple, oak, elm): a trunk to about 35 % of its height, branches, a rounded crown."""
+              clumps: int = 0, season: str = "summer") -> dict:
+    """A deciduous tree (maple, oak, elm): a trunk to about 35 % of its height, branches, a rounded crown; in its
+    season (spring blossom, autumn colours, winter bare)."""
+    if season == "winter":
+        return bare(height, width, trunk, seed)
     rnd = np.random.default_rng(seed)
     c = width / 2
     trunk_h = height * 0.3
@@ -48,6 +107,10 @@ def broadleaf(height: float = 13.0, width: float = 8.5, leaf=(90, 114, 58), trun
         parts.append({"type": "beam", "from": [c, c, trunk_h], "to": [c + L * math.cos(a), c + L * math.sin(a),
                                                                        trunk_h + crown_h * rnd.uniform(0.3, 0.5)],
                       "w": tr * 0.75, "h": tr * 0.75, "offset": -tr * 0.37, "mat": "bark"})
+    palette = SPRING if season == "spring" else AUTUMN if season == "autumn" else [(leaf, 1.0)]
+    names, weights = _leaf_mats(mats, palette, seed)
+    if season == "autumn":
+        mats["core"]["color"], mats["core"]["color2"] = "#7c5530", "#5a3d24"
     crown = {"c": [c, c, cz], "r": [rx, ry, rz], "mix": 0.65}
     parts.append({"type": "blob", "cx": c, "cy": c, "z": cz, "rx": rx * 0.6, "ry": ry * 0.6, "rz": rz * 0.62,
                   "jitter": 0.22, "seed": seed, "mat": "core", "crown": crown})
@@ -64,12 +127,13 @@ def broadleaf(height: float = 13.0, width: float = 8.5, leaf=(90, 114, 58), trun
         out = rnd.uniform(0.85, 1.12)                # lobes past the crown's shell, hollows inside it
         parts.append({"type": "blob", "cx": c + x * (rx - s * 0.6) * out, "cy": c + y * (ry - s * 0.6) * out,
                       "z": cz + z * (rz - s * 0.5) * out, "rx": s, "ry": s, "rz": s * 0.85, "jitter": 0.4,
-                      "seed": seed * 101 + k, "detail": 1, "mat": "leaves", "crown": crown})
+                      "seed": seed * 101 + k, "detail": 1, "mat": str(rnd.choice(names, p=weights)), "crown": crown})
     return {"materials": mats, "parts": parts}
 
 
-def conifer(height: float = 14.0, width: float = 6.0, leaf=(62, 88, 62), trunk=(84, 66, 52), seed: int = 1) -> dict:
-    """A spruce or fir: a straight trunk, tiers of needle clumps narrowing to a point."""
+def conifer(height: float = 14.0, width: float = 6.0, leaf=(62, 88, 62), trunk=(84, 66, 52), seed: int = 1,
+            season: str = "summer") -> dict:
+    """A spruce or fir: a straight trunk, tiers of needle clumps narrowing to a point; snow on them in winter."""
     rnd = np.random.default_rng(seed)
     c = width / 2
     mats = {"bark": {"color": _hex(trunk), "grain": 0.15},
@@ -77,6 +141,8 @@ def conifer(height: float = 14.0, width: float = 6.0, leaf=(62, 88, 62), trunk=(
                         "density": 0.75, "seed": seed, "size_m": [2.4, 2.4], "grain": 0.1, "wrap": 0.3},
             "core": {"pattern": "needles", "color": _hex(_shade(leaf, 0.6)), "color2": _hex(_shade(leaf, 0.4)),
                      "density": 1.5, "seed": seed + 5, "size_m": [2.0, 2.0], "grain": 0.08, "wrap": 0.3}}
+    if season == "winter":
+        mats["needles"]["snow"], mats["core"]["snow"] = 0.85, 0.6
     base = height * 0.1
     parts = [{"type": "prism", "cx": c, "cy": c, "z": 0, "r": 0.012 * height + 0.08, "h": height * 0.9,
               "sides": 0, "mat": "bark"},
@@ -138,14 +204,19 @@ def palm(height: float = 10.0, width: float = 7.0, leaf=(92, 120, 56), trunk=(12
     return {"materials": mats, "parts": parts}
 
 
-def shrub(height: float = 1.6, width: float = 2.4, leaf=(88, 116, 56), seed: int = 1) -> dict:
-    """A shrub: a low mound of leaf clumps."""
+def shrub(height: float = 1.6, width: float = 2.4, leaf=(88, 116, 56), seed: int = 1, season: str = "summer") -> dict:
+    """A shrub: a low mound of leaf clumps (flowering in spring, coloured in autumn, a mound of twigs in winter)."""
     rnd = np.random.default_rng(seed)
     c = width / 2
-    mats = {"leaves": {"pattern": "leaves", "color": _hex(leaf), "color2": _hex(_shade(leaf, 0.6)),
-                       "density": 0.7, "seed": seed, "size_m": [2.2, 2.2], "grain": 0.1, "wrap": 0.4},
-            "core": {"pattern": "leaves", "color": _hex(_shade(leaf, 0.6)), "color2": _hex(_shade(leaf, 0.42)),
+    mats = {"core": {"pattern": "leaves", "color": _hex(_shade(leaf, 0.6)), "color2": _hex(_shade(leaf, 0.42)),
                      "density": 1.5, "seed": seed + 3, "size_m": [1.8, 1.8], "grain": 0.08, "wrap": 0.4}}
+    if season == "winter":
+        mats["core"] = {"pattern": "needles", "color": "#6e5c4a", "color2": "#4e4034", "density": 0.55, "seed": seed,
+                        "size_m": [1.6, 1.6], "grain": 0.1}
+        names, weights = ["core"], np.array([1.0])
+    else:
+        palette = SPRING if season == "spring" else AUTUMN if season == "autumn" else [(leaf, 1.0)]
+        names, weights = _leaf_mats(mats, palette, seed, size=2.2, density=0.7)
     parts = [{"type": "blob", "cx": c, "cy": c, "z": height * 0.42, "rx": width * 0.4, "ry": width * 0.4,
               "rz": height * 0.45, "jitter": 0.2, "seed": seed, "mat": "core"}]
     for k in range(7):
@@ -154,17 +225,22 @@ def shrub(height: float = 1.6, width: float = 2.4, leaf=(88, 116, 56), seed: int
         s = width * rnd.uniform(0.2, 0.28)
         parts.append({"type": "blob", "cx": c + rr * math.cos(a), "cy": c + rr * math.sin(a),
                       "z": height * rnd.uniform(0.35, 0.6), "rx": s, "ry": s, "rz": s * 0.85, "jitter": 0.3,
-                      "seed": seed * 31 + k, "mat": "leaves"})
+                      "seed": seed * 31 + k, "mat": str(rnd.choice(names, p=weights))})
     return {"materials": mats, "parts": parts}
 
 
-def model(kind: str, height: float, width: float, leaf=None, trunk=None, seed: int = 1) -> dict:
+def model(kind: str, height: float, width: float, leaf=None, trunk=None, seed: int = 1,
+          season: str = "summer") -> dict:
     if kind not in KINDS:
         raise ValueError("kind: " + ", ".join(KINDS))
+    if season not in SEASONS:
+        raise ValueError("season: " + ", ".join(SEASONS))
     kw = {}
     if leaf is not None:
         kw["leaf"] = tuple(leaf)
     if trunk is not None and kind != "shrub":
         kw["trunk"] = tuple(trunk)
+    if kind != "palm":                                   # palms look the same all year
+        kw["season"] = season
     return {"broadleaf": broadleaf, "conifer": conifer, "palm": palm, "shrub": shrub}[kind](height, width,
                                                                                         seed=seed, **kw)

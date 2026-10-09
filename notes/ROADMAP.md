@@ -61,9 +61,9 @@ them.
 - [x] Cars and trucks: real side profiles, glass cabin, wheels with rims, painted texture (sedan, hatchback, SUV,
       van, pickup); seen in traffic
 - [x] Buildings: rendered as the game's own (batrender: camera, sun, shadows, night lights, weathering); a
-      Craftsman bungalow (ploppable and growable), a pocket park, the Flatiron Building
-- [x] Props: rendered per view (bench, acorn lamp, statue, paths), scaled as the game's
-- [x] Vegetation: broadleaf, conifer, palm, shrub of rendered leaf clumps (seasonal trees still painted)
+      Craftsman bungalow (ploppable, and grown by MCP Village and MCP Town), a pocket park, the Flatiron Building
+- [x] Props: rendered per view (bench, acorn lamp, statue, paths), scaled as the game's; lamps light up at night
+- [x] Vegetation: broadleaf, conifer, palm, shrub of rendered leaf clumps; seasonal trees rendered per season
 - [x] Pedestrians: new walkers rendered as sprite atlases (design_walker), direction order measured
 - [x] A written guide of what worked: guide topic "realism" (best practices 1 - 17)
 

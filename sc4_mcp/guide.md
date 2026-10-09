@@ -277,9 +277,12 @@ lot_cells=..., parts_model={...})`.
    rotations, beside the game's own. To iterate, `design_model_building(..., replace=true)` (with the game
    closed) rebuilds it under the same ids: copies already placed update after game_launch.
 6. Homes the city grows: `design_growable_building(name, "residential", wealth, 0, 0, 0, [0, 0, 0], [0, 0, 0],
-   lot_width=1, lot_depth=2, parts_model=..., objects=[...])` - the same model on a growable lot (the game's
-   house lots are 1 x 2 or 1 x 3; x across the lot, y toward the street). Plop a copy first
-   (`design_model_building(..., lot_cells=1, lot_depth=2)`) to judge it.
+   lot_width=1, lot_depth=2, stage=1, parts_model=..., objects=[...])` - the same model on a growable lot (the
+   game's house lots are 1 x 2 or 1 x 3; x across the lot, y toward the street). Plop a copy first
+   (`design_model_building(..., lot_cells=1, lot_depth=2)`) to judge it. Match the wealth to the city (a small
+   town grows $ houses: check `demand()`), use stage 1 for young towns, and zone two cells deep along a street
+   joined to the road network (`zone(..., streets=false)`; start new streets on the road they branch from) - the
+   design then takes its share of new lots (one in eight among the game's seven $ 1 x 2 stage-1 houses).
 
 ## Realism (best practices)
 
@@ -333,12 +336,18 @@ Landmarks and tall buildings
 12. Big facades: 12 - 16 px per metre ("px_per_m") is enough at the game's 7 px per metre and keeps renders fast.
 
 Trees and shrubs
+13a. Seasons: design_seasonal_tree renders each season (blossom, summer, autumn colours, bare limbs or snow); a
+    seasonal tree placed mid-season shows from the next season's start date (1 March, 1 June, 1 September,
+    1 December). "snow" works on any material (roofs too).
 13. design_tree draws broadleaf, conifer, palm and shrub as the game's own trees are made: leaf clumps with
     see-through leaf textures, lit by the sun with their own shadows, the light wrapping through the leaves. Keep
     foliage olive and a little muted (the default); bright pure greens look plastic. Dense models are laid on a
     low-poly shell automatically (the game does not draw tree models with thousands of vertices).
 
 Props
+14a. Lamps: give the lamp's glass a material with "glow" - the prop then lights up at night with the game's own
+    light flare, as its lamp posts do. A prop takes its day and night states when placed: lots placed before the
+    prop had lights stay dark until they are placed again.
 14. Props are seen from far above: make them 1.5 - 2 times life size ("scale": 1.7), as the game's own benches
     (3 - 4 m) and lamp posts (7 - 8 m) are, with members at least 0.15 m thick; at life size they vanish.
 15. Trees on lots: use the game's tree props (game_props("deciduous"), "pine", "palm": full-size at once) rather

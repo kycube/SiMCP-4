@@ -205,3 +205,36 @@ def test_walker_sprites():
     fsh_pages = walkers.write_pages(pages)
     assert fsh_pages[:4] == b"SHPI" and struct.unpack_from("<I", fsh_pages, 8)[0] == len(pages)
     assert [round(walkers.DIR_DEG[k]) % 360 for k in (0, 2, 4, 6)] == [90, 0, 270, 180]
+
+
+def test_lamp_props_have_night_states():
+    """A prop with a glowing material gets the game's lamp-post states: night (the model and a light flare at each
+    lamp) and day (the model), and the lamp post's light properties."""
+    from sc4_mcp import lotdesign
+    model = {"lot": 1, "materials": {"pole": {"color": "#222222"}, "globe": {"color": "#eeeeee", "glow": True}},
+             "parts": [{"type": "prism", "cx": 1, "cy": 1, "r": 0.1, "h": 4, "mat": "pole"},
+                       {"type": "prism", "cx": 1, "cy": 1, "z": 4, "r": 0.3, "h": 0.5, "mat": "globe"}]}
+    mesh, mats = partmodel.Builder(model).build()
+    pts = lotdesign.lamp_points(mesh, mats, (1.0, 1.0))
+    assert len(pts) == 1 and abs(pts[0][1] - 4.4) < 0.3 and abs(pts[0][0]) < 0.05 and abs(pts[0][2]) < 0.05
+    props = {p.id: p.values for p in lotdesign.model_key_props(0x1234, False, views=True, lights=pts)}
+    v = props[lotdesign.P_RKT4]
+    entries = [v[i:i + 8] for i in range(0, len(v), 8)]
+    assert [e[0] for e in entries] == [1, 1, 0]                      # night: model + flare; day: model
+    assert entries[1][7] == lotdesign.LIGHT_FLARE and entries[0][7] == entries[2][7] == 0x1234
+    assert props[lotdesign.P_LIGHT_STATE] == [0x49A1E995] and props[lotdesign.P_LIGHT_COUNT] == [1]
+
+
+def test_seasons():
+    """Seasonal vegetation: blossom and autumn mixes, a bare winter broadleaf, snow on a winter conifer."""
+    from sc4_mcp import vegetation
+    spring = vegetation.model("broadleaf", 10, 7, seed=2, season="spring")
+    autumn = vegetation.model("broadleaf", 10, 7, seed=2, season="autumn")
+    winter = vegetation.model("broadleaf", 10, 7, seed=2, season="winter")
+    snowy = vegetation.model("conifer", 10, 5, seed=2, season="winter")
+    assert len([k for k in spring["materials"] if k.startswith("leaves")]) == 3
+    assert len([k for k in autumn["materials"] if k.startswith("leaves")]) == 4
+    assert "twigs" in winter["materials"] and not any(k.startswith("leaves") for k in winter["materials"])
+    assert snowy["materials"]["needles"]["snow"] > 0
+    mesh, mats = partmodel.Builder(dict(snowy, lot=1)).build()
+    assert any(getattr(m, "snow", 0) > 0 for m in mats)

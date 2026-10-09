@@ -1613,7 +1613,7 @@ def game_props(query: str = "", limit: int = 40) -> dict:
 def design_prop(name: str, shape: str = "box", width_m: float = 2.0, depth_m: float = 2.0, height_m: float = 2.0,
                 rgb: list[int] | None = None, image_path: str = "", model_path: str = "", model_scale: float = 1.0,
                 animation: str = "", hours: list[float] | None = None, dates: dict | None = None,
-                parts_model: dict | None = None):
+                parts_model: dict | None = None, replace: bool = False):
     """Design a new prop - a box, cylinder, cone or sign (a board on a post; image_path puts a picture on its
     street side) in one colour, or a realistic one made of parts (parts_model: benches, lamps, statues, planters,
     rendered per view as the game's own) - to place on lots with design_park or design_model_building. Written as
@@ -1635,12 +1635,15 @@ def design_prop(name: str, shape: str = "box", width_m: float = 2.0, depth_m: fl
         dates: {"start": [month, day], "days": n, "every": 365}: shown only then (holiday decorations...).
         parts_model: a prop made of parts, as design_model_building's (guide topic "parts"): x 0..width, y
             0..depth in metres from its corner, its +y side its front (toward the street at rotation 0), z up; its
-            size replaces width, depth and height. Lamps on a facade ({"type": "lamp"}) light up at night.
+            size replaces width, depth and height. Materials with "glow" are lamps: they shine at night, with the
+            game's light flare at each, as its lamp posts.
+        replace: rebuild an existing prop design of this name under its own ids (quit_game first): lots that
+            hold it show the new one after game_launch.
     """
     try:
         d = lotdesign.design_prop(name, shape, width_m, depth_m, height_m, tuple(rgb or (150, 150, 150)), image_path,
                                   model_path=model_path, model_scale=model_scale, animation=animation, hours=hours,
-                                  dates=dates, parts_model=parts_model)
+                                  dates=dates, parts_model=parts_model, replace=replace)
     except content.ContentError as e:
         return {"error": str(e), "hint": e.hint}
     png = d.pop("texture_png")
@@ -1681,23 +1684,26 @@ def design_walker(name: str, kind: str = "male", shirt_rgb: list[int] | None = N
 @tool(mcp, "act")
 @guarded
 def design_seasonal_tree(name: str, shape: str = "broadleaf", height_m: float = 12.0, width_m: float = 8.0,
-                         leaf_rgb: list[int] | None = None, trunk_rgb: list[int] | None = None):
+                         leaf_rgb: list[int] | None = None, trunk_rgb: list[int] | None = None,
+                         replace: bool = False):
     """Design a tree that follows the seasons, for lots (design_park / design_model_building objects
     {"seasonal_tree": name, ...}): spring blossom from 1 March, summer from 1 June, autumn colours from 1 September,
-    bare branches (a broadleaf) or snow (a conifer) from 1 December. The game shows each season's picture on its
-    dates. (Trees planted with plant_trees cannot change: the game runs no growth or succession for flora.)
+    bare branches (a broadleaf) or snow (a conifer) from 1 December - each season rendered as the game's own trees
+    are (leaf clumps, blossom, autumn colours, bare limbs, snow). The game shows each season's tree on its dates.
+    Takes a minute or two. (Trees planted with plant_trees cannot change: the game runs no growth for flora.)
 
     Args:
         name: the tree's name.
-        shape: broadleaf, conifer or palm (palms stay the same all year).
+        shape: broadleaf, conifer, shrub or palm (palms stay the same all year).
         height_m: height in metres (2..40).
         width_m: crown width in metres (1..16).
-        leaf_rgb: the summer foliage colour.
-        trunk_rgb: the trunk colour.
+        leaf_rgb: the summer foliage colour (default: the kind's own olive green).
+        trunk_rgb: the trunk colour (default: the kind's own).
+        replace: rebuild an existing seasonal tree of this name under its own ids (quit_game first).
     """
     try:
-        d = lotdesign.design_seasonal_tree(name, shape, height_m, width_m, tuple(leaf_rgb or (70, 125, 55)),
-                                           tuple(trunk_rgb or (95, 70, 45)))
+        d = lotdesign.design_seasonal_tree(name, shape, height_m, width_m, tuple(leaf_rgb) if leaf_rgb else None,
+                                           tuple(trunk_rgb) if trunk_rgb else None, replace=replace)
     except content.ContentError as e:
         return {"error": str(e), "hint": e.hint}
     png = d.pop("texture_png")

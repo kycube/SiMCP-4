@@ -231,6 +231,12 @@ class Scene:
             grain = np.array([getattr(self.mats[int(m)], "grain", 0.0) for m in range(len(self.mats))],
                              np.float32)[mi]
             base = np.clip(base * weathering(pos0, n0, grain)[:, None], 0, 1)
+            snow = np.array([getattr(self.mats[int(m)], "snow", 0.0) for m in range(len(self.mats))],
+                            np.float32)[mi]
+            if snow.any():                       # snow lies on what faces up, patchy where the surface tilts
+                cover = np.clip((nrm[:, 1] - 0.2) / 0.45, 0, 1) * snow
+                cover *= np.clip(1.15 + 0.6 * _vnoise(pos0, 0.5, 11.3), 0, 1)
+                base = base * (1 - cover[:, None]) + np.array([0.93, 0.95, 0.98], np.float32) * cover[:, None]
             if light:
                 if r not in self._sun:
                     self._sun[r] = self._depth_map(P, SUN, SHADOW_RES)

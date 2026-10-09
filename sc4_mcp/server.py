@@ -1583,6 +1583,45 @@ def design_park(name: str, objects: list[dict], lot_cells: int = 1, ground: str 
 
 @tool(mcp, "act")
 @guarded
+def design_civic_building(name: str, kind: str, radius_m: float | None = None, strength: int | None = None,
+                          capacity: int | None = None, width_m: float = 10.0, depth_m: float = 10.0,
+                          height_m: float = 8.0, wall_rgb: list[int] | None = None, roof_rgb: list[int] | None = None,
+                          lot_cells: int = 0, description: str = "", plop_cost: int | None = None,
+                          monthly_cost: int | None = None, ground: str = "concrete", objects: list[dict] | None = None,
+                          model_path: str = "", model_scale: float = 1.0):
+    """Design a working police station, fire station, clinic or school: it serves the city as the game's own does
+    (its service comes from the game's police kiosk, small fire station, urgent care clinic or K-8 school), with its
+    own model (a block, or your OBJ), name, costs and service numbers. It appears in its service's menu after the
+    game restarts.
+
+    Args:
+        name: the building's name.
+        kind: police, fire, clinic or school.
+        radius_m: coverage radius in metres (a cell is 16 m; kiosk 192, fire station / clinic / school 384).
+        strength: police or fire coverage strength (kiosk 100, fire station 200).
+        capacity: clinic patients or school students at full funding (500 each in the game's buildings).
+        width_m: the block's west-east size (ignored with model_path).
+        depth_m: the block's north-south size.
+        height_m: the block's height.
+        wall_rgb: the block's wall colour.
+        roof_rgb: the block's roof colour.
+        lot_cells: lot size in cells a side (default: 1, a school 2).
+        description: the menu description.
+        plop_cost: the plop cost (default: the game building's).
+        monthly_cost: the monthly cost (default: the game building's).
+        ground: the lot's ground texture.
+        objects: props, trees and grounds on the lot, as for design_park.
+        model_path: your OBJ model instead of the block (see design_model_building).
+        model_scale: metres per model unit.
+    """
+    r = _content(content.civic_building, name, kind, width_m, depth_m, height_m, tuple(wall_rgb or (200, 200, 205)),
+                 tuple(roof_rgb or (70, 70, 80)), lot_cells, description, plop_cost, monthly_cost, ground, objects,
+                 model_path, model_scale, radius_m=radius_m, strength=strength, capacity=capacity)
+    return r
+
+
+@tool(mcp, "act")
+@guarded
 def design_advice(name: str, advisor: str, title: str, message: str, trigger: str = "1", mood: str = "neutral",
                   priority: int = 50, once: bool = True, news_only: bool = False, timeout_days: int = 30) -> dict:
     """Write a new piece of advice or a news headline for the game's advisors, as a Lua plugin like the game's own

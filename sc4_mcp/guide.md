@@ -187,6 +187,10 @@ there is demand.
   both sides of thin parts), texture coordinates 0..1 (the game does not repeat textures), one texture per
   material (scaled to a power of two up to 512). Transparent pixels are cut out. The tool returns a picture of
   the imported model; its size times model_scale (metres) must fit the lot.
+- `design_civic_building(name, kind, radius_m, strength, capacity, ...)` makes a working police station, fire
+  station, clinic or school: it serves the city as the game's own (its service is copied from the game's
+  building) with its own model (block or OBJ), name, costs, coverage radius and strength or capacity, and
+  appears in its service's menu. Fund it like any other (set_building_funding).
 - `design_advice(name, advisor, title, message, trigger)` writes advice or a news headline for the advisors (a
   Lua package like the game's own): it appears when its trigger - a read-only expression such as
   `game.g_city_r_population > 1000` - is true. #city# in the text becomes the city's name.

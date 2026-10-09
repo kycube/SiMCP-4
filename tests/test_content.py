@@ -215,3 +215,23 @@ def test_obj_import(tmp_path):
     import pytest
     with pytest.raises(meshimport.MeshError):
         meshimport.read_obj(str(tmp_path / "missing.obj"))
+
+
+def test_civic_design(tmp_path, monkeypatch):
+    """A civic design keeps the Maxis building's service and menu and takes its own numbers."""
+    import pytest
+    from sc4_mcp import dbpf, gamedata
+    if gamedata._main_dat() is None:
+        pytest.skip("the game's data files are not installed")
+    monkeypatch.setattr(content, "FOLDER", str(tmp_path))
+    monkeypatch.setattr(content, "MANIFEST", str(tmp_path / "content.json"))
+    r = content.civic_building("Test Station", "fire", radius_m=512, strength=250)
+    d = dbpf.DBPF(r["file"])
+    ex = [dbpf.parse_exemplar(d.read(e)) for e in d if e.type == dbpf.T_EXEMPLAR and e.group == content.G_SIMCP_BUILDINGS][0]
+    assert ex.get(0x08F55DC2) == 512.0 and ex.get(0x08F55DC0) == 250
+    assert 0x1502 in ex.get(content.P_GROUPS)                       # still in the fire menu
+    assert r["kind"] == "fire" and ex.get(content.P_PLOP) == 250    # the game's price by default
+    with pytest.raises(content.ContentError):
+        content.civic_building("Bad", "fire", capacity=10)         # fire has no capacity knob
+    with pytest.raises(content.ContentError):
+        content.civic_building("Bad", "bakery")

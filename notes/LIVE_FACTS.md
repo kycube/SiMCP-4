@@ -610,3 +610,16 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
 - **Night textures**: Maxis models' textures often have a twin at +0x8000 (3,413 of 11,558 references) and at +0x100
   (the next zoom), but the +0x8000 twins seen are unrelated pictures (another sprite atlas, a water tile), not lit
   versions - how 3D models get lit windows at night is still open.
+- **Civic buildings in the game's data** (group 0x07BDDF1C; this setup's menus show plugin versions with other ids):
+  police kiosk 0x03880000, 4-car local precinct 0x030C0000, 2-engine fire station 0x03100000, urgent care clinic
+  0x03110000, K-8 school 0x03140000, coal plant 0x1F4D0000 (group 0xC8DBCCBA). The police simulator reads each
+  station as two triples (0x6E0D50: 0x48D71ED0 int -> +0xC, ED1 int -> +0x10, ED2 float -> +8; 0x6E0CB0: ED9, EDA,
+  EDB alike): kiosk 100 / 0 / 192.0 and 200 / 20 / 48.0. Fire 0x6AD7C0: 0x08F55DC0 / DC1 / DC2 (200 / 50 / 384.0),
+  plus 0x29233E9A..C (96 / 32 / 128.0). Clinic 0x091B42A2 384.0, 0x69220415 500; school 0x691B42B3 384.0,
+  0x8922041B 500. Several exemplars share an instance id (0x03100000 also outside the civic group), so a template
+  is looked up with its group.
+- **design_civic_building "MCP Precinct"** (police, the kiosk's service with 0x48D71ED2 = 384): after a restart it
+  was first in the police menu; plopped at (56, 31) facing the road (80), and after 35 exact days the police
+  coverage map (2-cell tracts) rose on 295 tracts out to 23.5 cells from the precinct (95 % within 22.5): the
+  radius is in metres (384 m = 24 cells; the kiosk's 192 m reaches 12). Coverage at the precinct 152 -> 252. The
+  fire, clinic and school numbers follow the same pattern in the data but were not each measured.

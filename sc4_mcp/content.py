@@ -352,7 +352,8 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
                    windows: bool = True, lot_cells: int = 1, description: str = "", plop_cost: int = 500,
                    monthly_cost: int = 20, template_building: int = 0x4A635AD2, taken: set[int] | None = None,
                    ground="plaza", objects: list[dict] | None = None, invisible: bool = False,
-                   model_path: str = "", model_scale: float = 1.0) -> dict:
+                   model_path: str = "", model_scale: float = 1.0, overrides: dict | None = None,
+                   kind: str = "", template_group: int | None = None) -> dict:
     """A new building with its own model and texture on its own lot (Parks / landmarks properties of the template
     building), written as a plugin into SiMCP's Plugins folder. `ground` covers every cell of the lot (a name from
     lotdesign.GROUNDS or a lot texture id) and `objects` adds props, trees and grounds (lotdesign.rows). invisible:
@@ -375,7 +376,7 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
                            % (16 * lot_cells - 1))
     if not 1 <= lot_cells <= 6:
         raise ContentError("lots are 1 to 6 cells a side here")
-    be, bld = _find_exemplar(dbpf.T_EXEMPLAR, template_building, not_group=G_LOTS)
+    be, bld = _find_exemplar(dbpf.T_EXEMPLAR, template_building, template_group, not_group=G_LOTS)
     if bld is None:
         raise ContentError("the template building is not in the game's own data")
     lot_iid, bld_iid = _new_ids(taken or set(), 2)
@@ -419,6 +420,11 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
     _set(bprops, P_SIZE, dbpf.PT_FLOAT32, [float(width), float(height), float(depth)], multi=True)
     _set(bprops, P_RKT0, dbpf.PT_UINT32, [dbpf.T_S3D, G_MODELS, model_iid], multi=True)
     _set(bprops, P_PLOP, dbpf.PT_SINT64, [int(plop_cost)])
+    for pid, value in (overrides or {}).items():       # service numbers (civic designs): keep the template's type
+        cur = [p for p in bprops if p.id == pid]
+        if not cur:
+            raise ContentError("the template building has no property 0x%08X" % pid)
+        cur[0].values = [type(cur[0].values[0])(value)] if isinstance(cur[0].values, list) else value
     old = [p for p in bprops if p.id == P_MONTHLY]
     _set(bprops, P_MONTHLY, dbpf.PT_SINT64, [int(monthly_cost)], multi=old[0].multi if old else True)
     icon_iid = _free(dbpf.T_PNG, G_ICONS, 0xFFFFFFFF, taken or set())
@@ -434,6 +440,9 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
     entry = {"name": name, "file": path, "lot": "0x%08X" % lot_iid, "building": "0x%08X" % bld_iid,
              "model": "0x%08X" % model_iid, "texture": "0x%08X" % tex_iid, "size_m": [width, depth, height],
              "lot_cells": lot_cells, "ground": ground, "objects": placed, "created": time.strftime("%Y-%m-%d %H:%M:%S")}
+    if kind:
+        entry["kind"] = kind
+        entry["service"] = {"0x%08X" % k: v for k, v in (overrides or {}).items()}
     if invisible:
         entry["kind"] = "park"
     if mesh:
@@ -704,3 +713,47 @@ def advice_design(name: str, advisor: str, title: str, message: str, trigger: st
     _save_manifest(items)
     return dict(entry, note="the game loads plugins at start-up: quit_game and game_launch; advisors() then shows "
                             "the advice once its trigger is true (the advisors check every few days)")
+
+
+# ---- working civic designs: a Maxis civic building's service with SiMCP's model, name, costs and numbers
+CIVIC = {   # kind -> (Maxis building (group 0x07BDDF1C), lot cells, {knob: (property, what)})
+    "police": (0x03880000, 1, {"radius_m": (0x48D71ED2, "coverage radius in metres (the kiosk: 192 = 12 cells)"),
+                               "strength": (0x48D71ED0, "coverage strength (the kiosk: 100)")}),
+    "fire": (0x03100000, 1, {"radius_m": (0x08F55DC2, "coverage radius in metres (the small station: 384)"),
+                             "strength": (0x08F55DC0, "coverage strength (the small station: 200)")}),
+    "clinic": (0x03110000, 1, {"radius_m": (0x091B42A2, "coverage radius in metres (the clinic: 384)"),
+                               "capacity": (0x69220415, "patients at full funding (the clinic: 500)")}),
+    "school": (0x03140000, 2, {"radius_m": (0x691B42B3, "coverage radius in metres (the K-8 school: 384)"),
+                               "capacity": (0x8922041B, "students at full funding (the K-8 school: 500)")}),
+}
+
+
+def civic_building(name: str, kind: str, width: float = 10.0, depth: float = 10.0, height: float = 8.0,
+                   wall=(200, 200, 205), roof=(70, 70, 80), lot_cells: int = 0, description: str = "",
+                   plop_cost: int | None = None, monthly_cost: int | None = None, ground: str = "concrete",
+                   objects: list[dict] | None = None, model_path: str = "", model_scale: float = 1.0,
+                   **numbers) -> dict:
+    """A police, fire, clinic or school building that works as the game's own (its service copied from a Maxis
+    building) with SiMCP's model, name, costs and service numbers (radius_m, strength, capacity - see CIVIC)."""
+    if kind not in CIVIC:
+        raise ContentError("kind is %s" % ", ".join(CIVIC))
+    template, cells, knobs = CIVIC[kind]
+    overrides = {}
+    for k, v in numbers.items():
+        if v is None:
+            continue
+        if k not in knobs:
+            raise ContentError("a %s building takes %s" % (kind, ", ".join(knobs)))
+        if not 0 < float(v) <= (4096 if k == "radius_m" else 100000):
+            raise ContentError("%s is out of range" % k)
+        overrides[knobs[k][0]] = v
+    _, tpl = _find_exemplar(dbpf.T_EXEMPLAR, template, 0x07BDDF1C)
+    if tpl is None:
+        raise ContentError("the game's %s building (0x%08X) is not in SimCity_1.dat" % (kind, template))
+    costs = {p.id: p.values for p in tpl.props}
+    plop = plop_cost if plop_cost is not None else costs.get(P_PLOP, [500])[0]
+    monthly = monthly_cost if monthly_cost is not None else (costs.get(P_MONTHLY) or [20])[0]
+    return model_building(name, width, depth, height, wall, roof, True, lot_cells or cells, description, int(plop),
+                          int(monthly), template_building=template, ground=ground, objects=objects,
+                          model_path=model_path, model_scale=model_scale, overrides=overrides, kind=kind,
+                          template_group=0x07BDDF1C)

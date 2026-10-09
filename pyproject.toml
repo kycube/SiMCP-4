@@ -1,6 +1,6 @@
 [project]
 name = "simcp-4"
-version = "0.10.0"
+version = "0.11.0"
 description = "SiMCP 4: a fully featured MCP server for SimCity 4 Deluxe - play the entire game and develop new buildings, lots and tiles for it"
 readme = "README.md"
 license = "MIT"

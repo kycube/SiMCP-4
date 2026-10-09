@@ -10,7 +10,7 @@ import os
 from mcp.server.fastmcp import FastMCP, Image
 
 from . import game as gamemod
-from . import build, catalog, cheats, city, content, disasters, economy, history, launch, layers, luaquery, memory, mysim, neighbors, networks, options, pointer, regions, services, terrain, udi, view
+from . import build, catalog, cheats, city, content, disasters, economy, heightmap, history, launch, layers, luaquery, memory, mysim, neighbors, networks, options, pointer, regions, services, terrain, udi, view
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -157,6 +157,70 @@ def new_region(name: str, water: bool = False) -> dict:
         water: start the tiles low (the "Water" terrain choice) instead of plains.
     """
     return G.new_region(name, water)
+
+
+def _reload_region(name: str) -> None:
+    """The game reads config.bmp when a region loads; loading the same region again does nothing, so go through
+    another region and back."""
+    others = [r["folder"] for r in regions.list_regions(launch.USER_DIR) if r["folder"] != name]
+    if others:
+        G.load_region(others[0])
+    G.load_region(name)
+
+
+@tool(mcp, "act")
+@guarded
+def set_region_layout(region: str, width: int, height: int, tile: str = "small") -> dict:
+    """Give a region a new grid of city tiles (its config.bmp): width x height grid squares (1 km each) filled with
+    small (1x1), medium (2x2) or large (4x4) city tiles. Refused when the region has founded cities. Reopens the
+    region when the region view shows it.
+
+    Args:
+        region: the region's folder name (list_regions).
+        width: grid squares east-west (1-64; a multiple of the tile's span).
+        height: grid squares north-south.
+        tile: small, medium or large.
+    """
+    try:
+        cities = heightmap._established(region)
+        if cities:
+            return {"error": "the region has founded cities: %s" % ", ".join(cities[:5]),
+                    "hint": "a new layout would orphan them; use a new region (new_region)"}
+        out = heightmap.write_layout(region, width, height, tile)
+    except heightmap.HeightmapError as e:
+        return {"error": str(e), "hint": e.hint}
+    G.attach(10.0)
+    if G.status().get("view") == "region" and G.region_name() == region:
+        _reload_region(region)
+        out["reloaded"] = True
+    return out
+
+
+@tool(mcp, "destructive")
+@guarded
+def import_region_terrain(region: str, heights: list[list[float]] | None = None, image_path: str = "",
+                          replace_cities: bool = False, max_seconds: float = 1800.0) -> dict:
+    """Shape a whole region from a height map, through the game's own region import (RegionBitmapLoad): every city
+    tile of the region is deleted and generated again from its part of the map, then saved (about 13 s per small
+    tile). Heights are metres: sea level is 250, the game stores grey x 3 m (0-765). The region view must show the
+    region (load_region). A region with founded cities is refused unless replace_cities.
+
+    Args:
+        region: the region's folder name (the one the region view shows).
+        heights: rows of heights in metres (north row first, west to east), any size from 2 x 2: resampled to the
+            region's map size. Use this or image_path.
+        image_path: a greyscale image file (any common format) used instead: grey level x 3 m.
+        replace_cities: allow deleting founded cities.
+        max_seconds: how long to wait for the game to generate the tiles.
+    """
+    G.attach(10.0)
+    try:
+        bmp, info = heightmap.make_bitmap(region, heights=heights, image_path=image_path)
+        res = heightmap.import_terrain(G, region, bmp, replace_cities, max_seconds)
+    except heightmap.HeightmapError as e:
+        return {"error": str(e), "hint": e.hint}
+    res["map"] = info
+    return res
 
 
 @tool(mcp, "act")

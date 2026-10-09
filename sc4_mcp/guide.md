@@ -26,6 +26,11 @@ the test region "MCP Test" has one large, two medium and eight small tiles on fl
 - `open_tile(x, z)` opens any tile by its grid square (a saved city, or a new one in god mode, where
   `terrain_brushes()` / `terraform(...)` shape the land for free before `found_city`).
 - `new_region(name)` creates a region (random tile layout) and opens it.
+- `set_region_layout(region, width, height, tile)` gives a region without founded cities a new grid of city tiles
+  (all small, medium or large); `import_region_terrain(region, heights=[[metres...], ...])` (or `image_path` to a
+  greyscale picture) shapes the whole region at once through the game's own height-map import: every tile is
+  generated again from its part of the map (sea level is 250 m; about 13 s per small tile). Plan a region as
+  new_region -> set_region_layout -> import_region_terrain -> open_tile / found_city.
 - `saved_city(region, city)` and `city_thumbnail(region, city)` read a saved city from its file.
 - `leave_city()` goes back to the region view without saving.
 - `city_status()` reads the open city: name, mayor, founded or not, difficulty, size in cells, date, speed, pause.

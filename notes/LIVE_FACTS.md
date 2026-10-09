@@ -378,3 +378,16 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   reads it). The White Modular House at (2, 35): historical true, then false again; the coal plant (plopped) is
   refused by the tool, as the plopped buildings' query windows have no such button. The button's handler is not
   traced (the id is not an immediate in the code; probably a switch).
+- **Region import from a height map** (throwaway region "MCP Heightmap"): new_region made a 16x16 random layout;
+  writing config.bmp as 2x2 red pixels (4 small tiles) and loading another region and back made the region view
+  show 4 small tiles (loading the same region again is a no-op). RegionBitmapLoad (deferred) opens the game's file
+  window modally (root 0xEA9660F3, component at +0xD8 vtable 0xADD190; File name edit +0x100 = text-edit
+  interface vtable 0xADFA68: slot 49 SetText(char*, len, notify), 46 GetText, 47 length; OK 0xBAA55D58). The
+  component's slot 18 fills {mode 2, -, path, folder, name} with path = folder ("c:\\" at first) + typed name: a full
+  path became "c:\C:\..." and was quietly dropped, so SiMCP types the name relative to the folder. A 24-bit BMP of
+  the right size (129x129) was also dropped silently; an 8-bit greyscale BMP was taken: the game regenerated and
+  saved all 4 cities in 51 s. Saved terrain (65x65 per small tile): lowest 210 m = grey 70 x 3, highest ~467 m =
+  grey 156 x 3 (height = grey x 3 m confirmed). import_region_terrain then took a 7x5 grid in metres (201-519 m,
+  resampled) and the island picture by image_path (converted to 8 bits by Pillow), each in 51 s; tile (1, 1) opened
+  as an island corner sloping to the sea. Both tools refuse MCP Test (founded cities) and a region the view is not
+  showing.

@@ -243,10 +243,18 @@ class Game:
         """Open the city tile whose grid square (x, z) is its north-west corner, as the region view's Play button
         does (0x7AEA00 makes the tile's regional city; 0x7ADC20 loads its file, or starts a new city in god mode)."""
         b = self.attach(10.0)
-        hit = [t for t in self.tiles() if (t["x"], t["z"]) == (x, z)]
+        end = time.time() + 5.0
+        while True:                    # right after a region loads, its view is still being built: retry briefly
+            try:
+                tiles, v = self.tiles(), self._region_view()
+                break
+            except (win32.WinError, GameError):
+                if time.time() > end:
+                    raise
+                time.sleep(0.5)
+        hit = [t for t in tiles if (t["x"], t["z"]) == (x, z)]
         if not hit:
             raise GameError("no city tile starts at grid square (%d, %d)" % (x, z), "list_regions shows the tiles")
-        v = self._region_view()
         r = b.call_function(FN_RV_TILE_CITY, [hit[0]["_rec"], 1], this=v)
         ref = r.ret[0] & 0xFFFFFFFF
         if not r.ok or not ref:

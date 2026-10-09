@@ -33,7 +33,7 @@ L = a day or more, XL = several days.
 - [x] Working civic designs: police, fire, clinic, school with their own coverage, strength / capacity and costs (M) - power plants not yet (their output property is not pinned down)
 - [x] Custom ordinances and budget departments (the installed host DLLs) (M)
 - [x] Rewards with unlock conditions (M) - landmarks are plain ploppables already (design_model_building)
-- [ ] New terrain brushes (M)
+- [x] New terrain brushes (M) - scaled copies of the game's god-mode brushes
 
 ## Phase 9 - harder
 

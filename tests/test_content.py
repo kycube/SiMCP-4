@@ -287,3 +287,23 @@ def test_ordinance_and_department(tmp_path, monkeypatch):
     assert len(set(p[orddesign.P_BUDGET_LINE])) == 2 and len(recs) == 1
     with pytest.raises(content.ContentError):
         orddesign.department_props("X", "space_program", 1)
+
+
+def test_brush_design(tmp_path, monkeypatch):
+    """A brush design scales the base brush's radius and strength lists and is offered to terraform."""
+    import pytest
+    from sc4_mcp import brushdesign, dbpf, gamedata, terrain
+    if gamedata._main_dat() is None:
+        pytest.skip("the game's data files are not installed")
+    monkeypatch.setattr(content, "FOLDER", str(tmp_path))
+    monkeypatch.setattr(content, "MANIFEST", str(tmp_path / "content.json"))
+    r = brushdesign.design_brush("Wide Hill", "mountain_default", 2.0, 0.5)
+    d = dbpf.DBPF(r["file"])
+    ex = [dbpf.parse_exemplar(d.read(e)) for e in d if e.type == dbpf.T_EXEMPLAR][0]
+    base = dict(gamedata.exemplars(brushdesign.G_BRUSHES))[terrain.god_brushes()["mountain_default"]]
+    assert ex.get(0x10) == 0x27
+    assert ex.get(0x8A020202) == [v * 2 for v in base.get(0x8A020202)]
+    assert ex.get(0x8A020203) == pytest.approx([v * 0.5 for v in base.get(0x8A020203)])
+    assert terrain.god_table()["simcp_wide_hill"] == int(r["brush"], 16)
+    with pytest.raises(content.ContentError):
+        brushdesign.design_brush("Odd", "volcano_of_doom")

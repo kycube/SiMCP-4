@@ -649,3 +649,13 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   group and 0x4252085F name key): plopped at (44, 29); a month later departments() lists "SiMCP Archives"
   (0x13729023, Government Buildings, fixed funding) with 40 / 15, and the city's monthly totals moved by exactly
   +15 income and +40 expense.
+- **Terrain brushes in the game's data**: 30 exemplars of type 0x27 in group 0x6A01FC2A; GodMountainDefault 0x6A33E1BA
+  has two layers 0x8A0202xx / 0x8A0203xx (+0 shape id, +1 flag, +2 radius in metres per zoom [800, 500, 300, 150,
+  100], +3 strength per zoom [0.1 .. 0.006], +4 / +5 mode and operation), icon 0x8A2602B8, menu order 0x8A2602B9.
+- **design_brush "Big Hill"** (GodMountainDefault, radius and strength x2): after a restart terrain_brushes lists
+  simcp_big_hill in god mode; on the unfounded tile (7, 0) of MCP Test (left without saving) one second held at
+  (16, 32) with the game's brush raised the peak 270 -> 686.5 m (+430) and 1,462 cells by more than 1 m; the same
+  second with Big Hill at (48, 32) raised it 270 -> 1,212.7 m (+949) and every one of the 2,080 cells of that half
+  of the map by more than 1 m.
+- **open_tile right after load_region** once failed reading the region view (ReadProcessMemory error 299: the view
+  was still being built); open_tile now retries for up to 5 s (load_region then open_tile at once then worked).

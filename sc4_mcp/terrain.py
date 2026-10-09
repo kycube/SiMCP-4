@@ -42,13 +42,19 @@ def god_brushes() -> dict[str, int]:
     return out
 
 
+def god_table() -> dict[str, int]:
+    """God mode's brushes and SiMCP's brush designs (design_brush)."""
+    from . import brushdesign
+    return {**god_brushes(), **brushdesign.designed()}
+
+
 def brushes(g) -> dict:
     p = g.proc
     c = memory.city_pointer(p)
     if not c:
         raise TerrainError("no city is open", "load_city opens one")
     founded = bool(p.u8(c + C_ESTABLISHED))
-    return {"mode": "mayor" if founded else "god", "brushes": sorted(MAYOR if founded else god_brushes())}
+    return {"mode": "mayor" if founded else "god", "brushes": sorted(MAYOR if founded else god_table())}
 
 
 def apply(g, brush: str, cells: list[tuple[int, int]], seconds: float = 1.0) -> dict:
@@ -60,7 +66,7 @@ def apply(g, brush: str, cells: list[tuple[int, int]], seconds: float = 1.0) -> 
     if not c:
         raise TerrainError("no city is open", "load_city opens one")
     founded = bool(p.u8(c + C_ESTABLISHED))
-    table = MAYOR if founded else god_brushes()
+    table = MAYOR if founded else god_table()
     if brush not in table:
         raise TerrainError("brush %r is not available in %s mode" % (brush, "mayor" if founded else "god"),
                            "brushes: " + ", ".join(sorted(table)))

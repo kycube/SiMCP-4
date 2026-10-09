@@ -10,7 +10,7 @@ import os
 from mcp.server.fastmcp import FastMCP, Image
 
 from . import game as gamemod
-from . import build, catalog, cheats, city, content, disasters, economy, heightmap, history, launch, layers, lotdesign, luaquery, orddesign, housekeeping, memory, mysim, neighbors, networks, options, pointer, regions, services, terrain, trees, udi, vehicles, view
+from . import brushdesign, build, catalog, cheats, city, content, disasters, economy, heightmap, history, launch, layers, lotdesign, luaquery, orddesign, housekeeping, memory, mysim, neighbors, networks, options, pointer, regions, services, terrain, trees, udi, vehicles, view
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -1685,6 +1685,27 @@ def design_ordinance(name: str, description: str, monthly: int = -50, enact_cost
     """
     try:
         return orddesign.design_ordinance(name, description, monthly, enact_cost, effects, condition)
+    except content.ContentError as e:
+        return {"error": str(e), "hint": e.hint}
+
+
+@tool(mcp, "act")
+@guarded
+def design_brush(name: str, base: str = "mountain_default", radius_scale: float = 1.0,
+                 strength_scale: float = 1.0) -> dict:
+    """Design a new god-mode terrain brush: one of the game's brushes (terrain_brushes in god mode lists them:
+    mountain_default, valley_lake, plains, canyon, crater, smoothing...) with a wider or narrower reach and a
+    stronger or gentler effect. Written as a plugin; after a restart, terraform(brush="simcp_<name>") uses it before
+    a city is founded.
+
+    Args:
+        name: the brush's name.
+        base: the game brush it starts from.
+        radius_scale: its radius times this (0.1..10).
+        strength_scale: its strength times this (0.05..20).
+    """
+    try:
+        return brushdesign.design_brush(name, base, radius_scale, strength_scale)
     except content.ContentError as e:
         return {"error": str(e), "hint": e.hint}
 

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "simcp4": {
+      "command": "simcp4",
+      "args": []
+    }
+  }
+}

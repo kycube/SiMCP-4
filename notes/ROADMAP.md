@@ -50,7 +50,7 @@ L = a day or more, XL = several days.
 - [x] Bridges and tunnels (XL) - bridges by name and tunnels reported on each drag (build_network); new bridges copied from the game's under a new name and deck height (design_bridge); recoloured bridge models: Phase 11
 - [x] Transit-enabled lots (XL) - new stations on copies of the game's station lots, network tiles and transit properties kept (design_transit_station); ridership of a new station not measured yet
 - [x] Lot Editor parity (L-XL) - any game lot read row by row (lot_layout) and edited copies with rows removed, moved or added (edit_lot), next to new lots (design_park, design_model_building) and growables; lots from other plugins are not read yet
-- [ ] Release packaging (M-L)
+- [x] Release packaging (M-L) - version 0.10.0, the simcp4 command, setup_check / --check, a wheel that bundles the DLLs and a release zip (scripts/package_release.py, CI artifact), client examples, CHANGELOG
 
 ## Phase 11 - realism polish (last)
 

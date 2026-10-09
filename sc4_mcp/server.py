@@ -2128,14 +2128,25 @@ def quit_game(force: bool = False) -> dict:
     return G.quit(force=force)
 
 
+@tool(mcp, "read")
+@guarded
+def setup_check() -> dict:
+    """What SiMCP needs on this machine, checked without starting the game: Windows, Python, the game's build, the
+    SiMCP DLLs, SiMCP's home folder, your plugins (mirrored read-only) and NAM. Each check has ok and, when not ok,
+    a hint."""
+    from . import doctor
+    return doctor.check()
+
+
+def run(transport: str = "stdio", port: int = 8766):
+    if transport == "streamable-http":
+        mcp.settings.port = port
+    mcp.run(transport=transport)
+
+
 def main():
-    ap = argparse.ArgumentParser(prog="python -m sc4_mcp")
-    ap.add_argument("--transport", default="stdio", choices=["stdio", "streamable-http"])
-    ap.add_argument("--port", type=int, default=8766)
-    a = ap.parse_args()
-    if a.transport == "streamable-http":
-        mcp.settings.port = a.port
-    mcp.run(transport=a.transport)
+    from . import cli
+    cli.main()
 
 
 if __name__ == "__main__":

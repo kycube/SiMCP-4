@@ -25,3 +25,12 @@ jobs:
         with:
           name: simcp4-dlls
           path: bridge/build/*.dll
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Package the release (wheel with the DLLs, zip)
+        run: python scripts/package_release.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: simcp4-release
+          path: dist/*

@@ -9,7 +9,7 @@ Gemini agents, local models, or your own code. Everything happens in the real ga
 with the game's own rules and prices. It is the sibling of [SiMCP 3000](https://github.com/kycube/SiMCP-3000)
 (SimCity 3000 Unlimited).
 
-> **Status: Phases 1-9 and part of 10, 107 tools, tested in the running game.** What each test showed, and the known limits, are in
+> **Status: Phases 1-10, 108 tools, tested in the running game.** What each test showed, and the known limits, are in
 > [notes/LIVE_FACTS.md](notes/LIVE_FACTS.md); every tool's parameters are in [docs/TOOLS.md](docs/TOOLS.md); what is
 > left is in [notes/ROADMAP.md](notes/ROADMAP.md). U-Drive-It is left out for now (the existing mission tools stay).
 
@@ -69,10 +69,17 @@ starts the game through a directory junction instead, unelevated (see PHASE0.md)
 
 ## Quick start
 
-1. Windows, SimCity 4 Deluxe 1.1.641 (GOG), Python 3.10+, Visual Studio (or its Build Tools) with the C++ x86 tools.
-2. `python -m pip install -e .` and `bridge\build.bat`.
-3. Register `python -m sc4_mcp` as a stdio MCP server with your client; give it a tool timeout of a few minutes.
-4. Ask the agent to call `guide`, then `game_launch`.
+From a release (no compiler needed: the wheel carries the SiMCP DLLs):
+
+1. Windows, SimCity 4 Deluxe 1.1.641 (GOG or the digital release), Python 3.10+.
+2. `python -m pip install simcp_4-<version>-py3-none-any.whl` (from the release zip).
+3. `simcp4 --check` checks the setup without starting the game.
+4. Register `simcp4` as a stdio MCP server with your client (`claude mcp add simcp4 -- simcp4`, or see
+   `examples/`); give it a tool timeout of a few minutes.
+5. Ask the agent to call `guide`, then `game_launch`.
+
+From a checkout: Visual Studio (or its Build Tools) with the C++ x86 tools, `python -m pip install -e .` and
+`bridge\build.bat`; `scripts/package_release.py` builds the release zip.
 
 `game_launch` starts the game through a junction in `%USERPROFILE%\SiMCP-4` (or `SIMCP4_HOME`) with its own user folder there
 (`UserDir`: Regions, settings and a Plugins folder that mirrors yours plus the SiMCP plugin); your own

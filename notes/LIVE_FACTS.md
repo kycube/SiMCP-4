@@ -819,3 +819,12 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   -0.05 m). "MCP Gazebo Grove" (edit_lot: six family rows removed, the gazebo moved 1 m, an oak, a maple and a
   lamp post added) plopped at (60, 20) beside the Maxis gazebo: the lamp and the cleared corners show; the added
   menu trees stand as saplings (they never grow, Phase 9).
+
+## Session 2026-10-09 (Phase 10: release)
+
+- **The MCP package's 2.x renamed FastMCP** (mcp.server.fastmcp is gone): a clean install of the wheel took mcp
+  2.x and the server did not start. SiMCP pins mcp>=1.29,<2; setup_check reports a wrong version. The release
+  wheel (written by scripts/package_release.py, no setuptools needed) installed into a clean venv with its
+  dependencies (mcp 1.30.0, numpy 2.5.3, pillow 12.3.0); `simcp4 --check` found the game and the DLLs bundled in
+  site-packages\\sc4_mcp\\bin; an MCP stdio client listed 108 tools, called setup_check and game_status (which
+  attached to the running game).

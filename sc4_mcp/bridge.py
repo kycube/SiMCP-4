@@ -25,7 +25,9 @@ PLUG_PING, PLUG_LOAD, PLUG_UNLOAD = 1, 2, 3
 OP_PING, OP_CALL, OP_CALL_SEQ, OP_DEFER, OP_COMMAND, OP_STEP_DAYS = 16, 17, 18, 19, 20, 21
 
 PACKAGE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BUILD_DIR = os.path.join(PACKAGE_DIR, "bridge", "build")
+REPO_BUILD = os.path.join(PACKAGE_DIR, "bridge", "build")            # a checkout's own build (bridge\build.bat)
+BUNDLED = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bin")   # the DLLs a release ships
+BUILD_DIR = REPO_BUILD if os.path.isfile(os.path.join(REPO_BUILD, "simcp4.dll")) else BUNDLED
 PLUGIN_DLL = os.environ.get("SIMCP4_PLUGIN_DLL") or os.path.join(BUILD_DIR, "simcp4.dll")
 BRIDGE_DLL = os.environ.get("SIMCP4_BRIDGE_DLL") or os.path.join(BUILD_DIR, "simcp4bridge.dll")
 STAGE_DIR = os.path.join(tempfile.gettempdir(), "simcp4")

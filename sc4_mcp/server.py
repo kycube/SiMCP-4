@@ -10,7 +10,7 @@ import os
 from mcp.server.fastmcp import FastMCP, Image
 
 from . import game as gamemod
-from . import build, catalog, cheats, city, content, disasters, economy, history, launch, layers, luaquery, memory, mysim, networks, pointer, regions, terrain, udi, view
+from . import build, catalog, cheats, city, content, disasters, economy, history, launch, layers, luaquery, memory, mysim, networks, pointer, regions, services, terrain, udi, view
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -483,7 +483,8 @@ def departments() -> dict:
 @guarded
 def set_department_funding(department: str, percent: float) -> dict:
     """Set a department's funding, as the Budget window's slider does (0 up to the department's maximum, usually
-    120 percent; clamped). Lower funding saves money but weakens the service. Returns the new monthly expense.
+    120 percent; clamped). It sets every building of the department to that funding (building_funding shows what
+    that does to each one's service). Returns the new monthly expense.
 
     Args:
         department: the department's name as departments() lists it (e.g. "Police Dept.", "Education"; a unique
@@ -491,6 +492,46 @@ def set_department_funding(department: str, percent: float) -> dict:
         percent: the funding in percent of the full cost.
     """
     return _econ(economy.set_department_funding, department, percent)
+
+
+def _svc(fn, *a):
+    try:
+        return fn(_city(), *a)
+    except services.ServiceError as e:
+        return {"error": str(e), "hint": e.hint}
+
+
+@tool(mcp, "read")
+@guarded
+def building_funding(x: int, z: int) -> dict:
+    """A civic building's or power plant's funding and what it buys: each budget item (funding percent, full and
+    current monthly cost), the game's response curve from funding to effect with the effect now, and the service
+    measured in the game - power plant efficiency, condition and output capacity; police / fire station efficiency;
+    school / hospital capacity, staff and enrolment. Funding below 100 percent saves money and weakens the service
+    by the curve (fire stations and power plants lose effect faster than the money saved; school buses and
+    ambulances keep half their coverage at zero).
+
+    Args:
+        x: a cell of the building (column).
+        z: a cell of the building (row).
+    """
+    return _svc(services.building_funding, x, z)
+
+
+@tool(mcp, "set")
+@guarded
+def set_building_funding(x: int, z: int, item: str, percent: float) -> dict:
+    """Set one building's funding, as its funding slider in the Budget window does (0 up to the item's maximum,
+    usually 120 percent; clamped). Returns the cost and the measured service before and after.
+
+    Args:
+        x: a cell of the building (column).
+        z: a cell of the building (row).
+        item: power, police, fire, school_staff, school_buses, hospital_staff or ambulances (building_funding lists
+            a building's items).
+        percent: the funding in percent of the full cost.
+    """
+    return _svc(services.set_building_funding, x, z, item, percent)
 
 
 @tool(mcp, "read")

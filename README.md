@@ -9,10 +9,10 @@ Gemini agents, local models, or your own code. Everything happens in the real ga
 with the game's own rules and prices. It is the sibling of [SiMCP 3000](https://github.com/kycube/SiMCP-3000)
 (SimCity 3000 Unlimited).
 
-> **Status: Phases 1-4, 65 tools, tested in the running game.** What each test showed, and the known limits, are in
+> **Status: Phases 1-4, 67 tools, tested in the running game.** What each test showed, and the known limits, are in
 > [notes/LIVE_FACTS.md](notes/LIVE_FACTS.md); every tool's parameters are in [docs/TOOLS.md](docs/TOOLS.md). Not yet
-> done or not yet proven: a U-Drive-It mission driven to success, neighbour
-> deal details, preferences beyond day/night, region import from a height map, the god-mode fire item.
+> done or not yet proven: neighbour deal details, preferences beyond day/night, region import from a height map,
+> the god-mode fire item. Driving a U-Drive-It mission to success is left for a later release.
 
 > SiMCP 4 is a fan project, not affiliated with or endorsed by Electronic Arts or Maxis. SimCity is a trademark of
 > Electronic Arts Inc. You need your own copy of SimCity 4 Deluxe; this repository contains no game files.
@@ -26,7 +26,7 @@ with the game's own rules and prices. It is the sibling of [SiMCP 3000](https://
 | **Time** | `advance_time` (the game plays at its own speed and pauses exactly on the target day; or exact day stepping), `set_speed`, `set_paused`, `day_night` |
 | **Seeing the city** | `city_status`, `map_data` / `tile_info` (34 data layers per cell), `network_map` / `find_route` (roads, rails, pipes, power lines and their connections), `lots`, `demand`, `get_budget`, `advisors`, `graphs` / `graph_data` (the Graphs window's history), `city_figures` (the advisors' ~190 figures, read-only), `camera` / `set_camera` / `snapshot` (the game's own picture) - read from the game's memory |
 | **Building** | `build_network` (roads to monorail, pipes, power lines: the game's path solver and price), `zone`, `build_menu` / `plop` (every menu building with the menus' own availability rules), `bulldoze`, `plant_trees`, `terrain_brushes` / `terraform` |
-| **Running the city** | `set_tax`, `departments` / `set_department_funding`, `ordinances` / `set_ordinance`, `loans` / `take_loan` |
+| **Running the city** | `set_tax`, `departments` / `set_department_funding`, `building_funding` / `set_building_funding` (per building, with the measured effect on its service), `ordinances` / `set_ordinance`, `loans` / `take_loan` |
 | **The rest of the game** | `start_disaster` / `disaster_status`, `dispatch` (fire and police), `missions` / `start_mission` / `drive` / `stop_driving` (U-Drive-It), `my_sims` / `move_in_sim`, `cheat` (vetted, logged) |
 | **New content** | `design_building` (a new menu item from a Maxis one), `design_model_building` (its own generated 3D model and textures), `content_designs`, `disable_design` |
 

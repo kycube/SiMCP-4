@@ -312,7 +312,7 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   0xACD050, 34 slots; GetDocument slot 21 copies from [iface+0x70] slot 4 -> a buffer whose slot 6 = data, slot 7 =
   length). Reading those directly gave the mission offer's and the mission result's full text ("You didn't get the
   car to the blinking bulls-eye target before time ran out..."); dialog_status now returns it (entities decoded).
-- **Mission attempts**: the road training mission (176 s) failed twice with simple controllers: a slow U-turn at the
+- **Mission attempts** (driving missions are deferred to a later release at the user's request): the road training mission (176 s) failed twice with simple controllers: a slow U-turn at the
   start and drifting off the road into the power line's pylons at (27, 29). Offers come and go (withdrawn for a while
   after a failure; no vehicle while the city is paused).
 - **Network map** (MCP Village, 2002): occupant manager `[0xB43D0C]` slot **41** GetOccupantsByStandardCityCells
@@ -332,3 +332,25 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   also type 0xC772BF98 but another class (occupant vtable 0xAA9730, network vtable 0xAA97B8) with the same getters
   and fields (flags 0x10000010, primary type 4, edges 0x02000200); the reader accepts any class whose slots 12 / 40
   are those getters, and network_map("pipe") drew it with its corner.
+- **Building funding and what it does** (MCP Village, Sept-Oct 2003; a road along z = 41 with a Small Police
+  Station (32, 42), Small Fire Station (36, 42), Elementary School (38, 42) and Medical Clinic (41, 42) plopped for
+  170 / 180 / 396 / 95). BudgetSim slot 51 GetBudgetItemForPurpose(holder, purpose, item&) gave each building's
+  items: coal plant power 300 / month at 100 %; stations 90; school staff 187 + buses 62; clinic staff 600 +
+  ambulances 100 (the cost is the full cost; the department pays cost x funding: Education 46 at 25 %, 187 at
+  100 %). New schools and clinics start at 25 % ("School / Health Init/Max Allowed Funding" = 25, 120). Setting
+  through the simulators as the slider (0x77BC90) does - PowerSim 51, PoliceSim 8, FireSim 9, ResidentialSim 19
+  (occupant, &staff, &coverage, school) - with these results:
+  - police station 50 %: efficiency (PoliceSim 25) 1.0 -> 0.5 at once; a month later the police coverage map's
+    total 156,903 -> 86,919 (-45 %);
+  - fire station 50 %: efficiency 0.25 (the fire curve: 50 -> 25); a month later fire coverage 208,590 -> 89,254
+    (-57 %), tracts covered 1024 -> 591;
+  - coal plant 50 %: efficiency 0.25 (power curve 50 -> 25), output capacity 7497 -> 1874 MWh at once (the city
+    used 427, so no shortage); condition stayed 1.0 over the month;
+  - school staff 25 -> 100 %: capacity 300 -> 1200 students, staff 10 -> 40 (9 enrolled); clinic staff 25 ->
+    100 %: 350 -> 1400 patients, staff 11 -> 46 (17 patients).
+  The Police department slider (set_department_funding 80 %) set the station's own funding to 80 % and its
+  efficiency to 0.8: the department slider sets every building. The curves come from the tuning exemplars
+  (6534284A-E7E2C2DB-28DFCF89 police, -68F5524A fire, -C911E35B utilities, -69189C84 residential), read live
+  through the resource manager. Efficiency getters take a hidden result pointer (float* out, occupant) - calling
+  PoliceSim 25 with the occupant first faulted (caught). The bridge's OP_CALL now also returns ST0 for functions
+  that return float (conv bit 1). All funding was set back afterwards.

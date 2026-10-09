@@ -27,3 +27,10 @@ def test_power_lines_connect_to_neighbours():
     out = {(5, 5): {"power_line": 0}, (6, 5): {"power_line": 0}, (6, 6): {"power_line": 0, "road": W}}
     networks._power_sides(out)
     assert out[(5, 5)]["power_line"] == E and out[(6, 5)]["power_line"] == W | S and out[(6, 6)]["road"] == W
+
+
+def test_funding_curve_interpolation():
+    from sc4_mcp import services
+    fire = [[0, 10], [50, 25], [75, 45], [90, 75], [100, 100], [120, 110]]     # the game's fire curve
+    assert services.on_curve(fire, 50) == 25 and services.on_curve(fire, 95) == 87.5
+    assert services.on_curve(fire, -5) == 10 and services.on_curve(fire, 200) == 110

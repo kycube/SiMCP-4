@@ -20,7 +20,7 @@
 
 enum {
 	OP_PING = 16,
-	OP_CALL = 17,      // args: fn, conv (unused), nargs (0..12), this (0 = cdecl/stdcall), a0..a11 -> ret[0]=eax ret[1]=edx
+	OP_CALL = 17,      // args: fn, conv (bit 1: returns float), nargs (0..12), this (0 = cdecl/stdcall), a0..a11 -> ret[0]=eax ret[1]=edx ret[2]=float bits
 	OP_CALL_SEQ = 18,  // args: count; str: CallDesc[count] run back-to-back in one main-thread turn -> ret[i] = eax
 	OP_DEFER = 19,     // args as OP_CALL: run later from the message loop; state.defer* report the outcome
 	OP_COMMAND = 20,   // args: defer (0/1); str: a game command line ("LoadRegion Timbuktu") -> ret[0] = the command's
@@ -256,8 +256,13 @@ static void Msg(const char *fmt, ...) {
 	g_bridge.msg[g_bridge.msgLen] = 0;
 }
 
-static int __declspec(noinline) CallGeneric(DWORD fn, DWORD thisPtr, int nargs, const int *a) {
+static float g_lastFloat;
+
+// floatRet: the function returns float / double in ST0 (popped into g_lastFloat); only for such functions, since
+// popping an empty x87 stack would leave the FPU in a fault state.
+static int __declspec(noinline) CallGeneric(DWORD fn, DWORD thisPtr, int nargs, const int *a, bool floatRet = false) {
 	int result, hi;
+	float fr = 0.0f;
 	__asm {
 		mov esi, a
 		mov ecx, nargs
@@ -274,8 +279,13 @@ static int __declspec(noinline) CallGeneric(DWORD fn, DWORD thisPtr, int nargs, 
 		mov esp, edi
 		mov result, eax
 		mov hi, edx
+		cmp floatRet, 0
+		je no_float
+		fstp fr
+	no_float:
 	}
 	g_lastEdx = hi;
+	g_lastFloat = fr;
 	return result;
 }
 
@@ -323,8 +333,9 @@ static int Execute(DWORD op) {
 		r[2] = (int)(UINT_PTR)g_hModule;
 		return 0;
 	case OP_CALL:
-		r[0] = CallGeneric((DWORD)a[0], (DWORD)a[3], a[2] < 0 ? 0 : (a[2] > 12 ? 12 : a[2]), &a[4]);
+		r[0] = CallGeneric((DWORD)a[0], (DWORD)a[3], a[2] < 0 ? 0 : (a[2] > 12 ? 12 : a[2]), &a[4], (a[1] & 2) != 0);
 		r[1] = g_lastEdx;
+		r[2] = *(int *)&g_lastFloat;   // with conv bit 1: the float result
 		return 0;
 	case OP_CALL_SEQ:
 		return CallSequence(a[0]);

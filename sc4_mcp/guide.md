@@ -67,6 +67,13 @@ medium 128x128, a large 256x256.
 - `set_speed(slow|medium|fast)`, `set_paused(true|false)`: the game's own clock while you watch it run.
 - `set_tax(group, rate)`, `departments()` / `set_department_funding(...)`, `ordinances()` / `set_ordinance(...)`,
   `loans()` / `take_loan(amount)`: the budget window's controls, with the game's limits.
+- `building_funding(x, z)` / `set_building_funding(x, z, item, percent)`: one civic building's or power plant's
+  funding and what it buys. Funding drives an efficiency curve (read from the game): police stations lose
+  coverage in step with the money (50 % funding = half efficiency; the coverage map fell 45 % in a month), fire
+  stations and power plants lose more than the money saved (50 % = a quarter of the efficiency and of a plant's
+  output), school and hospital capacity is maximum x staff funding, and buses / ambulances keep half their reach
+  at zero. New schools and hospitals start at 25 %: raise them as enrolment grows. The department slider
+  (`set_department_funding`) sets every building of the department at once.
 - `save_city()` saves as the game's Save does (shipped cities are protected unless you say otherwise).
 - `dialog_status()` / `close_dialog(button)`: a dialog the game opened (advisor popups, notices, offers) and its
   buttons; `set_popups(false)` keeps advisor popups from interrupting.

@@ -250,6 +250,20 @@ class Bridge:
         args = list(args)
         return self.call(OP_CALL, [addr, 1 if this else 0, len(args), this] + args)
 
+    def call_float(self, addr: int, args=(), this: int = 0) -> float:
+        """Call a function that returns float / double (in ST0) and give that value. Only for such functions."""
+        if len(args) > 12:
+            raise BridgeError("at most 12 arguments")
+        args = list(args)
+        r = self.call(OP_CALL, [addr, (1 if this else 0) | 2, len(args), this] + args)
+        if not r.ok:
+            raise BridgeError("call failed: %s" % r.msg)
+        return struct.unpack("<f", struct.pack("<I", r.ret[2] & 0xFFFFFFFF))[0]
+
+    def vfloat(self, obj: int, slot: int, *args) -> float:
+        """Call virtual method `slot` of `obj` that returns a float."""
+        return self.call_float(self.proc.u32(self.proc.u32(obj) + 4 * slot), list(args), this=obj)
+
     def defer_call(self, addr: int, args=(), this: int = 0) -> BridgeResult:
         args = list(args)[:8]
         return self.call(OP_DEFER, [addr, 1 if this else 0, len(args), this] + args)

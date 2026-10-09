@@ -97,6 +97,7 @@ def snapshot(g, width: int = 1024, settle_s: float = 0.4) -> tuple[dict, bytes]:
         raise ViewError("the game did not write a snapshot (status %s)" % r.get("status"),
                         "the game window must be drawing (not minimised)")
     im = Image.open(path).convert("RGB")
+    im.save(path)                    # the game writes alpha 0 everywhere: keep an opaque copy
     if 0 < width < im.width:
         im = im.resize((width, round(im.height * width / im.width)), Image.LANCZOS)
     buf = io.BytesIO()

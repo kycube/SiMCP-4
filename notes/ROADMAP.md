@@ -6,14 +6,14 @@ L = a day or more, XL = several days.
 
 ## Phase 5 - low-hanging
 
-- [ ] Small upkeep: Pillow deprecation in heightmap, retire the test advice designs (S)
-- [ ] Menu icons for designs (S)
-- [ ] Creating My Sims: name, description, gender, sign, face (S)
+- [x] Small upkeep: Pillow deprecation in heightmap, retire the test advice designs (S)
+- [x] Menu icons for designs (S)
+- [x] Creating My Sims: name, sign and one of the 21 faces (the face sets the gender; the dialog has no description field) (S)
 - [ ] Seaport zones on a city with water (S)
-- [ ] Strikes and jailbreaks status (S)
-- [ ] Region housekeeping: rename a region, delete a city / region (confirmed), back up a region (S)
+- [x] Strikes and jailbreaks status (S)
+- [x] Region housekeeping: rename a region, delete a city / region (confirmed), back up a region (S)
 - [ ] Graphics and sound settings through the options dialogs' path (S-M)
-- [ ] School / hospital auto-budget (only if the player can switch it) (S)
+- [x] School / hospital auto-budget: not a player option in this version, so not offered (cheat-class) (S)
 - [ ] Starting an offered neighbour deal (S-M)
 
 ## Phase 6 - new trees and vehicles

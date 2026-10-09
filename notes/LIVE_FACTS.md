@@ -480,3 +480,25 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   the police strike curve as all zeros (live tuning 68DDAE9E = [0,0, 25,0, 50,0, 70,0]). Jails (Windows slots shifted
   by MSVC's overload grouping: 28 GetJailCapacity(occ), 29 GetJailCapacity() ... 38 ProcessMonthlyCrimeStats - never
   called): capacity +0xD8 = 120, inmates +0xDC, criminals +0xE0, arrests +0xE4 (all 0 here).
+
+## Session 2026-10-08 (Phase 5: low-hanging items)
+
+- **Menu icons for designs**: "MCP Kiosk" (design_model_building, lot 0xFD89BDA2, building 0x70FCDD52) with
+  SiMCP's 176x44 four-state PNG (image group 0x6A386D26, exemplar property 0x8A2602B8) shows its drawn box as the
+  4th item of Civic -> Parks after a game restart (seen in a game snapshot). The UI path, all with the game's own
+  GZWinClickButton command: ToggleMayorPanel; the mayor column (parent 0x69E40A1F) 0x8991EE08 Landscape,
+  0x0991EE13 zones, 0xA994824D transport, 0xE991EE2F utilities, 0x0991EE39 Civic, 0xE999C820 bulldoze, 0x6991EE42
+  emergency; the Civic submenu (parent 0x699306ED) 0x37 police, 0x38 fire, 0x42 education, 0x89DD5405 health,
+  0x09930709 landmarks, 0x34 rewards, 0x03 parks; the item list opens as window 0x8A6E61E0.
+- **Snapshots**: the game's TakeSnapshot PNG has alpha 0 in every pixel (viewers that honour alpha show it blank);
+  SiMCP now saves it back as opaque RGB. Window captures from outside (PrintWindow, a screen grab) show only black
+  with a white box for this game's DirectX window, so the game's own snapshot stays the way to see it.
+- **Region housekeeping** (files only): backup_region copies the folder into <SiMCP home>\backups\<folder>-<time>;
+  remove_city / remove_region move the city file / region folder there (nothing deleted). Tested on "MCP Heightmap":
+  backup made; renamed to "MCP Island" (region.ini Name; the folder keeps its name); after a game restart the
+  region loads as "MCP Island" and the tile whose city was moved aside is unfounded. A rename while the game runs
+  makes the region unloadable under either name until the game restarts (the game reads the region list at
+  start), so rename_region says so. The game reports a loaded region by its display name: the guard refuses the
+  loaded region by folder or display name (live: remove_region / remove_city / rename_region on "MCP Test" while it
+  was loaded were refused). An offline test found that a city given by its plain name never matched its file
+  ("City - <name>.sc4"); fixed.

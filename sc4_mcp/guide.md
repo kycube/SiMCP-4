@@ -40,6 +40,11 @@ the test region "MCP Test" has one large, two medium and eight small tiles on fl
   new_region -> set_region_layout -> import_region_terrain -> open_tile / found_city.
 - `saved_city(region, city)` and `city_thumbnail(region, city)` read a saved city from its file.
 - `leave_city()` goes back to the region view without saving.
+- Housekeeping, on files only and never on the region the game has loaded: `backup_region(region)` copies a region
+  into SiMCP's backups; `remove_city(region, city)` and `remove_region(region)` move files there (nothing is
+  deleted; a removed city's tile is a new, unfounded city next time). `rename_region(region, new_name)` changes the
+  name the game shows; the game reads region names when it starts, so a running game cannot load that region again
+  until it restarts (`quit_game`, `game_launch`).
 - `city_status()` reads the open city: name, mayor, founded or not, difficulty, size in cells, date, speed, pause.
 
 ## Time

@@ -10,7 +10,7 @@ import os
 from mcp.server.fastmcp import FastMCP, Image
 
 from . import game as gamemod
-from . import build, catalog, cheats, city, content, disasters, economy, heightmap, history, launch, layers, luaquery, memory, mysim, neighbors, networks, options, pointer, regions, services, terrain, udi, view
+from . import build, catalog, cheats, city, content, disasters, economy, heightmap, history, launch, layers, luaquery, housekeeping, memory, mysim, neighbors, networks, options, pointer, regions, services, terrain, udi, view
 from .registry import tool
 
 INSTRUCTIONS = (
@@ -166,6 +166,69 @@ def _reload_region(name: str) -> None:
     if others:
         G.load_region(others[0])
     G.load_region(name)
+
+
+def _hk(fn, *a):
+    try:
+        return fn(*a)
+    except housekeeping.HousekeepingError as e:
+        return {"error": str(e), "hint": e.hint}
+
+
+def _game_or_none():
+    try:
+        G.attach(5.0)
+        return G
+    except gamemod.GameError:
+        return None
+
+
+@tool(mcp, "act")
+@guarded
+def backup_region(region: str) -> dict:
+    """Copy a region of SiMCP's user folder (its settings and every city file) into SiMCP's backups folder.
+
+    Args:
+        region: the region's folder name (list_regions).
+    """
+    return _hk(housekeeping.backup_region, region)
+
+
+@tool(mcp, "destructive")
+@guarded
+def remove_city(region: str, city: str) -> dict:
+    """Take a city out of a region: its file is moved into SiMCP's backups (not deleted), and the tile is a new,
+    unfounded city the next time the region loads. Not while the game has that region loaded.
+
+    Args:
+        region: the region's folder name.
+        city: the city's name or file name.
+    """
+    return _hk(housekeeping.remove_city, _game_or_none(), region, city)
+
+
+@tool(mcp, "destructive")
+@guarded
+def remove_region(region: str) -> dict:
+    """Take a whole region away: its folder is moved into SiMCP's backups (not deleted). Not while the game has it
+    loaded; the game's region list drops it at the next start.
+
+    Args:
+        region: the region's folder name.
+    """
+    return _hk(housekeeping.remove_region, _game_or_none(), region)
+
+
+@tool(mcp, "set")
+@guarded
+def rename_region(region: str, new_name: str) -> dict:
+    """Give a region a new name (shown in the game; the folder keeps its name). Not while the game has it loaded.
+
+    Args:
+        region: the region's folder name.
+        new_name: the new name (1-32 letters, digits, spaces, - ' _).
+    """
+    return _hk(housekeeping.rename_region, _game_or_none(), region, new_name)
 
 
 @tool(mcp, "act")

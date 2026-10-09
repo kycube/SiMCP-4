@@ -25,6 +25,7 @@ DISABLED = os.path.join(launch.ROOT, "content-disabled")
 MANIFEST = os.path.join(launch.ROOT, "content.json")
 G_LOTS = 0xA8FBD372
 G_SIMCP_BUILDINGS = 0x5C4D0F00          # SiMCP's own building exemplar group
+G_SIMCP_NAMES = 0x5C4D0F01              # SiMCP's LTEXT names (instance = the building)
 P_NAME, P_ITEM_NAME, P_ITEM_DESC, P_NAME_KEY, P_DESC_KEY = 0x20, 0x899AFBAD, 0x8A2602A9, 0x8A416A99, 0xCA416AB5
 P_PLOP, P_BULLDOZE, P_MONTHLY, P_LOT_KEY, P_GROUPS = 0x49CAC341, 0x099AFACD, 0xEA54D286, 0xEA260589, 0xAA1DD396
 LOT_ROW0 = 0x88EDC900
@@ -179,13 +180,16 @@ def clone_lot(template_lot: int, template_building: int | None, name: str, descr
 def disable(name: str) -> dict:
     """Take a design out of the game: its file moves to SiMCP's content-disabled folder (not deleted)."""
     items = _manifest()
-    hit = [d for d in items if d["name"].lower() == name.lower()]
+    hit = [d for d in items if d["name"].lower() == name.lower() and not d.get("disabled")]
     if not hit:
-        raise ContentError("no design named %r" % name)
+        raise ContentError("no active design named %r" % name, "content_designs lists them")
     d = hit[0]
     os.makedirs(DISABLED, exist_ok=True)
     if os.path.exists(d["file"]):
         dest = os.path.join(DISABLED, os.path.basename(d["file"]))
+        if os.path.exists(dest):                 # an older design of the same name was disabled before: keep both
+            root, ext = os.path.splitext(dest)
+            dest = "%s-%s%s" % (root, time.strftime("%Y%m%d-%H%M%S"), ext)
         try:
             os.replace(d["file"], dest)             # a rename: all or nothing
         except PermissionError:
@@ -320,3 +324,165 @@ def model_building(name: str, width: float, depth: float, height: float, wall=(2
     items.append(entry)
     _save_manifest(items)
     return dict(entry, note="the game loads plugins at start-up: quit_game and game_launch, then build_menu")
+
+
+# ---- growable buildings (stage 3): designs that grow in zones like the game's own houses, shops and factories
+PURPOSES = {"residential": 1, "commercial_services": 2, "commercial_office": 3, "tourism": 4, "agriculture": 5,
+            "industrial_processing": 6, "industrial_manufacturing": 7, "industrial_high_tech": 8}
+P_ZONE_TYPES, P_WEALTH_TYPES, P_PURPOSE_TYPES, P_LOT_SIZE = 0x88EDC793, 0x88EDC795, 0x88EDC796, 0x88EDC790
+P_LOT_FAMILY, P_STAGE, P_FAMILY, P_CAPACITY = 0x88EDC791, 0x27812837, 0x27812870, 0x27812834
+_growables: list[dict] | None = None
+
+
+def growable_templates() -> list[dict]:
+    """The game's growable lots (SimCity_1.dat) with their zone types, wealth, purpose, size, growth stage and the
+    building family they take, plus one building of that family (its exemplar's parent cohort carries the family)."""
+    global _growables
+    if _growables is not None:
+        return _growables
+    d = gamedata._main_dat()
+    if d is None:
+        raise ContentError("the game's SimCity_1.dat was not found")
+    cohort_family: dict[int, list] = {}
+    members: dict[tuple, list[int]] = {}
+    for e in d:
+        if e.type == dbpf.T_COHORT:
+            for p in dbpf.parse_exemplar(d.read(e)).props:
+                if p.id == P_FAMILY:
+                    for f in (p.values if isinstance(p.values, list) else [p.values]):
+                        cohort_family.setdefault(f, []).append(e.tgi)
+        elif e.type == dbpf.T_EXEMPLAR and e.group != G_LOTS:
+            ex = dbpf.parse_exemplar(d.read(e))
+            members.setdefault(tuple(ex.parent), []).append(e.instance)
+    out = []
+    for e in d.find(dbpf.T_EXEMPLAR, G_LOTS, None):
+        pr = {p.id: p.values for p in dbpf.parse_exemplar(d.read(e)).props}
+        zt = pr.get(P_ZONE_TYPES)
+        if not zt or zt in ([15], 15) or not pr.get(P_PURPOSE_TYPES) or not pr.get(P_LOT_FAMILY):
+            continue
+        fam = pr[P_LOT_FAMILY][0] if isinstance(pr[P_LOT_FAMILY], list) else pr[P_LOT_FAMILY]
+        blds = [b for c in cohort_family.get(fam, []) for b in members.get(tuple(c), [])]
+        if not blds:
+            continue
+        stage = pr.get(P_STAGE)
+        wealth = pr.get(P_WEALTH_TYPES) or [0]
+        purpose = pr[P_PURPOSE_TYPES]
+        out.append({"lot": e.instance, "zones": zt if isinstance(zt, list) else [zt],
+                    "wealth": wealth[0] if isinstance(wealth, list) else wealth,
+                    "purpose": purpose[0] if isinstance(purpose, list) else purpose,
+                    "size": list(pr.get(P_LOT_SIZE) or [1, 1]),
+                    "stage": stage[0] if isinstance(stage, list) else stage, "family": fam, "building": blds[0]})
+    _growables = out
+    return out
+
+
+def growable_building(name: str, purpose: str, wealth: int, width: float, depth: float, height: float,
+                      wall=(205, 195, 170), roof=(90, 90, 95), windows: bool = True, lot_size=(1, 1),
+                      stage: int = 0, capacity: int = 0, description: str = "", taken: set[int] | None = None) -> dict:
+    """A building that grows in zones, with its own model, on its own lot. The lot and building of a game growable
+    of the same purpose, wealth and size (closest growth stage) give the zone types, demand, capacity, pollution and
+    the rest; the design gets a building family of its own (its lot and building only go with each other) and the
+    generated model. Written as a plugin into SiMCP's Plugins folder."""
+    from . import fsh, s3d
+    if purpose not in PURPOSES:
+        raise ContentError("purpose is one of %s" % ", ".join(PURPOSES))
+    if any(dd["name"].lower() == name.lower() and not dd.get("disabled") for dd in _manifest()):
+        raise ContentError("a design named %r exists" % name, "content_designs lists them")
+    lw, ld = int(lot_size[0]), int(lot_size[1])
+    if not (1 <= lw <= 6 and 1 <= ld <= 6):
+        raise ContentError("lots are 1 to 6 cells a side")
+    if not (2 <= width <= 16 * lw - 1 and 2 <= depth <= 16 * ld - 1 and 2 <= height <= 400):
+        raise ContentError("the building must fit its lot: width 2..%d m, depth 2..%d m, height 2..400 m"
+                           % (16 * lw - 1, 16 * ld - 1))
+    pid = PURPOSES[purpose]
+    cands = [t for t in growable_templates() if t["purpose"] == pid and t["wealth"] == wealth]
+    if not cands:
+        raise ContentError("the game has no growable %s lots of wealth %d" % (purpose, wealth),
+                           "wealth is 1 ($), 2 ($$) or 3 ($$$); agriculture and industry have fewer kinds")
+    same = [t for t in cands if t["size"] == [lw, ld]] or \
+        sorted(cands, key=lambda t: abs(t["size"][0] - lw) + abs(t["size"][1] - ld))[:20]
+    tpl = min(same, key=lambda t: abs((t["stage"] or 1) - (stage or 1)))
+    _, lot = _find_exemplar(dbpf.T_EXEMPLAR, tpl["lot"], G_LOTS)
+    _, bld = _find_exemplar(dbpf.T_EXEMPLAR, tpl["building"], not_group=G_LOTS)
+    if lot is None or bld is None:
+        raise ContentError("the template lot or building could not be read")
+    lot_iid, bld_iid, family = _new_ids(taken or set(), 3)
+    model_iid = _free(dbpf.T_S3D, G_MODELS, 0xFFFF0000, taken or set())
+    tex_iid = _free(dbpf.T_FSH, G_TEXTURES, 0xFFFFFF00, taken or set())
+    # the lot: the template's settings and its building and texture rows (props and flora are dropped: they could
+    # stand inside the new building); the building row names the new family with the new footprint
+    rows, kept = [], []
+    for p in lot.props:
+        if LOT_ROW0 <= p.id <= 0x88EDCDFF and p.multi and p.values:
+            rows.append(list(p.values))
+        else:
+            kept.append(dbpf.Property(p.id, p.ptype, list(p.values) if isinstance(p.values, list) else p.values,
+                                      p.multi))
+    same_size = tpl["size"] == [lw, ld]
+    side_x, side_z = 16.0 * lw, 16.0 * ld
+    new_rows = []
+    for r in rows:
+        if r[0] == 0:
+            cx, cz = (r[3] / 65536.0, r[5] / 65536.0) if same_size else (side_x / 2, side_z / 2)
+            cx = min(max(cx, width / 2 + 0.5), side_x - width / 2 - 0.5)
+            cz = min(max(cz, depth / 2 + 0.5), side_z - depth / 2 - 0.5)
+            new_rows.append(r[:3] + [_fx(cx), r[4], _fx(cz), _fx(cx - width / 2), _fx(cz - depth / 2),
+                                     _fx(cx + width / 2), _fx(cz + depth / 2)] + r[10:12] + [family])
+        elif r[0] == 2 and same_size:
+            new_rows.append(r)
+    if not same_size:
+        new_rows.append([2, 0, 0, _fx(side_x / 2), 0, _fx(side_z / 2), _fx(0.04), _fx(0.04), _fx(side_x + 0.04),
+                         _fx(side_z + 0.04), 0, 2, PAVING])
+    if not any(r[0] == 0 for r in new_rows):
+        raise ContentError("the template lot has no building row")
+    lprops = list(kept)
+    _set(lprops, P_NAME, dbpf.PT_STRING, "SiMCP_" + _slug(name))
+    _set(lprops, P_LOT_FAMILY, dbpf.PT_UINT32, [family], multi=True)
+    _set(lprops, P_LOT_SIZE, dbpf.PT_UINT8, [lw, ld], multi=True)
+    if stage:
+        _set(lprops, P_STAGE, dbpf.PT_UINT8, [int(stage)])
+    for i, r in enumerate(new_rows):
+        lprops.append(dbpf.Property(LOT_ROW0 + i, dbpf.PT_UINT32, r, True))
+    # the building: the template's own properties (capacity, groups, costs) under its parent cohort, with the new
+    # family, name, size and model
+    bprops = _drop([dbpf.Property(p.id, p.ptype, list(p.values) if isinstance(p.values, list) else p.values,
+                                  p.multi) for p in bld.props], P_NAME_KEY, P_DESC_KEY, P_RKT1, P_RKT4)
+    _set(bprops, P_NAME, dbpf.PT_STRING, name)
+    _set(bprops, P_NAME_KEY, dbpf.PT_UINT32, [dbpf.T_LTEXT, G_SIMCP_NAMES, bld_iid], multi=True)   # query name
+    _set(bprops, P_FAMILY, dbpf.PT_UINT32, [family], multi=True)
+    _set(bprops, P_SIZE, dbpf.PT_FLOAT32, [float(width), float(height), float(depth)], multi=True)
+    _set(bprops, P_RKT0, dbpf.PT_UINT32, [dbpf.T_S3D, G_MODELS, model_iid], multi=True)
+    # building styles (occupant groups 0x2000 Chicago 1890, 0x2001 New York 1940, 0x2002 Houston 1990, 0x2003
+    # Euro-contemporary): a city grows only the styles it has switched on, so a design carries all four
+    grp = next((p for p in bprops if p.id == P_GROUPS), None)
+    if grp is not None and isinstance(grp.values, list):
+        grp.values = [g for g in grp.values if not 0x2000 <= g <= 0x2003] + [0x2000, 0x2001, 0x2002, 0x2003]
+    cap = next((p for p in bprops if p.id == P_CAPACITY), None)
+    if capacity and cap is not None and isinstance(cap.values, list) and len(cap.values) >= 2:
+        cap.values = [cap.values[0], int(capacity)] + list(cap.values[2:])
+    wall_fsh = fsh.write_argb(32, 32, wall_tile(tuple(wall), windows))
+    roof_fsh = fsh.write_argb(8, 8, solid(tuple(roof)))
+    model = s3d.write(box_mesh(width, depth, height, tex_iid, tex_iid + 1))
+    records = [(dbpf.T_EXEMPLAR, G_SIMCP_BUILDINGS, bld_iid, dbpf.build_exemplar(bprops, bld.parent)),
+               (dbpf.T_EXEMPLAR, G_LOTS, lot_iid, dbpf.build_exemplar(lprops, lot.parent)),
+               (dbpf.T_S3D, G_MODELS, model_iid, model),
+               (dbpf.T_FSH, G_TEXTURES, tex_iid, wall_fsh),
+               (dbpf.T_FSH, G_TEXTURES, tex_iid + 1, roof_fsh),
+               (dbpf.T_LTEXT, G_SIMCP_NAMES, bld_iid, dbpf.build_ltext(name))]
+    os.makedirs(FOLDER, exist_ok=True)
+    path = os.path.join(FOLDER, "SiMCP_%s.dat" % _slug(name))
+    dbpf.write_dbpf(path, records)
+    cap_now = next((p.values for p in bprops if p.id == P_CAPACITY), None)
+    entry = {"name": name, "kind": "growable", "file": path, "lot": "0x%08X" % lot_iid,
+             "building": "0x%08X" % bld_iid, "family": "0x%08X" % family, "model": "0x%08X" % model_iid,
+             "texture": "0x%08X" % tex_iid, "size_m": [width, depth, height], "lot_size": [lw, ld],
+             "purpose": purpose, "wealth": wealth, "zones": tpl["zones"],
+             "stage": int(stage) or tpl["stage"], "capacity": cap_now, "description": description,
+             "template": {"lot": "0x%08X" % tpl["lot"], "building": "0x%08X" % tpl["building"],
+                          "size": tpl["size"], "stage": tpl["stage"]},
+             "created": time.strftime("%Y-%m-%d %H:%M:%S")}
+    items = _manifest()
+    items.append(entry)
+    _save_manifest(items)
+    return dict(entry, note="the game loads plugins at start-up: quit_game and game_launch; the design then grows on "
+                            "zoned land of its zone and wealth when demand calls for it")

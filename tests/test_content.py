@@ -49,3 +49,26 @@ def test_fsh_argb_round_trip():
 def test_wall_tile_and_fixed_point():
     assert len(content.wall_tile((200, 100, 50))) == 32 * 32 * 4
     assert content._fx(16.0) == 1048576 and content._fx(0.04) == 2621
+
+
+def test_growable_design(tmp_path, monkeypatch):
+    """A growable design from the game's own data (skipped where SimCity_1.dat is not installed)."""
+    import pytest
+    from sc4_mcp import dbpf, gamedata
+    if gamedata._main_dat() is None:
+        pytest.skip("the game's data files are not installed")
+    monkeypatch.setattr(content, "FOLDER", str(tmp_path))
+    monkeypatch.setattr(content, "MANIFEST", str(tmp_path / "content.json"))
+    r = content.growable_building("Test House", "residential", 1, 9, 14, 7, lot_size=(1, 2), stage=1)
+    d = dbpf.DBPF(r["file"])
+    ex = {e.group: dbpf.parse_exemplar(d.read(e)) for e in d if e.type == dbpf.T_EXEMPLAR}
+    lot = {p.id: p.values for p in ex[content.G_LOTS].props}
+    bld = {p.id: p.values for p in ex[content.G_SIMCP_BUILDINGS].props}
+    fam = int(r["family"], 16)
+    assert lot[content.P_LOT_FAMILY] == [fam] and bld[content.P_FAMILY] == [fam]
+    rows = [v for k, v in lot.items() if content.LOT_ROW0 <= k <= 0x88EDCDFF]
+    assert [r_[12] for r_ in rows if r_[0] == 0] == [fam]
+    assert lot[content.P_LOT_SIZE] == [1, 2] and lot[content.P_STAGE] == [1] and lot[content.P_PURPOSE_TYPES] == [1]
+    assert {0x2000, 0x2001, 0x2002, 0x2003} <= set(bld[content.P_GROUPS])            # every building style
+    assert bld[content.P_NAME_KEY] == [dbpf.T_LTEXT, content.G_SIMCP_NAMES, int(r["building"], 16)]
+    assert any(e.type == dbpf.T_LTEXT for e in d)

@@ -35,6 +35,24 @@ DLG_CITY_SAVED = 0xAA8DEF97  # the "City Saved. (file)" notice, button OK (id 0)
 REGION_GET_NAME = 3          # cISC4Region::GetName -> SC4String* (a cRZString)
 
 
+CRASH_LOG = os.path.join(launch.ROOT, "crash.log")
+
+
+def crash_log(pid: int | None = None) -> list[str]:
+    """Faults the bridge saw in the game's own code (its vectored handler writes them to crash.log: time, pid,
+    exception, address, registers and return addresses into the game), for one game process or all."""
+    try:
+        with open(CRASH_LOG, encoding="latin-1") as f:
+            text = f.read().splitlines()
+    except OSError:
+        return []
+    out = []
+    for i, line in enumerate(text):
+        if " pid " in line and (pid is None or " pid %d " % pid in line):
+            out.append(line + (" |" + text[i + 1].strip() if i + 1 < len(text) and text[i + 1].startswith("  ") else ""))
+    return out
+
+
 class GameError(RuntimeError):
     def __init__(self, msg: str, hint: str = ""):
         super().__init__(msg)
@@ -113,7 +131,11 @@ class Game:
     def status(self) -> dict:
         pids = win32.find_pids(identity.EXE_NAME)
         if not pids:
-            return {"running": False}
+            out = {"running": False}
+            last = crash_log()
+            if last:
+                out["last_crashes"] = last[-3:]
+            return out
         try:
             self.attach(5.0)
         except GameError as e:
@@ -125,6 +147,9 @@ class Game:
         city = memory.city_basics(self.proc)
         if city:
             out["city"] = city
+        crashes = crash_log(self.proc.pid)
+        if crashes:
+            out["faults_in_game_code"] = crashes[-3:]
         faults = self.bridge.faults() if self.bridge and self.bridge.block else 0
         if faults:
             out["faults_caught"] = faults

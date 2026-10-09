@@ -391,3 +391,18 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   resampled) and the island picture by image_path (converted to 8 bits by Pillow), each in 51 s; tile (1, 1) opened
   as an island corner sloping to the sea. Both tools refuse MCP Test (founded cities) and a region the view is not
   showing.
+- **Growable designs** (MCP Village, after a game restart each time): content.growable_building copies a game
+  growable lot of the purpose / wealth / size (the index finds 1727: lot property 88EDC791 names a building family;
+  the family's buildings are exemplars whose parent cohort carries 27812870) and one building of that family, and
+  gives both a new family, the generated model (RKT0) and the size. Checks: the lot configuration manager listed
+  "SiMCP_MCP_Cottage" (1x1, zones 1-3) and BuildingDevelopmentSim (vtable 0xAB0AF8; Windows slots 15
+  IsBuildingTypeValid, 16 IsBuildingFamilyTypeValid, 20 IsBuildingInFamily - one above the header) knew the
+  building and family. Growth: 1x1 lots from 1-cell-deep R$ strips never developed in 5 months with any 1x1 design
+  (ours at stage 1 or 2, a pure clone of the Maxis house with its own model) - they stay "ready" - while 2-deep
+  strips grew 68 houses (1x2) within a month. A 1x2 design did not grow until its occupant groups carried every
+  building style (0x2000-0x2003; the template's 0x2003 Euro-contemporary alone was never picked here): then 5 of 68
+  lots grew "MCP Long Cottage" (white walls, green roof) beside Maxis Tiny Bungalows and Cottages, occupied. The
+  query name needs an LTEXT (name key 8A416A99 -> 2026960B-5C4D0F01-<building>); without one the game says
+  "Building". One game exit (pid 43732) left no trace in the event log; the bridge now writes faults raised in the
+  game's own code to `<SiMCP home>\crash.log` (vectored handler; pid, address, registers, return addresses), and
+  game_status reports them - none since.

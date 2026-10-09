@@ -1268,6 +1268,40 @@ def design_model_building(name: str, width_m: float, depth_m: float, height_m: f
                     windows, lot_cells, description, plop_cost, monthly_cost)
 
 
+@tool(mcp, "act")
+@guarded
+def design_growable_building(name: str, purpose: str, wealth: int, width_m: float, depth_m: float, height_m: float,
+                             wall_rgb: list[int], roof_rgb: list[int], windows: bool = True, lot_width: int = 1,
+                             lot_depth: int = 2, stage: int = 0, capacity: int = 0, description: str = "") -> dict:
+    """Design a building that grows by itself in zones (a house, shop, office or factory) with its own 3D model and
+    lot. A game growable of the same purpose, wealth and lot size lends its zone types, demand, pollution and
+    capacity; the design gets its own building family and carries all four building styles, so the city may grow
+    it on fitting zoned lots when demand calls for it. Written as a plugin into SiMCP's own Plugins folder; the
+    game loads it at start-up (quit_game, game_launch).
+
+    Args:
+        name: the building's name (shown in its query window).
+        purpose: residential, commercial_services, commercial_office, agriculture, industrial_processing,
+            industrial_manufacturing or industrial_high_tech.
+        wealth: 1 ($), 2 ($$) or 3 ($$$) (industry and agriculture have fewer kinds).
+        width_m: west-east size in metres (it must fit the lot: 16 m per cell).
+        depth_m: north-south size in metres.
+        height_m: height in metres (2..400).
+        wall_rgb: wall colour [r, g, b].
+        roof_rgb: roof colour [r, g, b].
+        windows: draw a window on every 4 m x 4 m of wall.
+        lot_width: lot width in cells along the road (1..6). Lots one cell deep rarely develop; 2 deep is common.
+        lot_depth: lot depth in cells (1..6).
+        stage: growth stage (1 = the earliest; 0 = the template's).
+        capacity: residents or jobs (0 = the template's).
+        description: a note kept in the design list.
+    """
+    if len(wall_rgb) != 3 or len(roof_rgb) != 3 or not all(0 <= c <= 255 for c in list(wall_rgb) + list(roof_rgb)):
+        return {"error": "colours are [r, g, b] with values 0..255"}
+    return _content(content.growable_building, name, purpose, int(wealth), width_m, depth_m, height_m,
+                    tuple(wall_rgb), tuple(roof_rgb), windows, (lot_width, lot_depth), stage, capacity, description)
+
+
 @tool(mcp, "destructive")
 @guarded
 def disable_design(name: str) -> dict:

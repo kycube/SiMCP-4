@@ -448,9 +448,67 @@ static void RemovePickHook(void) {
 	g_bridge.pickInstalled = 0;
 }
 
+// ---- crash log: a vectored exception handler notes faults raised in the game's own code (not inside the bridge's
+// guarded calls) in %USERPROFILE%\SiMCP-4\crash.log - the game exits silently on a crash, so this is the only trace.
+static PVOID g_veh;
+static volatile LONG g_inBridgeCall;
+static int g_crashLogged;
+
+static void CrashLog(EXCEPTION_POINTERS *ep) {
+	char path[MAX_PATH + 32];
+	DWORD n = GetEnvironmentVariableA("USERPROFILE", path, MAX_PATH);
+	if (!n || n >= MAX_PATH)
+		return;
+	lstrcatA(path, "\\SiMCP-4\\crash.log");
+	HANDLE h = CreateFileA(path, FILE_APPEND_DATA, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (h == INVALID_HANDLE_VALUE)
+		return;
+	char buf[2048];
+	SYSTEMTIME t;
+	GetLocalTime(&t);
+	EXCEPTION_RECORD *er = ep->ExceptionRecord;
+	CONTEXT *c = ep->ContextRecord;
+	int len = _snprintf(buf, sizeof(buf) - 1,
+		"%04d-%02d-%02d %02d:%02d:%02d pid %lu exception 0x%08lX at 0x%08lX (%s 0x%08lX) eax %08lX ebx %08lX "
+		"ecx %08lX edx %08lX esi %08lX edi %08lX ebp %08lX esp %08lX\r\n  stack:",
+		t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute, t.wSecond, GetCurrentProcessId(), er->ExceptionCode,
+		(DWORD)(UINT_PTR)er->ExceptionAddress, er->NumberParameters >= 2 && er->ExceptionInformation[0] ? "writing" : "reading",
+		er->NumberParameters >= 2 ? (DWORD)er->ExceptionInformation[1] : 0, c->Eax, c->Ebx, c->Ecx, c->Edx, c->Esi, c->Edi,
+		c->Ebp, c->Esp);
+	DWORD *sp = (DWORD *)(UINT_PTR)c->Esp;
+	int found = 0;
+	for (int i = 0; i < 256 && found < 16 && len < (int)sizeof(buf) - 16; i++) {
+		DWORD v;
+		if (IsBadReadPtr(sp + i, 4))
+			break;
+		v = sp[i];
+		if (v >= 0x401000 && v < 0xA80000) {     // a return address into SimCity 4.exe (probably)
+			len += _snprintf(buf + len, sizeof(buf) - 1 - len, " %08lX", v);
+			found++;
+		}
+	}
+	len += _snprintf(buf + len, sizeof(buf) - 1 - len, "\r\n");
+	DWORD w;
+	WriteFile(h, buf, len, &w, NULL);
+	CloseHandle(h);
+}
+
+static LONG CALLBACK CrashVeh(EXCEPTION_POINTERS *ep) {
+	DWORD code = ep->ExceptionRecord->ExceptionCode;
+	if ((code == EXCEPTION_ACCESS_VIOLATION || code == EXCEPTION_ILLEGAL_INSTRUCTION ||
+	     code == EXCEPTION_INT_DIVIDE_BY_ZERO || code == EXCEPTION_PRIV_INSTRUCTION ||
+	     code == EXCEPTION_ARRAY_BOUNDS_EXCEEDED) && !g_inBridgeCall && g_crashLogged < 20) {
+		g_crashLogged++;
+		CrashLog(ep);
+	}
+	return EXCEPTION_CONTINUE_SEARCH;
+}
+
 extern "C" __declspec(dllexport) DWORD __stdcall SimcpBridgeAttach(void *plug) {
 	g_plug = (DWORD *)plug;
 	InstallPickHook();
+	if (!g_veh)
+		g_veh = AddVectoredExceptionHandler(1, CrashVeh);
 	g_bridge.plug = (DWORD)(UINT_PTR)plug;
 	g_bridge.module = (DWORD)(UINT_PTR)g_hModule;
 	return (DWORD)(UINT_PTR)&g_bridge;
@@ -461,6 +519,7 @@ extern "C" __declspec(dllexport) int __stdcall SimcpBridgeExecute(DWORD op) {
 	g_bridge.msg[0] = 0;
 	memset(g_bridge.ret, 0, sizeof(g_bridge.ret));
 	int status;
+	InterlockedIncrement(&g_inBridgeCall);
 	__try {
 		status = Execute(op);
 	}
@@ -469,6 +528,7 @@ extern "C" __declspec(dllexport) int __stdcall SimcpBridgeExecute(DWORD op) {
 		g_bridge.faults++;
 		status = -100;
 	}
+	InterlockedDecrement(&g_inBridgeCall);
 	g_bridge.status = status;
 	g_bridge.doneSeq = g_bridge.seq;
 	return status;
@@ -476,6 +536,7 @@ extern "C" __declspec(dllexport) int __stdcall SimcpBridgeExecute(DWORD op) {
 
 extern "C" __declspec(dllexport) int __stdcall SimcpBridgeRunDeferred(DWORD) {
 	int status = 0;
+	InterlockedIncrement(&g_inBridgeCall);
 	__try {
 		if (g_defer.kind == 1)
 			g_bridge.state.deferRet = RunCommandText(g_defer.text);
@@ -486,6 +547,7 @@ extern "C" __declspec(dllexport) int __stdcall SimcpBridgeRunDeferred(DWORD) {
 		g_bridge.faults++;
 		status = -100;
 	}
+	InterlockedDecrement(&g_inBridgeCall);
 	g_bridge.state.deferStatus = status;
 	g_bridge.state.deferDone = g_bridge.state.deferPosted;
 	return status;
@@ -493,6 +555,10 @@ extern "C" __declspec(dllexport) int __stdcall SimcpBridgeRunDeferred(DWORD) {
 
 extern "C" __declspec(dllexport) void __stdcall SimcpBridgeDetach(void) {
 	RemovePickHook();
+	if (g_veh) {
+		RemoveVectoredExceptionHandler(g_veh);
+		g_veh = NULL;
+	}
 	g_plug = NULL;
 }
 

@@ -1,7 +1,7 @@
 """What the player can plop: the game's build menus, read from the game's loaded lots and exemplars (so plugins
 are included, with the game's own override order), with the menus' availability rules.
 
-Sources (re/agents/lots, re/agents/formats, LIVE_FACTS Phase 3):
+Sources (re/reports/lots, re/reports/formats, LIVE_FACTS Phase 3):
 - Lot configurations: the lot configuration manager's hash table (buckets [0xB216CC]..[0xB216D0], node {next, IID,
   cSC4LotConfiguration*}). A configuration has its name (cRZString +0xC), size (bytes +0x20/+0x21), zone types (an
   STLport bit vector +0x44: {word*, bit, word*, bit, end}), and objects (vector +0x90 of 0x34-byte rows; a row of

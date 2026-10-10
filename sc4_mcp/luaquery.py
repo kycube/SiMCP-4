@@ -1,4 +1,4 @@
-"""Read-only questions to the game's Lua state - the advisors' city figures (re/agents/lua-udi R1, LIVE_FACTS).
+"""Read-only questions to the game's Lua state - the advisors' city figures (re/reports/lua-udi R1, LIVE_FACTS).
 
 The app's Lua interpreter (cISC4App slot 47, cISCLua vtable 0xAC4148) runs the advisor scripts. The game keeps
 about 300 city figures in it as `game.g_*` (population per zone and wealth, tile counts, coverage, funds...) and

@@ -1,4 +1,4 @@
-"""The virtual pointer: using the game's own tools on cells SiMCP chooses (re/agents/build section 6).
+"""The virtual pointer: using the game's own tools on cells SiMCP chooses (re/reports/build section 6).
 
 Every city tool (network, zone, plop, bulldozer, flora, disasters, dispatch, terrain brushes, My Sim move-in...)
 asks the city view where the mouse points through the view's PickTerrain (vtable slot 36). The bridge hooks that

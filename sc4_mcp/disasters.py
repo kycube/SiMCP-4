@@ -1,4 +1,4 @@
-"""Disasters and emergency dispatch, as the player starts them (re/agents/view-disasters Q1/Q2, LIVE_FACTS Phase 3).
+"""Disasters and emergency dispatch, as the player starts them (re/reports/view-disasters Q1/Q2, LIVE_FACTS Phase 3).
 
 Disasters: the god-mode Disasters menu items are exemplars in group 0x29B6C670; selecting one makes the
 disaster tool (category 0x4A2B2464, the item's instance) and a click on the map starts it - through SiMCP's virtual

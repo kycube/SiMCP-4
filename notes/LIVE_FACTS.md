@@ -30,7 +30,7 @@ verified. Where a static report disagrees with this file, this file wins.
   dangling, no DLL loaded (window title "SimCity 4" instead of "SC4Fix r7", no DLL logs). Links to the absolute
   file path work: all 12 DLLs loaded from the mirror and logged into it.
 - **Only one instance**: a second `SimCity 4.exe` started while one runs exits within seconds, before loading
-  plugins. Cause (re/agents/framework): the named mutex "SimCity 4 Mutex"; Maxis' own `-AllowMultipleInstances`
+  plugins. Cause (re/reports/framework): the named mutex "SimCity 4 Mutex"; Maxis' own `-AllowMultipleInstances`
   switch skips the check - verified: SiMCP's instance ran beside the player's elevated one for an hour.
 - **Explorer applies GOG's compatibility layer through the junction**: a desktop shortcut whose target is
   `<junction>\Apps\SimCity 4.exe` started the game elevated (a normal-user `taskkill` got "Access is denied"),
@@ -51,7 +51,7 @@ Scripts: `live/t1_bridge.py`, `live/t2_stdio.py`.
 - **Plugin lifecycle** (simcp4.log): InitializeCOM, OnStart, AddHook, then the hooks PreFrameWorkInit / PreAppInit /
   PostAppInit, all on the main thread (one thread id). In PostAppInit: framework->Application() + QI 0x26CE01C0
   gave cISC4App 0x02CE0020 = cSC4App+0xC (cIGZApp 0x02CE0040 = +0x2C), equal to the global `[0xB43C94]`, vtable
-  0xA86AF0 (re/agents/app-city confirmed); message server 2 and command server from GetSystemService.
+  0xA86AF0 (re/reports/app-city confirmed); message server 2 and command server from GetSystemService.
 - **Inner bridge**: loaded by the plugin with LoadLibraryW on the main thread. x86 `__stdcall` exports are
   decorated (`_SimcpBridgeAttach@4`): GetProcAddress needs `/EXPORT:` aliases. Ping answers on the main thread;
   calling address 0x10 returns status -100 (0xC0000005 caught) and the game keeps running; unload + load (hot
@@ -98,27 +98,27 @@ Scripts: `live/t1_bridge.py`, `live/t2_stdio.py`.
   26) - also after the other copy exits. Screenshot of the city view and the region view taken when alone.
 - **Date vs the game's UI**: memory 2026-02-08 vs the UI's 2/9/26 a second later (slow speed: 2 s per day);
   `advance_time(30)` from 2026-02-11 -> 2026-03-13 in 0.51 s, the UI then shows 3/13/26.
-- **Data layers** (`sc4_mcp/layers.py`, re/agents/datamaps): all 34 grids read (type = low 12 bits of the CLSID at
+- **Data layers** (`sc4_mcp/layers.py`, re/reports/datamaps): all 34 grids read (type = low 12 bits of the CLSID at
   +0x10: 0x49B9E603 -> s8). Konradshohe (128x128): zones u8.. tract 1 (values 0, 2, 3, 5, 9, 14, 15), land value u8
   tract 2, slope f32 tract 8, crime / police / fire tract 2, flammability tract 1, air / water pollution s16 tract 2,
   radiation all 0, power u8 tract 1 with only 0 / 1 / 2 (3443 powered, 62 wired-unpowered cells), water u8 values 0,
   1, 3, 9, 11, 15 (bits), mayor rating s8 tract 4, residential population / EQ / HQ tract 4. Terrain 129x129 vertices,
   sea level 250.0, altitudes 192-283.
   Open: the "garbage" grid (pollution type 2) reads 15450 at the coal plant and -32768 minimum - meaning to verify.
-- **Budget** (re/agents/economy): funds int64 `[B+0x28]` = 206 = GetTotalFunds (slot 6); tax rates floats
+- **Budget** (re/reports/economy): funds int64 `[B+0x28]` = 206 = GetTotalFunds (slot 6); tax rates floats
   `[B+0x70+g*0x80]` (8.9 / 7.0 / 9.0...); monthly income 3327 / expense 3987 (slots 16 / 14, int64 in edx:eax),
   last month 3329 / 3957, end-of-year estimate 39926 / 47814; no loans.
 - **Demand**: DemandSim slot 6 (id, 0x20000) returns cSC4Demand objects (vtable 0xAA2758) for all 12 groups; active
   demand +0x34 (R$ 15951), cap +0x44, max 54000 / min -10000. Residents `[[0xB43DA4]+0xA4]` = 15025.
-- **Lots** (re/agents/lots): the lot list `[LM+0x5C]` walks 741 lots = the count `[LM+0x64]`, every one vtable
+- **Lots** (re/reports/lots): the lot list `[LM+0x5C]` walks 741 lots = the count `[LM+0x64]`, every one vtable
   0xAB19B0; states 730 occupied, 6 under construction, 4 ready, 1 abandoned; the first is the 4x4 plopped coal plant
   at (0..3, 32..35), building type 0x1F4D0000, and BuildingDevelopmentSim slot 38 names it "Coal Power Plant" (slot
   37: "Up64x64_CoalPowerPlant_1F4D"); the cell table `[LM+0x50]` gives the same lot at (1, 33).
-- **Advisors** (re/agents/advisors-ui): the advisor map `[sys+0x4C]` holds ids 1-5 (MySim), 21-30; each advisor's
+- **Advisors** (re/reports/advisors-ui): the advisor map `[sys+0x4C]` holds ids 1-5 (MySim), 21-30; each advisor's
   record vector I+0x7C..+0x80 lists all its advices (Utilities 116, Fluffy News 266...); active ones have flag 2.
   Titles and messages come out detokenized ("Good gravy Mayor Knut ... in Konradshohe"); moods 0 / 1 / 3 / 5 / 7.
   The current-advice list node layout guessed by the report (advice at node+0xC) is wrong - the record vector is used.
-- **AppData is virtualized for this development session**: everything the session's processes wrote under
+- **AppData is virtualized for an MSIX-packaged MCP client**: everything the client's processes wrote under
   `%LOCALAPPDATA%\SiMCP-4` (the junction, SiMCP's user folder) physically lives in
   `AppData\Local\Packages\Claude_<id>\LocalCache\Local\SiMCP-4` (MSIX file-system virtualization of the client app's
   process tree), so Explorer, the player's shortcuts and any MCP client started outside that app did not see it (a
@@ -680,7 +680,7 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
 - **Flora never changes in normal play**: two test flora pointing at each other as successors (0x2A0348BA, duration
   0x2A0348BB = 30, spread 0x2A0348BC = 0; the wild "clump" chains use 18-24 / 7-10) were planted in MCP Village and
   stayed the same type, growth byte +0x2E = 1, through 3 years of exact days and 4 years at fast speed. The flora
-  simulator's growth is off unless the "Flora" debug cheat turns it on (re/agents/cheats), which is also why menu
+  simulator's growth is off unless the "Flora" debug cheat turns it on (re/reports/cheats), which is also why menu
   trees stay saplings (their RKT5 states 0-2 are growth stages; 3+ share sprite atlases; no seasons).
 - **Timed props**: a prop can show only at some hours (0x4A149631 Float32 [from, to], may wrap midnight: parked cars
   [19, 6], skate park [8, 19]) or on some dates (0xCA7515CC Uint8 [month, day], 0x4A764564 days, 0x0A751675 repeat

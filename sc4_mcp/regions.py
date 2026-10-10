@@ -110,7 +110,7 @@ DIFFICULTY = {0: "easy", 1: "medium", 2: "hard"}
 
 
 def read_city(path: str) -> dict:
-    """The region-view record of a saved city (.sc4): cSC4RegionalCity's own serialisation (re/agents/regions Q4).
+    """The region-view record of a saved city (.sc4): cSC4RegionalCity's own serialisation (re/reports/regions Q4).
     v1.13 (cities saved by the game): tile, size, populations, mayor rating (s8 0x24), difficulty (0x25), city
     serial (0x27), founded (0x3F), then length-prefixed strings name, -, mayor, -, utility advisor, description.
     v1.9 / 1.10: the unfounded "New City" tiles shipped with the regions."""

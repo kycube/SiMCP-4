@@ -1,4 +1,4 @@
-"""Budget actions with the game's own functions and the player's limits (re/agents/economy/REPORT.md, verified in
+"""Budget actions with the game's own functions and the player's limits (re/reports/economy/REPORT.md, verified in
 notes/LIVE_FACTS.md): taxes, department funding, ordinances, loans."""
 
 from __future__ import annotations

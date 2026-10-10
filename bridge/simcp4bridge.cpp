@@ -27,10 +27,10 @@ enum {
 	                   // status (0 ok, 2 unknown command / bad parameters), ret[1] = output length; out = output text
 	OP_STEP_DAYS = 21, // args: days, max ms (0 = 250), max steps (0 = 5000) -> ret[0] days done, ret[1] steps,
 	                   // ret[2] day number, ret[3] idle passes, ret[4] one-shots pending, ret[5] 1 = day in progress;
-	                   // the simulator must be hidden-paused (see re/agents/time)
+	                   // the simulator must be hidden-paused (see re/reports/time)
 };
 
-// Game addresses (SimCity 4 1.1.641; re/agents/commands and re/agents/time REPORT.md)
+// Game addresses (SimCity 4 1.1.641; re/reports/commands and re/reports/time REPORT.md)
 #define FN_RZSTRING_CTOR   0x578390   // cRZString::cRZString() (thiscall)
 #define SLOT_RZSTRING_DEL  28         // cRZString scalar deleting destructor (flag 0 = in place)
 #define CS_CREATE_PARAMS   5          // cIGZCommandServer::CreateCommandParameterSet(cIGZCommandParameterSet**)
@@ -165,7 +165,7 @@ static bool ListsFinished(BYTE *S) {
 	return true;
 }
 
-// Advances the simulation by whole days with the game's own day code (re/agents/time REPORT.md section 4).
+// Advances the simulation by whole days with the game's own day code (re/reports/time REPORT.md section 4).
 static int StepDays(int days, DWORD maxMs, int maxSteps, int idlePerDay, int *r) {
 	BYTE *S = (BYTE *)(UINT_PTR)*(DWORD *)G_SIMULATOR;
 	if (!S) {

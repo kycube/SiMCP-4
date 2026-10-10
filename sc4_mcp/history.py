@@ -8,7 +8,7 @@ int32 +8, cRZDate +0xC (vtable, Julian day +0x10)}, oldest first. Simulators add
 Which series exist and what they are called comes from the game's own data: the Graphs window's graph exemplars
 (group 0xCA4AD545: property 0x6A4AEE40 series ids, 0x6A4AEEDC line labels, 0x6A4AEEE2 display scale, 0x8A416A99
 title text key), the advisor scripts' `game_trends` constants (Lua), and the budget's daily tax-rate series
-(0xAABAAA9F + tax group, rate x 10; re/agents/economy). Verified in LIVE_FACTS (Phase 3).
+(0xAABAAA9F + tax group, rate x 10; re/reports/economy). Verified in LIVE_FACTS (Phase 3).
 """
 
 from __future__ import annotations

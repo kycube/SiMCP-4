@@ -1,4 +1,4 @@
-"""Building like the player: networks, zones, lots, bulldozing, trees (re/agents/build/REPORT.md, verified in
+"""Building like the player: networks, zones, lots, bulldozing, trees (re/reports/build/REPORT.md, verified in
 LIVE_FACTS Phase 3).
 
 Every action replays what the game's own tool does after the player's mouse picks the cells: the same calls, the

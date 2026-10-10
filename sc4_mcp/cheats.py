@@ -1,4 +1,4 @@
-"""Cheats: an explicit, logged, vetted tool - not part of honest play (re/agents/cheats, LIVE_FACTS Phase 3).
+"""Cheats: an explicit, logged, vetted tool - not part of honest play (re/reports/cheats, LIVE_FACTS Phase 3).
 
 A cheat runs exactly as typed in the game's cheat box: the cheat code manager [0xB43CAC] slot 22
 DoDefaultCheatCodeProcessing(cIGZString line, &id) matches the line (case-insensitive prefix), notifies the

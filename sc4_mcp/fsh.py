@@ -1,4 +1,4 @@
-"""FSH textures ("SHPI", type 0x7AB50E44): write 32-bit textures, read the game's (re/agents/formats Q4).
+"""FSH textures ("SHPI", type 0x7AB50E44): write 32-bit textures, read the game's (re/reports/formats Q4).
 
 Layout: "SHPI", u32 file size, u32 entry count, 4-char directory id ("G264" for buildings), then per entry a
 4-char name and a u32 offset; each bitmap starts with u32 (code in the low byte, 24-bit offset to the next block or

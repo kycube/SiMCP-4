@@ -1,6 +1,6 @@
 """Reading the game's state straight from memory (no calls into the game).
 
-Addresses are SimCity 4 1.1.641 VAs (the exe is never relocated); see re/agents/app-city/REPORT.md and
+Addresses are SimCity 4 1.1.641 VAs (the exe is never relocated); see re/reports/app-city/REPORT.md and
 notes/LIVE_FACTS.md for how each was found and verified.
 """
 

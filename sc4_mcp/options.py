@@ -1,4 +1,4 @@
-"""Game options: the Play Options dialog and the preferences the game keeps (re/agents/networks-deals Q3).
+"""Game options: the Play Options dialog and the preferences the game keeps (re/reports/networks-deals Q3).
 
 SC4Preferences `[0xB43CD8]` (= app slot 38 GetPreferences, 0x1734 bytes; sub-blocks as in gzcom-dll
 SC4Preferences.h): +0 day / night, +0x4 audio, +0x4A4 app, +0xF08 game options, +0xF0C video. The Play Options

@@ -12,7 +12,7 @@ Thanks for helping. A few rules keep the servers useful to any agent and honest 
   wording in tool text.
 - **No game files in the repository.** No binaries, dumps, textures, models, saved cities or config logs (saved
   cities and the game's config log carry the Windows user name). Reverse-engineering findings go in
-  `re/agents/*/REPORT.md` and `notes/`, with addresses and how they were verified.
+  `re/reports/*/REPORT.md` and `notes/`, with addresses and how they were verified.
 - **Respect the community's licences.** Interface layouts, ids and addresses are facts and may be restated; code
   from LGPL/GPL projects is not copied into this MIT repository. MIT/Apache-2.0 code may be included with its notice.
 - **Verify live.** A tool or recipe is done when it has worked against the running game; note what was checked in

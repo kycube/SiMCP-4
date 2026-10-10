@@ -1,4 +1,4 @@
-"""Region terrain from a height map, and region tile layouts (re/agents/regions Q1, networks-deals Q5; LIVE_FACTS).
+"""Region terrain from a height map, and region tile layouts (re/reports/regions Q1, networks-deals Q5; LIVE_FACTS).
 
 Layout: a region's config.bmp holds one pixel per 1 km grid square: red = a small city tile, green = a medium (2x2
 pixels), blue = a large one (4x4). The game reads it when the region loads.

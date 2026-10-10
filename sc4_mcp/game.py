@@ -362,7 +362,7 @@ class Game:
         return {"view": memory.APP_STATES.get(state, state), "region": self.region_name()}
 
     def advance_days(self, days: int, max_seconds: float = 60.0) -> dict:
-        """Advance the open city by exactly `days` game days with the game's own day code (re/agents/time): the
+        """Advance the open city by exactly `days` game days with the game's own day code (re/reports/time): the
         simulator is hidden-paused for the duration, each day runs all of its day / week / month / year agents, and
         the wall-clock spacing between days is removed. Stops early at max_seconds (remaining_days says how many are
         left). The simulator's previous pause state is restored."""
@@ -460,7 +460,7 @@ class Game:
     # ---- founding, speed, saving
     def found_city(self, name: str, mayor: str, difficulty: str = "easy", timeout: float = 30.0) -> dict:
         """The player's flow: Mayor Mode button (0xC988BC79, city control panel) -> the Establish City dialog: city and
-        mayor name fields, difficulty, Establish City (re/agents/advisors-ui; verified in LIVE_FACTS)."""
+        mayor name fields, difficulty, Establish City (re/reports/advisors-ui; verified in LIVE_FACTS)."""
         from . import dialogs
         b = self.attach(10.0)
         c = memory.city_basics(self.proc)

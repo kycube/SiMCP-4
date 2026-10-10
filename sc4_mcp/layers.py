@@ -1,4 +1,4 @@
-"""Per-cell data layers of the open city, read from memory (re/agents/datamaps/REPORT.md; verified in LIVE_FACTS).
+"""Per-cell data layers of the open city, read from memory (re/reports/datamaps/REPORT.md; verified in LIVE_FACTS).
 
 Most layers are cSC4SimGrid<T> objects held by the simulators: the element type is the CLSID at +0x10, the tract
 size (cells per value) is 1 << [+0x1C], the counts are at +0x20/+0x24, and the values are an STLport vector of

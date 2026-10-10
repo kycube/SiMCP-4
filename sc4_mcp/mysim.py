@@ -1,4 +1,4 @@
-"""My Sims: the five Sims a player can move into the city (re/agents/lua-udi Q5, LIVE_FACTS Phase 3).
+"""My Sims: the five Sims a player can move into the city (re/reports/lua-udi Q5, LIVE_FACTS Phase 3).
 
 The agent simulator (city +0x1AC) keeps five cISC4MySim* at [agent+0x14][0..4]; read through the interface's own
 getters (slot 20 IsActive, 17 age, 16 sign, 18 male, 19 wealth, 25 home name, 26 job name, 11 / 12 residence /

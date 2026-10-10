@@ -1,4 +1,4 @@
-"""The open city's state: budget, demand, lots and buildings, advisors (re/agents/economy, lots, advisors-ui;
+"""The open city's state: budget, demand, lots and buildings, advisors (re/reports/economy, lots, advisors-ui;
 verified live in LIVE_FACTS). Memory reads where the data is a plain field; the game's own getters through the
 bridge where it computes a value (monthly totals, demand objects, building names)."""
 

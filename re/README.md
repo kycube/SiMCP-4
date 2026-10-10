@@ -2,7 +2,7 @@
 
 How SimCity 4 1.1.641 is understood well enough to drive it through its own code.
 
-- `agents/<topic>/REPORT.md`: static-analysis reports, one per subsystem (so far `framework`, `app-city`,
+- `reports/<topic>/REPORT.md`: static-analysis reports, one per subsystem (so far `framework`, `app-city`,
   `commands`, `time`), written from the GOG binary following `notes/RE_BRIEF.md`, with addresses as VAs of `SimCity 4.exe` (base 0x400000, never relocated)
   and a confidence (CONFIRMED / LIKELY / GUESS). The plan is `notes/STATIC_PLAN.md`. Findings are then tested in
   the running game; `notes/LIVE_FACTS.md` records what was verified and how, and wins where they disagree.

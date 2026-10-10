@@ -1,4 +1,4 @@
-"""S3D models ("3DMD", type 0x5AD0E817): read and write (re/agents/formats Q3, loader 0x806FA0).
+"""S3D models ("3DMD", type 0x5AD0E817): read and write (re/reports/formats Q3, loader 0x806FA0).
 
 A model is "3DMD" + total size, then the chunks HEAD (u16 major 1, u16 minor 5), VERT (vertex blocks), INDX (index
 blocks), PRIM (primitive lists: triangle lists by block), MATS (materials, each naming FSH textures by instance),

@@ -1,14 +1,14 @@
 # Static-analysis plan
 
-How the reverse engineering is split between static-analysis subagents (rules: `RE_BRIEF.md`) and live
-verification by the main session (results: `LIVE_FACTS.md`). Each topic below is one subagent with one report
-(`re/agents/<topic>/REPORT.md`); every recipe in a report is verified in the running game before a tool relies on
-it. Waves are ordered by what the next phase needs; topics inside a wave run in parallel.
+How I split the reverse engineering between static analysis (rules and references: `RE_BRIEF.md`) and live
+verification in the running game (results: `LIVE_FACTS.md`). Each topic below has one report
+(`re/reports/<topic>/REPORT.md`); every recipe in a report is verified in the running game before a tool relies on
+it. Waves are ordered by what the next phase needs; the topics inside a wave are independent of each other.
 
 Starting points that SC3K did not have: the community interface headers (gzcom-dll: method order from the Mac
 build), the id catalogue (`sc4-gzids`), the command-system documentation, and a dozen open-source DLLs that call
 or patch 1.1.641 at known addresses. So most questions are "confirm and locate", not "discover". If I
-approve `sc4-ghidra-symbols` (Maxis' names from the Mac port), each brief gets it as an extra reference.
+approve `sc4-ghidra-symbols` (Maxis' names from the Mac port), it becomes an extra reference for every topic.
 
 ## Wave 1 - what the bridge needs (Phase 1)
 
@@ -100,9 +100,9 @@ ranges; what the game needs to show a new building on a new lot in its menus; wh
 
 ## Process
 
-- Each subagent gets: `RE_BRIEF.md`, its topic's numbered questions (above, refined with what LIVE_FACTS knows by
-  then) and a budget of ~100 tool calls. Its final message is saved verbatim as its REPORT.md.
-- The main session verifies each recipe live (through the bridge), records it in `LIVE_FACTS.md` with "verified
-  how", marks the report item resolved, and keeps an open-items list per report until all are closed.
+- Each topic starts from `RE_BRIEF.md` and its numbered questions (above, refined with what LIVE_FACTS knows by
+  then) and ends in its REPORT.md.
+- I verify each recipe live (through the bridge), record it in `LIVE_FACTS.md` with "verified how", mark the
+  report item resolved, and keep an open-items list per report until all are closed.
 - Dangerous probes stay forbidden (lessons from SC3K): no vtable-call tracing on objects shared between threads,
   no read/write hardware watchpoints; write watchpoints with call chains only on throwaway test cities.

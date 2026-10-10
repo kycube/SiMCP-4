@@ -20,7 +20,7 @@ Scratch folder: `<workbench>\re\formats\`. It holds `ex.py` and `dump.py` (exemp
   - 0xAA1DD396 OccupantGroups (Uint32 list): park [0x1005, 0x1006]; the R$ house [0x1000, 0x11010, 0x2002].
   - 0xEA260589 Lot Resource Key = the lot configuration's IID.
   - 0xEA3209F8 Conditional Building, 0xEA2E078B City Exclusion Group.
-  - The menu reads all of these at 0x7EFF40 (rules in `re/agents/lots/REPORT.md`).
+  - The menu reads all of these at 0x7EFF40 (rules in `re/reports/lots/REPORT.md`).
 - Simulation: 0x27812832 Wealth (Uint8 0-3), 0x27812833 Purpose (Uint8), 0x27812834 Capacity Satisfied [demand id, n] (R$ = [0x1010, 6]), 0x27812840 / 0x27812841 Demand Satisfied / Created, 0x27812850 Park Effect and 0x2781284F Landmark Effect [value, radius], 0x27812851 pollution at centre [air, water, garbage, radiation], 0x68EE9764 pollution radii, 0x27812854 power consumed, 0xC8ED2D84 water consumed, 0x29244DB5 flammability, 0x49BEDA31 max fire stage.
 - Family and costs: 0x27812870 Building/prop Family (R 0x1000xxxx, C 0x4000xxxx, I 0x7000xxxx, prop 0xA000xxxx), 0x88FCD877 Building foundation, 0xEA54D283..D286 budget item (department, line, purpose, cost Sint64), 0x8A1C3E72 worth.
 - Prop-only: 0x0ABFC024 AppearanceZoomsFlag (seen 0x10 and 0x18: zoom bitmask, GUESS), 0x8A5E5DB8 Is Ground Model, 0xE9A316EB Prop Wealth, 0x49A1E05A Requester Satisfaction, 0x4A149631 Time of Day, 0x6A5E0727 Active Lot State, 0x4A9F188B Light, 0xC98204B8 effect name, 0x69F14D33 Orient To Slope.

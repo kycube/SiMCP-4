@@ -1,4 +1,4 @@
-"""Props and lot layouts for SiMCP's designs (re/agents/formats Q2, LIVE_FACTS Phase 7).
+"""Props and lot layouts for SiMCP's designs (re/reports/formats Q2, LIVE_FACTS Phase 7).
 
 A lot exemplar lists its objects as rows 0x88EDC900.. (numbered without gaps): [type, detail, orientation, x, y, z,
 minX, minZ, maxX, maxZ, 0, object id, what...] with positions in 16.16 fixed-point metres from the lot's north-west

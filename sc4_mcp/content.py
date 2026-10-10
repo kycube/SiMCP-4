@@ -1,4 +1,4 @@
-"""The content server: new buildings and lots for the game, written as plugin files (re/agents/formats).
+"""The content server: new buildings and lots for the game, written as plugin files (re/reports/formats).
 
 New content goes into one folder of SiMCP's own user folder, `<UserDir>\\Plugins\\zzz_SiMCP` (never the player's
 Plugins folder), loaded after everything else. Each design is one DBPF file with its exemplars; a manifest in

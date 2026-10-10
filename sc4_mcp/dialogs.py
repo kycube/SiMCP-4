@@ -1,4 +1,4 @@
-"""The game's windows and dialogs (re/agents/advisors-ui/REPORT.md section Q3; verified in LIVE_FACTS).
+"""The game's windows and dialogs (re/reports/advisors-ui/REPORT.md section Q3; verified in LIVE_FACTS).
 
 The window manager (cIGZWinMgr, system service 0xA417445E) owns every window: a tree from the main window, each
 node a cGZWin with id +0x10, a child list +0x44, caption cRZString +0x50, rectangle +0xA8..+0xB4 and flags +0xC8
@@ -23,7 +23,7 @@ SLOT_FW_GETSERVICE = 5
 W_ID, W_CHILDREN, W_PARENT, W_CAPTION, W_RECT, W_FLAGS = 0x10, 0x44, 0x48, 0x50, 0xA8, 0xC8
 F_VISIBLE, F_ENABLED, F_MODAL = 0x1, 0x2, 0x1000
 
-# Known dialog roots (UI layout root ids) -> a name (re/agents/advisors-ui)
+# Known dialog roots (UI layout root ids) -> a name (re/reports/advisors-ui)
 KNOWN = {0xAA921F4F: "save or quit", 0x6AAEEC4A: "exit choice", 0x2A96ED21: "save during a disaster",
          0x4A9DB60C: "advisor message", 0xEBB16D71: "mission offer", 0xEBBC081E: "mission result",
          0x4A35B0F2: "tutorial step", 0xEA5E748C: "exit tutorial", 0xAA3AC002: "budget / loans",

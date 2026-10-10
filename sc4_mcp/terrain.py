@@ -1,4 +1,4 @@
-"""Terraforming with the game's terrain brushes (re/agents/build section 5, LIVE_FACTS Phase 3).
+"""Terraforming with the game's terrain brushes (re/reports/build section 5, LIVE_FACTS Phase 3).
 
 The city view's terrain buttons create the brush tool (ctor 0x4D9430(brush, god), vtable 0xA92A10) through the
 tool dispatcher: in a founded city the mayor-mode buttons (category 0x8A313C52) - raise 0xEA33E2FD

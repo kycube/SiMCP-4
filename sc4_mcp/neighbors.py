@@ -1,4 +1,4 @@
-"""Neighbour connections and neighbour deals (re/agents/networks-deals Q2; verified in LIVE_FACTS).
+"""Neighbour connections and neighbour deals (re/reports/networks-deals Q2; verified in LIVE_FACTS).
 
 The neighbours simulator `N = [0xB43D8C]` (vtable 0xAB1EE0) keeps two lists (sentinel*, nodes {next, prev, item +8}):
 connections at +0x1C (cSC4NeighborConnection: +0x24 connection type, +0x28 / +0x2C edge cell, +0x30 / +0x34 the

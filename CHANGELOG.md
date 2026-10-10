@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.12.2
+
+- **Walkers stand on their feet in every direction**: `design_walker` packed each frame at the top of its table cell
+  while anchoring it as if at the bottom, so most directions floated a few pixels above the ground and walkers
+  jumped when they turned. Frames now sit where their anchor says. Rebuild older walker designs with
+  `design_walker(..., replace=true)`.
+- **Notes on how the game draws pedestrians corrected**: both of the closest zooms draw the close frame table (1:1
+  at zoom 5, doubled at zoom 6), the far table is not drawn for pedestrians, pedestrians stand at about twice the
+  city's scale, and the frame table's second byte is the page size as a power of two.
+
 ## 0.12.1
 
 - **Walkers play their whole walk cycle**: a sprite's frame count is its descriptor's last value (the game's

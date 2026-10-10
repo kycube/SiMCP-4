@@ -226,6 +226,35 @@ def test_walker_sprites():
     assert [round(walkers.DIR_DEG[k]) % 360 for k in (0, 2, 4, 6)] == [90, 0, 270, 180]
 
 
+def test_walker_frames_stand_on_their_anchor():
+    """Directions of different heights share a row height; every frame's feet must land on its entry's anchor, read
+    back as the game does - a walker must not jump when it turns."""
+    import numpy as np
+    from sc4_mcp import walkers
+    n = walkers.FRAMES
+    dirs = []
+    for d in range(8):
+        h, ay = 24 + 3 * (d % 3), 20 + 3 * (d % 3)          # canvases 24 / 27 / 30 tall, the feet 4 rows above
+        canv = []
+        for f in range(n):
+            c = np.zeros((h, 16, 4), np.float32)
+            c[:ay, 6:10] = 0.5                               # the body
+            c[ay, 6:10] = 1.0                                # the feet, on the anchor row
+            canv.append(c)
+        dirs.append((canv, (8, ay)))
+    pages, tables = walkers.pack([dirs, dirs])
+    for t in tables:
+        for pg, b, x, y, w, h, ax, ay in t:
+            X, Y = x, y
+            for f in range(n):
+                if X + w > 256:
+                    X, Y = 0, Y + h
+                cell = pages[pg][Y:Y + h, X:X + w]
+                assert cell[ay, ax, 3] == 1.0                    # the feet are on the anchor
+                assert not (cell[ay + 1:, :, 3] > 0).any()       # and nothing is drawn below them
+                X += w
+
+
 def test_lamp_props_have_night_states():
     """A prop with a glowing material gets the game's lamp-post states: night (the model and a light flare at each
     lamp) and day (the model), and the lamp post's light properties."""

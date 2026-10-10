@@ -5,15 +5,20 @@ key, occupant groups 0x4000 / 0x4001 / 0x4107 and 0x4149 men or 0x414A women, un
 key [0x29A5D1EC, 0x49A593E7, i] names a 48-byte sprite descriptor: [0x29A5D1EC, FSH type, group, the atlas, 0x09ADCD75,
 group, 0, 0, 0, the far zoom's frame table, the close zoom's, the frames per direction (the game's walkers: 11)]. The
 atlas is an FSH of 256 x 256 DXT3 pages; a frame table (0x09ADCD75, 100 bytes) has a 32-byte header (type, 8, 1, 1,
-zeros), a count (8) and one 8-byte entry per direction - page, 8 (in every game sprite; not the frame count), x, y,
-width, height, anchor x, anchor y - the direction's frames running left to right from (x, y), wrapping to x = 0,
-y + height at the page's right edge and to (0, 0) of the next page at its bottom (LIVE_FACTS, Phase 11 and the
-2026-10-09 sprite survey: the game's walker tables start each direction 11 frames after the last).
+zeros), a count (8) and one 8-byte entry per direction - page, log2 of the page size (8: 256 pixels), x, y,
+width, height, anchor x, anchor y (the feet, from the frame's top left) - the direction's frames running left to
+right from (x, y), wrapping to x = 0, y + height at the page's right edge and to (0, 0) of the next page at its
+bottom (LIVE_FACTS, Phase 11 and the 2026-10-09 sprite survey: the game's walker tables start each direction 11
+frames after the last).
+
+The game shows pedestrians at its two closest zooms only, both from the close table: 1:1 at zoom 5 and doubled
+(smoothed) at zoom 6; the far table is not drawn for them (measured 2026-10-10). Its own walkers' close frames are
+drawn at the closest zoom's scale, so on screen pedestrians stand at about twice the city's scale at both zooms.
 
 SiMCP draws the figure as a parts model posed for each of 11 walk-cycle frames (legs and arms swinging), as many as
 the game's walkers have, turned to each of 8 headings and rendered with the game's camera and light (batrender) at
-about life size, as the game's walkers are, at the two closest zooms (7 and 14 px per metre); its shadow is the
-figure flattened along the game's sun (half length), a translucent dark patch in the sprite.
+the same scales as the game's walkers (the far table at zoom 5's 7 px per metre, the close one at 14); its shadow is
+the figure flattened along the game's sun (half length), a translucent dark patch in the sprite.
 """
 
 from __future__ import annotations
@@ -38,8 +43,8 @@ TEMPLATE = 0x01600000                       # Ped_male-med01-walk
 GROUPS = {"male": [0x4000, 0x4001, 0x4107, 0x4149], "female": [0x4000, 0x4001, 0x4107, 0x414A]}
 SCALE = 1.08                                # the game's walkers are about life size (a little over)
 FRAMES = 11                                 # frames per direction, as the game's walkers (the descriptor's last value)
-TABLE_B = 8                                 # a frame table entry's second byte: 8 in every game sprite
-ZOOMS = (4, 5)                              # walkers show at the two closest zooms (UI 5 and 6: 7 and 14 px/m)
+TABLE_B = 8                                 # a frame table entry's second byte: log2 of the page size (256)
+ZOOMS = (4, 5)                              # the far and close tables' render scales (7 and 14 px/m), as the game's
 # direction d walks along (cos 45d, sin 45d) in the game's camera-fixed frame (X, Z): 0 along +X, 2 towards the camera
 # (+Z) - found with probe walkers showing their direction (2 and 6 on a north-south street) and the frame widths
 # (wide, narrow, narrow, wide... as the game's own); in the parts frame (x = -X, y = Z) that is 90 - 45d degrees
@@ -191,8 +196,9 @@ def frames(kind: str, colours: dict, zoom: int, probe: bool = False):
 def pack(zoom_sets):
     """Pages (256 x 256 float RGBA) and per zoom 8 entries (page, 8, x, y, w, h, ax, ay), the frames placed by the
     game's rule: left to right from (x, y), wrapping to x = 0, y + h. Every direction of a zoom uses the zoom's
-    tallest frame height so rows never overlap, and a direction whose frames would pass a page's bottom starts on
-    a new page. Every direction must have the same number of frames (the descriptor's)."""
+    tallest frame height so rows never overlap, its frames sitting at the bottom of their cells so the feet (the
+    anchor) stay where the game puts the walker's ground point; a direction whose frames would pass a page's bottom
+    starts on a new page. Every direction must have the same number of frames (the descriptor's)."""
     pages = [np.zeros((256, 256, 4), np.float32)]
     page, x, y = 0, 0, 0
     tables = []
@@ -220,7 +226,7 @@ def pack(zoom_sets):
             for im in canv:
                 if x + w > 256:
                     x, y = 0, y + H
-                pages[page][y:y + im.shape[0], x:x + w] = im
+                pages[page][y + H - im.shape[0]:y + H, x:x + w] = im    # bottom of the cell, as the anchor says
                 x += w
         tables.append(entries)
     return pages, tables

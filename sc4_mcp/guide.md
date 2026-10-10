@@ -370,7 +370,8 @@ Cars
     blue, deep red. Pure saturated colours look like toys.
 
 Pedestrians
-17. design_walker draws a person as the game's walkers are: about life size at the two closest zooms, 8
+17. design_walker draws a person as the game's walkers are: at their scale (pedestrians stand out at about twice the
+    city's scale at the two closest zooms, the only ones that show them), 8
     directions x 11 walk frames (as many as the game's walkers have), a short shadow. Clothes in everyday
     colours (navy, grey, denim, a few warm tops) read as a crowd; one bright colour on everyone looks like a
     uniform.

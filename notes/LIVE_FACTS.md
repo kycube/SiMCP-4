@@ -921,7 +921,9 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   penthouse; generated facades at 14 px per metre (216 triangles; 81 s to render 20 views; 620 KB). Plopped at
   (20, 2) in MCP Town it drew in all four rotations with its own cast shadow, crisp at the closest zoom.
 - **Walkers made** (walkers.py, design_walker): the game's walker tables are its two closest views (UI zooms 5
-  and 6: about 7 and 14 px per metre; the game's walkers are about life size there). Direction d walks along
+  and 6: about 7 and 14 px per metre; the game's walkers are about life size there). (Corrected 2026-10-10: both
+  zooms draw the close table - 1:1 at zoom 5, doubled at zoom 6 - and the far table is not drawn for pedestrians;
+  the close frames are at the 14 px per metre scale, so pedestrians stand at about twice the city's scale.) Direction d walks along
   (cos 45d, sin 45d) in the camera-fixed frame (X, Z): probe walkers with a digit card each (a temporary test
   plugin pointed every "Ped_*-walk" exemplar at them) showed 2 and 6 on a north-south street in MCP Village,
   and of the headings 45 degrees apart only that order gives the game's own frame widths (wide, narrow, narrow,
@@ -1001,3 +1003,19 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   frame) standing in for every game pedestrian (a temporary override plugin, moved to backups afterwards): 40
   snapshots on the north-south street showed only 2s and 6s with bars of every length up to full (frames 1 to 11
   all seen), no card of another direction. "MCP Walker Man" / "MCP Walker Woman" were rebuilt (2 pages each).
+
+## Session 2026-10-10 (how the game draws pedestrian sprites; walkers standing on their feet)
+
+- **Zooms**: probe walkers (cards of a known size standing in for the city's pedestrians) showed at zoom 5 at their
+  stored size and at zoom 6 at twice that, smoothed (bilinear resampling matched the doubled cards about twice as
+  well as nearest-neighbour); none at zoom 4. So both zooms draw the close frame table; the far table is not drawn
+  for pedestrians. Each pedestrian runs its own animation phase, at a fixed rate of about 7.3 frames per second -
+  the same at slow, medium and fast game speed (at fast speed walkers cover about six times the ground per cycle).
+- **The frame table entry's second byte is log2 of the atlas page size**: 8 for the game's 256-pixel pages; with 16
+  every frame lookup landed on the page's corner pixel.
+- **Walkers jumped when turning**: SiMCP's packer gave every direction the row's tallest cell height but wrote each
+  frame at the top of its cell while anchoring as if at the bottom - six of eight directions of "MCP Walker Man"
+  had their anchor 2 - 3 rows below the feet, two at the feet. Frames now sit at the bottom of their cells (the
+  anchor on the feet in every direction, checked on the rebuilt atlas), and the two walker designs were rebuilt.
+  With every pedestrian type pointed at the rebuilt "MCP Walker Man" for a test (a temporary override, moved to the
+  backups folder afterwards), it walked the sidewalks of MCP Village in every direction with its feet on the ground.

@@ -312,7 +312,7 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
   0xACD050, 34 slots; GetDocument slot 21 copies from [iface+0x70] slot 4 -> a buffer whose slot 6 = data, slot 7 =
   length). Reading those directly gave the mission offer's and the mission result's full text ("You didn't get the
   car to the blinking bulls-eye target before time ran out..."); dialog_status now returns it (entities decoded).
-- **Mission attempts** (driving missions are deferred to a later release at the user's request): the road training mission (176 s) failed twice with simple controllers: a slow U-turn at the
+- **Mission attempts** (I've deferred driving missions to a later release): the road training mission (176 s) failed twice with simple controllers: a slow U-turn at the
   start and drifting off the road into the power line's pylons at (27, 29). Offers come and go (withdrawn for a while
   after a failure; no vehicle while the city is paused).
 - **Network map** (MCP Village, 2002): occupant manager `[0xB43D0C]` slot **41** GetOccupantsByStandardCityCells
@@ -784,7 +784,7 @@ All in MCP Town (MCP Test, small, flat at 270 m, easy, funds 1,000,000), game pa
 - **Bridges**: over water the network tool offers bridge ids (GetPossibleBridges); each is an index into the tool's
   bridge table: [[tool + 0x358] + 0x30] (0x358 points at the network type info 0xB452C8 + type * 0x114, set in
   Init), entries of 0x178 bytes with the shown name at +0x15C (GetBridgeName, slot 35) and the icon key at +0x148
-  (slot 40). Road here: 41 (the game's 9, NAM's and the user's bridge plugins: Pont Neuf, Tower Bridge...); rail 39,
+  (slot 40). Road here: 41 (the game's 9, NAM's and the bridge plugins in my Plugins folder: Pont Neuf, Tower Bridge...); rail 39,
   avenue 38. The table is read once from the network INI (type 0, group 0x8A5971C5, instance 0x8A5993B9 - NAM's
   controller overrides the game's) by 0x6253D0: [RoadBridgeExemplars], [AvenueBridgeExemplars]... lines "n =
   0x6534284a, 0xa82ca30f, instance, comment". Bridges are type 7 exemplars in group 0xA82CA30F (name text

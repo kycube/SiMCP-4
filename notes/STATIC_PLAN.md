@@ -7,8 +7,8 @@ it. Waves are ordered by what the next phase needs; topics inside a wave run in 
 
 Starting points that SC3K did not have: the community interface headers (gzcom-dll: method order from the Mac
 build), the id catalogue (`sc4-gzids`), the command-system documentation, and a dozen open-source DLLs that call
-or patch 1.1.641 at known addresses. So most questions are "confirm and locate", not "discover". If the user
-approves `sc4-ghidra-symbols` (Maxis' names from the Mac port), each brief gets it as an extra reference.
+or patch 1.1.641 at known addresses. So most questions are "confirm and locate", not "discover". If I
+approve `sc4-ghidra-symbols` (Maxis' names from the Mac port), each brief gets it as an extra reference.
 
 ## Wave 1 - what the bridge needs (Phase 1)
 

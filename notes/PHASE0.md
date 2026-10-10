@@ -1,11 +1,11 @@
 # Phase 0 (2026-10-08): the build, the environment, the data, the plan
 
-## Decisions (with the user)
+## Decisions
 
 - Project and repository name: **SiMCP 4** (`SiMCP-4`), MIT licence, public on GitHub from the first commit.
   Commits as `kycube <18388061+kycube@users.noreply.github.com>`. Local-only material (scans, dumps, screenshots,
   throwaway scripts, community sources) lives in a workbench folder next to the repository, never in it.
-- The game is launched **outside GOG and without elevation** (the user's call, see "Launching").
+- The game is launched **outside GOG and without elevation** (my call, see "Launching").
 - Still to settle before Phase 1: the questions at the end of this file.
 
 ## The build (re-verified 2026-10-08)
@@ -74,7 +74,7 @@ Command-line switches present in the exe (strings near the parser): `-w`/`-f`, `
 | SC4CustomBudgetDepartments 1.1.0, SC4LegalizeGamblingUpgrade 1.0.0 | version line only |
 | SC4Fix 1.0.7 | no log (window title "SC4Fix r7") |
 
-- The user closed the game from its own menu; no `*_stkdmp.txt`, nothing new in the game folder apart from the
+- I closed the game from its own menu; no `*_stkdmp.txt`, nothing new in the game folder apart from the
   game's own `<computer>-config-log.txt` (it holds the Windows user and computer names: never commit it).
 
 ## Environment pin: plugins (sc4pac lock file, 2026-10-08)
@@ -160,7 +160,7 @@ Licence rule for this MIT repository: facts (interface layouts, ids, addresses, 
 own words and code; no LGPL/GPL source is copied in. MIT/Apache-2.0 material may be included with its notice.
 How the bridge DLL uses gzcom-dll (submodule vs our own minimal declarations) is decided in Phase 1.
 
-Not fetched (large, needs the user's OK): 0xC0000054/sc4-ghidra-symbols (187 MB, Apache-2.0) - symbol information
+Not fetched (large; waiting for my OK): 0xC0000054/sc4-ghidra-symbols (187 MB, Apache-2.0) - symbol information
 extracted from the Mac PowerPC port, i.e. Maxis' own function and class names.
 
 ## Phase 0 deliverables
@@ -170,9 +170,9 @@ extracted from the Mac PowerPC port, i.e. Maxis' own function and class names.
   `notes/STATIC_PLAN.md` (the static-analysis plan), `re/pe.py` + `re/dbpf_inventory.py`.
 - Offline tests (`python -m pytest`) and CI on windows-latest.
 
-## Decisions taken before Phase 1 (with the user, 2026-10-08)
+## Decisions taken before Phase 1 (2026-10-08)
 
-1. **Bridge location: SiMCP's own user folder** (the user left it to us). The game is started with
+1. **Bridge location: SiMCP's own user folder.** The game is started with
    `-UserDir:%USERPROFILE%\SiMCP-4\UserDir\`; its `Plugins` mirrors the player's Plugins root (a junction per
    category folder, a symbolic link per DLL, a copy per INI - rebuilt at each launch by `sc4_mcp/launch.py`) plus
    `simcp4.dll`; it has its own `Regions`, `SimCity 4.cfg` and DLL logs. The player's Documents\SimCity 4 is never
@@ -180,10 +180,10 @@ extracted from the Mac PowerPC port, i.e. Maxis' own function and class names.
 2. **sc4-ghidra-symbols: approved** and fetched (shallow, 12 MB). Its `SimCity4.gdt` was decoded offline into
    the workbench (`ghidra\vftables.txt`, `classes.txt`, `types.json`): 357 vtables named slot by slot, 449 class
    layouts from the Mac build. See RE_BRIEF.md for the ABI caveats.
-3. **Fixture: a new region "MCP Test"** in SiMCP's user folder (recommended by the user because of CAM/NAM):
+3. **Fixture: a new region "MCP Test"** in SiMCP's user folder (my choice, because of CAM/NAM):
    `region.ini` + an 8x4 `config.bmp` (one large, two medium, eight small tiles; flat new land). Experiments
    record the plugin pin.
-4. **The user also plays unelevated**: desktop shortcuts "SimCity 4 (no admin)" (full screen) and "(no admin,
+4. **I also play unelevated**: desktop shortcuts "SimCity 4 (no admin)" (full screen) and "(no admin,
    windowed)" start the game through the junction with the player's normal user folder. sc4pac does not need the
    game elevated (it only writes the Documents Plugins folder).
 

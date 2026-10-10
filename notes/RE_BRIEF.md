@@ -8,7 +8,7 @@ a short report.
 
 1. **STATIC ONLY.** Never launch the game, never attach to, read or write a running `SimCity 4.exe`, never run
    anything in `live\`, never import `sc4_mcp` modules that talk to the game, never use Cheat Engine tools.
-2. Everything in the game folder (`C:\Program Files\GOG Galaxy\Games\SimCity 4 Deluxe Edition`), the user's
+2. Everything in the game folder (`C:\Program Files\GOG Galaxy\Games\SimCity 4 Deluxe Edition`), my
    `Documents\SimCity 4` (Plugins, Regions) and `%APPDATA%\io.github.memo33` is **read-only** for you. Never open
    `sc4pac-profiles.json` (it holds a sign-in token).
 3. Write files **only** in your own scratch folder `<workbench>\re\<topic>\`. Do not edit the repository or any

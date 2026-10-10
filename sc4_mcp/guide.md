@@ -1,6 +1,6 @@
 # SiMCP 4 guide for agents
 
-SiMCP 4 lets you play SimCity 4 Deluxe through the game's own code. The game runs on the user's Windows desktop;
+SiMCP 4 lets you play SimCity 4 Deluxe through the game's own code. The game runs on this computer's Windows desktop;
 you act on it through these tools and read everything back from the game's memory.
 
 ## Start

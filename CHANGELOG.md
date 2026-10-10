@@ -10,7 +10,7 @@
 
 ## 0.12.0
 
-The roadmap's last open items (all but U-Drive-It, left out at the user's request). 114 tools.
+The last open items on my roadmap (all but U-Drive-It, which I've set aside for now). 114 tools.
 
 - **Power plants as designs**: `design_civic_building(kind="coal_power" | "oil_power" | "gas_power" |
   "wind_power")` copies the base game's plant (output 0x27812852, type, pollution, costs) under its own model;

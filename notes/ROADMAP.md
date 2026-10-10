@@ -68,4 +68,4 @@ them.
 - [x] A written guide of what worked: guide topic "realism" (best practices 1 - 18)
 - [x] Older designs brought up to date: upgrade_designs gives single-model designs a turned model per view (the Sign now faces its street), old trees re-rendered; per-view models for shape and OBJ props
 
-U-Drive-It (drivable vehicles, missions) is left out for now, at the user's request.
+I've left U-Drive-It (drivable vehicles, missions) out for now.
